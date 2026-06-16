@@ -1,0 +1,959 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  QA
+  QA_LEAD
+  QA_ENGINEER
+  AUTOMATION_ENGINEER
+  DEVELOPER
+  MANAGER
+  VIEWER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  DRAFT
+}
+
+enum TestStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+  SKIPPED
+  CANCELLED
+}
+
+enum BugSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum BugPriority {
+  P1
+  P2
+  P3
+  P4
+}
+
+enum BugStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ReportType {
+  TEST_SUMMARY
+  COVERAGE
+  PERFORMANCE
+  FLAKY_TESTS
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+model User {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  name        String
+  role        UserRole  @default(VIEWER)
+  avatar      String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  projects          ProjectUser[]
+  tests             Test[]
+  testRuns          TestRun[]
+  bugs              Bug[]               @relation("BugReporter")
+  assignedBugs      Bug[]               @relation("BugAssignee")
+  reports           Report[]
+  notifications     Notification[]
+  jobs              Job[]
+  executions        Execution[]
+  activities        Activity[]
+  refreshTokens     RefreshToken[]
+  FileImport        FileImport[]
+  SecurityScan      SecurityScan[]
+  DependencyScan    DependencyScan[]
+  PerformanceTest   PerformanceTest[]
+  AccessibilityTest AccessibilityTest[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  settings    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  users                 ProjectUser[]
+  tests                 Test[]
+  testRuns              TestRun[]
+  environments          Environment[]
+  reports               Report[]
+  bugs                  Bug[]
+  jobs                  Job[]
+  Execution             Execution[]
+  FileImport            FileImport[]
+  DataImportTemplate    DataImportTemplate[]
+  SecurityScan          SecurityScan[]
+  SecurityAlert         SecurityAlert[]
+  DependencyScan        DependencyScan[]
+  PerformanceTest       PerformanceTest[]
+  ThresholdAlert        ThresholdAlert[]
+  AlertEvent            AlertEvent[]
+  AccessibilityTest     AccessibilityTest[]
+  AccessibilityBaseline AccessibilityBaseline[]
+  File                  File[]
+
+  @@map("projects")
+}
+
+model ProjectUser {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  role      String   @default("member")
+  joinedAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_users")
+}
+
+model Test {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  projectId   String
+  userId      String
+  status      TestStatus @default(DRAFT)
+  config      Json
+  code        String?
+  specFile    String?
+  tags        String[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testRuns TestRun[]
+
+  @@map("tests")
+}
+
+model TestRun {
+  id          String          @id @default(uuid())
+  testId      String
+  userId      String
+  projectId   String
+  executionId String?
+  status      ExecutionStatus @default(PENDING)
+  duration    Int?
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+  error       String?
+  logs        String?
+  metadata    Json?
+  retryCount  Int             @default(0)
+
+  test      Test       @relation(fields: [testId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  execution  Execution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@map("test_runs")
+}
+
+model Environment {
+  id        String   @id @default(uuid())
+  name      String
+  projectId String
+  type      String   @default("staging")
+  baseUrl   String
+  variables Json?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  SecurityScan      SecurityScan[]
+  PerformanceTest   PerformanceTest[]
+  AccessibilityTest AccessibilityTest[]
+
+  @@map("environments")
+}
+
+model Report {
+  id        String     @id @default(uuid())
+  projectId String
+  userId    String
+  type      ReportType
+  name      String
+  summary   Json
+  data      Json?
+  createdAt DateTime   @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model Bug {
+  id           String      @id @default(uuid())
+  title        String
+  description  String?
+  projectId    String
+  userId       String
+  assigneeId   String?
+  testRunId    String?
+  severity     BugSeverity @default(MEDIUM)
+  priority     BugPriority @default(P3)
+  status       BugStatus   @default(OPEN)
+  stackTrace   String?
+  screenshots  String[]
+  videos       String[]
+  logs         String?
+  environment  String?
+  browser      String?
+  tags         String[]
+  jiraKey      String?
+  aiPrediction Json?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user     User    @relation("BugReporter", fields: [userId], references: [id], onDelete: Cascade)
+  assignee User?   @relation("BugAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@map("bugs")
+}
+
+model Job {
+  id        String    @id @default(uuid())
+  name      String
+  projectId String
+  userId    String
+  type      String
+  schedule  String?
+  config    Json
+  status    JobStatus @default(PENDING)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("jobs")
+}
+
+model Execution {
+  id          String          @id @default(uuid())
+  name        String
+  projectId   String
+  userId      String
+  testIds     String[]
+  status      ExecutionStatus @default(PENDING)
+  totalTests  Int             @default(0)
+  passedTests Int             @default(0)
+  failedTests Int             @default(0)
+  duration    Int?
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testRuns TestRun[]
+
+  @@map("executions")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType @default(INFO)
+  title     String
+  message   String
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+model Upload {
+  id           String   @id @default(uuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  @@map("uploads")
+}
+
+model File {
+  id        String   @id @default(uuid())
+  projectId String
+  filename  String
+  mimetype  String
+  path      String
+  size      Int
+  type      String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("files")
+}
+
+enum FileImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum FileType {
+  EXCEL
+  CSV
+  JSON
+  YAML
+}
+
+model FileImport {
+  id               String           @id @default(uuid())
+  name             String
+  projectId        String
+  userId           String
+  fileType         FileType
+  status           FileImportStatus @default(PENDING)
+  totalRows        Int              @default(0)
+  processedRows    Int              @default(0)
+  successRows      Int              @default(0)
+  errorRows        Int              @default(0)
+  originalFilename String
+  storedFilename   String
+  fileSize         Int
+  mimeType         String
+  schema           Json?
+  previewData      Json?
+  errorSummary     Json?
+  settings         Json?
+  createdAt        DateTime         @default(now())
+  completedAt      DateTime?
+  updatedAt        DateTime         @updatedAt
+
+  project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mappings FieldMapping[]
+  errors   ImportError[]
+
+  @@map("file_imports")
+}
+
+model FieldMapping {
+  id             String   @id @default(uuid())
+  importId       String
+  sourceField    String
+  targetField    String
+  fieldType      String   @default("string")
+  isRequired     Boolean  @default(false)
+  defaultValue   String?
+  transformer    String?
+  validationRule String?
+  createdAt      DateTime @default(now())
+
+  import FileImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@map("field_mappings")
+}
+
+model ImportError {
+  id           String   @id @default(uuid())
+  importId     String
+  rowNumber    Int?
+  fieldName    String?
+  value        String?
+  errorType    String
+  errorMessage String
+  severity     String   @default("error")
+  isResolved   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  import FileImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@map("import_errors")
+}
+
+model DataImportTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  projectId   String
+  description String?
+  fileType    FileType
+  fields      Json
+  sampleData  Json?
+  mappings    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("data_import_templates")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@map("refresh_tokens")
+}
+
+enum ScanStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMEOUT
+}
+
+enum ScanType {
+  FULL
+  QUICK
+  AUTHENTICATION
+  API
+  DEPENDENCY
+  CUSTOM
+}
+
+enum VulnerabilitySeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum VulnerabilityStatus {
+  OPEN
+  CONFIRMED
+  FALSE_POSITIVE
+  ACCEPTED
+  REMEDIATED
+  REOPENED
+}
+
+enum OwaspCategory {
+  A01_BROKEN_ACCESS_CONTROL
+  A02_CRYPTOGRAPHIC_FAILURES
+  A03_INJECTION
+  A04_INSECURE_DESIGN
+  A05_SECURITY_MISCONFIGURATION
+  A06_VULNERABLE_COMPONENTS
+  A07_AUTHENTICATION_FAILURES
+  A08_SOFTWARE_DATA_INTEGRITY_FAILURES
+  A09_LOGGING_MONITORING
+  A10_SSRF
+}
+
+model SecurityScan {
+  id                   String     @id @default(uuid())
+  name                 String
+  projectId            String
+  environmentId        String
+  userId               String
+  scanType             ScanType   @default(QUICK)
+  status               ScanStatus @default(PENDING)
+  config               Json?
+  schedule             String?
+  isScheduled          Boolean    @default(false)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  duration             Int?
+  progress             Int        @default(0)
+  totalTargets         Int        @default(0)
+  scannedTargets       Int        @default(0)
+  totalVulnerabilities Int        @default(0)
+  criticalCount        Int        @default(0)
+  highCount            Int        @default(0)
+  mediumCount          Int        @default(0)
+  lowCount             Int        @default(0)
+  infoCount            Int        @default(0)
+  reportUrl            String?
+  errorMessage         String?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment     Environment      @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vulnerabilities Vulnerability[]
+  scanSchedules   ScanSchedule[]
+  SecurityTarget  SecurityTarget[]
+
+  @@map("security_scans")
+}
+
+model ScanSchedule {
+  id        String    @id @default(uuid())
+  scanId    String
+  cronExpr  String
+  isActive  Boolean   @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  scan SecurityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@map("scan_schedules")
+}
+
+model Vulnerability {
+  id                  String                @id @default(uuid())
+  scanId              String
+  title               String
+  description         String
+  severity            VulnerabilitySeverity @default(MEDIUM)
+  status              VulnerabilityStatus   @default(OPEN)
+  cweId               String?
+  cveId               String?
+  owaspCategory       OwaspCategory?
+  affectedUrl         String?
+  affectedParam       String?
+  evidence            Json?
+  remediation         String?
+  remediationUrl      String?
+  falsePositiveReason String?
+  acceptedRisk        String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  resolvedAt          DateTime?
+
+  scan SecurityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+  @@index([severity])
+  @@index([status])
+  @@map("vulnerabilities")
+}
+
+model SecurityTarget {
+  id           String   @id @default(uuid())
+  scanId       String
+  url          String
+  method       String?
+  status       Int?
+  responseTime Int?
+  isSecure     Boolean  @default(true)
+  headers      Json?
+  cookies      Json?
+  errors       String[]
+  createdAt    DateTime @default(now())
+
+  scan SecurityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+  @@map("security_targets")
+}
+
+model SecurityAlert {
+  id              String   @id @default(uuid())
+  projectId       String
+  scanId          String?
+  vulnerabilityId String?
+  type            String
+  severity        String
+  title           String
+  message         String
+  metadata        Json?
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("security_alerts")
+}
+
+model DependencyScan {
+  id                 String    @id @default(uuid())
+  projectId          String
+  userId             String
+  packageManager     String
+  status             String    @default("PENDING")
+  totalPackages      Int       @default(0)
+  vulnerablePackages Int       @default(0)
+  criticalCount      Int       @default(0)
+  highCount          Int       @default(0)
+  mediumCount        Int       @default(0)
+  lowCount           Int       @default(0)
+  results            Json?
+  reportUrl          String?
+  errorMessage       String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dependency_scans")
+}
+
+model SecurityReport {
+  id          String   @id @default(uuid())
+  scanId      String
+  type        String
+  format      String
+  fileName    String
+  filePath    String
+  fileSize    Int
+  generatedAt DateTime @default(now())
+
+  @@map("security_reports")
+}
+
+enum PerformanceTestType {
+  LOAD
+  STRESS
+  SPIKE
+  SOAK
+  SMOKE
+}
+
+enum PerformanceTestStatus {
+  DRAFT
+  PENDING
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum MetricType {
+  HTTP_REQ_DURATION
+  HTTP_REQ_FAILED
+  HTTP_REQS
+  VUS
+  VU_MAX
+  ITERATIONS
+  GROUP_DURATION
+  DATA_SENT
+  DATA_RECEIVED
+}
+
+model PerformanceTest {
+  id              String                @id @default(uuid())
+  name            String
+  description     String?
+  projectId       String
+  environmentId   String
+  userId          String
+  testType        PerformanceTestType   @default(LOAD)
+  status          PerformanceTestStatus @default(DRAFT)
+  script          String
+  scriptPath      String?
+  config          Json?
+  thresholds      Json?
+  tags            String[]
+  isScheduled     Boolean               @default(false)
+  schedule        String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  duration        Int?
+  totalIterations Int                   @default(0)
+  totalRequests   Int                   @default(0)
+  avgResponseTime Float                 @default(0)
+  p95ResponseTime Float                 @default(0)
+  p99ResponseTime Float                 @default(0)
+  avgThroughput   Float                 @default(0)
+  errorRate       Float                 @default(0)
+  maxVus          Int                   @default(0)
+  reportUrl       String?
+  summary         Json?
+  errorMessage    String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment    Environment           @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules      PerformanceSchedule[]
+  metrics        PerformanceMetric[]
+  ThresholdAlert ThresholdAlert[]
+
+  @@map("performance_tests")
+}
+
+model PerformanceSchedule {
+  id        String    @id @default(uuid())
+  testId    String
+  cronExpr  String
+  isActive  Boolean   @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  test PerformanceTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("performance_schedules")
+}
+
+model PerformanceMetric {
+  id         String     @id @default(uuid())
+  testId     String
+  timestamp  DateTime   @default(now())
+  metricType MetricType
+  metricName String
+  value      Float
+  tags       Json?
+  createdAt  DateTime   @default(now())
+
+  test PerformanceTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@index([testId, timestamp])
+  @@index([metricType, timestamp])
+  @@map("performance_metrics")
+}
+
+model ThresholdAlert {
+  id             String    @id @default(uuid())
+  testId         String?
+  projectId      String
+  name           String
+  metricType     String
+  condition      String
+  threshold      Float
+  comparison     String
+  severity       String    @default("WARNING")
+  isEnabled      Boolean   @default(true)
+  lastTriggered  DateTime?
+  triggeredCount Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  test       PerformanceTest? @relation(fields: [testId], references: [id], onDelete: SetNull)
+  project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  AlertEvent AlertEvent[]
+
+  @@index([projectId])
+  @@index([testId])
+  @@map("threshold_alerts")
+}
+
+model AlertEvent {
+  id          String   @id @default(uuid())
+  alertId     String
+  testId      String?
+  projectId   String
+  metricValue Float
+  message     String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  alert   ThresholdAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([alertId, createdAt])
+  @@map("alert_events")
+}
+
+enum AccessibilityTestStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AccessibilitySeverity {
+  CRITICAL
+  SERIOUS
+  MODERATE
+  MINOR
+}
+
+enum WcagLevel {
+  A
+  AA
+  AAA
+}
+
+model AccessibilityTest {
+  id            String                  @id @default(uuid())
+  name          String
+  description   String?
+  projectId     String
+  environmentId String
+  userId        String
+  status        AccessibilityTestStatus @default(PENDING)
+  urls          String[]
+  config        Json?
+  isScheduled   Boolean                 @default(false)
+  schedule      String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  duration      Int?
+  totalPages    Int                     @default(0)
+  scannedPages  Int                     @default(0)
+  totalIssues   Int                     @default(0)
+  criticalCount Int                     @default(0)
+  seriousCount  Int                     @default(0)
+  moderateCount Int                     @default(0)
+  minorCount    Int                     @default(0)
+  passCount     Int                     @default(0)
+  score         Float                   @default(0)
+  wcagLevel     WcagLevel               @default(AA)
+  reportUrl     String?
+  errorMessage  String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment Environment             @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issues      AccessibilityIssue[]
+  schedules   AccessibilitySchedule[]
+
+  @@map("accessibility_tests")
+}
+
+model AccessibilitySchedule {
+  id        String    @id @default(uuid())
+  testId    String
+  cronExpr  String
+  isActive  Boolean   @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  test AccessibilityTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("accessibility_schedules")
+}
+
+model AccessibilityIssue {
+  id             String                @id @default(uuid())
+  testId         String
+  ruleId         String
+  impact         AccessibilitySeverity
+  category       String
+  description    String
+  help           String?
+  helpUrl        String?
+  wcagCriteria   String[]
+  wcagTechniques String[]
+  htmlSnippet    String?
+  selector       String?
+  pageUrl        String
+  pageTitle      String?
+  screenshot     String?
+  xCoordinate    Float?
+  yCoordinate    Float?
+  isResolved     Boolean               @default(false)
+  resolutionNote String?
+  resolvedAt     DateTime?
+  createdAt      DateTime              @default(now())
+
+  test AccessibilityTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@index([testId])
+  @@index([impact])
+  @@map("accessibility_issues")
+}
+
+model AccessibilityBaseline {
+  id             String   @id @default(uuid())
+  projectId      String
+  testId         String?
+  name           String
+  score          Float
+  issuesByImpact Json
+  wcagCoverage   Json
+  snapshot       Json
+  createdAt      DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("accessibility_baselines")
+}

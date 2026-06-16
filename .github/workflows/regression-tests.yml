@@ -1,0 +1,457 @@
+name: Regression Tests Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: 'Version to test'
+        required: false
+        type: string
+      test_tags:
+        description: 'Test tags to run (comma separated)'
+        required: false
+        type: string
+        default: 'regression'
+      baseline_run:
+        description: 'Baseline run ID for comparison'
+        required: false
+        type: string
+      parallelism:
+        description: 'Number of parallel workers'
+        required: false
+        type: number
+        default: 4
+
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+
+concurrency:
+  group: regression-${{ inputs.environment }}-${{ github.run_number }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  TEST_TIMEOUT: 600000
+  RETRY_COUNT: 3
+  DEFAULT_PARALLELISM: 4
+
+jobs:
+  # ============================================
+  # Setup & Prerequisites
+  # ============================================
+  setup:
+    name: Setup & Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.config.outputs.environment }}
+      version: ${{ steps.config.outputs.version }}
+      base_url: ${{ steps.config.outputs.base_url }}
+      test_tags: ${{ steps.config.outputs.test_tags }}
+      parallelism: ${{ steps.config.outputs.parallelism }}
+      run_id: ${{ steps.config.outputs.run_id }}
+    steps:
+      - name: Generate run ID
+        id: config
+        run: |
+          RUN_ID="regression-$(date +%Y%m%d-%H%M%S)-${{ github.run_number }}"
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ github.sha }}"
+          fi
+          
+          case "${{ inputs.environment }}" in
+            staging)
+              BASE_URL="${{ secrets.STAGING_API_URL }}"
+              ;;
+            production)
+              BASE_URL="${{ secrets.PRODUCTION_API_URL }}"
+              ;;
+          esac
+          
+          TEST_TAGS="${{ inputs.test_tags }}"
+          if [ -z "$TEST_TAGS" ]; then
+            TEST_TAGS="regression"
+          fi
+          
+          echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
+          echo "test_tags=$TEST_TAGS" >> $GITHUB_OUTPUT
+          echo "parallelism=${{ inputs.parallelism || env.DEFAULT_PARALLELISM }}" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          
+          echo "Run ID: $RUN_ID"
+
+      - name: Notify start
+        if: inputs.environment == 'production'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author
+          text: "📊 Regression tests started for ${{ inputs.environment }}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ============================================
+  # Pre-flight Checks
+  # ============================================
+  preflight:
+    name: Pre-flight Checks
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check database readiness
+        run: |
+          echo "Checking database..."
+          npm run -w @qadash/backend prisma db execute \
+            --sql="SELECT 1" \
+            --database-url="${{ secrets.DATABASE_URL }}"
+
+      - name: Check Redis connectivity
+        run: |
+          echo "Checking Redis..."
+          redis-cli -u "${{ secrets.REDIS_URL }}" ping
+
+      - name: Check disk space
+        run: |
+          df -h
+
+      - name: Check memory
+        free -h
+
+  # ============================================
+  # Core API Tests (Matrix)
+  # ============================================
+  api-tests:
+    name: API Tests - ${{ matrix.group }}
+    needs: [setup, preflight]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - auth-api
+          - user-api
+          - project-api
+          - test-api
+          - execution-api
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run API tests
+        run: |
+          npm run test:regression --group="${{ matrix.group }}" \
+            --base-url="${{ needs.setup.outputs.base_url }}" \
+            --tags="${{ needs.setup.outputs.test_tags }}" \
+            --timeout=${{ env.TEST_TIMEOUT }} \
+            --retries=${{ env.RETRY_COUNT }} \
+            --parallel=2
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-tests-${{ matrix.group }}
+          path: test-results/regression/
+          retention-days: 30
+
+  # ============================================
+  # UI Tests (Parallel)
+  # ============================================
+  ui-tests:
+    name: UI Tests
+    needs: [setup, preflight]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+        viewport: [desktop, mobile]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install ${{ matrix.browser }}
+
+      - name: Run UI tests
+        run: |
+          npm run test:ui \
+            --browser=${{ matrix.browser }} \
+            --viewport=${{ matrix.viewport }} \
+            --base-url="${{ needs.setup.outputs.base_url }}" \
+            --tags="${{ needs.setup.outputs.test_tags }}" \
+            --timeout=${{ env.TEST_TIMEOUT }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-tests-${{ matrix.browser }}-${{ matrix.viewport }}
+          path: test-results/ui/
+          retention-days: 30
+
+      - name: Upload screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots-${{ matrix.browser }}-${{ matrix.viewport }}
+          path: test-results/ui/screenshots/
+          retention-days: 7
+
+  # ============================================
+  # Database Tests
+  # ============================================
+  database-tests:
+    name: Database Tests
+    needs: [setup, preflight]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database tests
+        run: |
+          npm run test:db \
+            --database-url="${{ secrets.DATABASE_URL }}" \
+            --tags="${{ needs.setup.outputs.test_tags }}"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-test-results
+          path: test-results/db/
+          retention-days: 30
+
+  # ============================================
+  # Integration Tests
+  # ============================================
+  integration-tests:
+    name: Integration Tests
+    needs: [setup, preflight]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: qadash_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests
+        run: |
+          npm run test:integration \
+            --base-url="${{ needs.setup.outputs.base_url }}" \
+            --tags="${{ needs.setup.outputs.test_tags }}" \
+            --timeout=${{ env.TEST_TIMEOUT }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: test-results/integration/
+          retention-days: 30
+
+  # ============================================
+  # Performance Regression Tests
+  # ============================================
+  performance-regression:
+    name: Performance Regression
+    needs: [setup, preflight]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download baseline
+        if: inputs.baseline_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-baseline
+          path: reports/baseline/
+
+      - name: Run performance tests
+        run: |
+          npm run test:performance \
+            --base-url="${{ needs.setup.outputs.base_url }}" \
+            --baseline=reports/baseline/ \
+            --output=reports/current/
+
+      - name: Compare with baseline
+        if: inputs.baseline_run != ''
+        run: |
+          npm run compare:performance \
+            --baseline=reports/baseline/ \
+            --current=reports/current/ \
+            --threshold=10
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: reports/
+          retention-days: 90
+
+      - name: Publish performance report
+        uses: dorny/paths-filter@v1
+        if: always()
+        with:
+          name: performance-report
+          path: reports/
+
+  # ============================================
+  # Test Coverage Analysis
+  # ============================================
+  coverage:
+    name: Coverage Analysis
+    needs: [setup, api-tests, ui-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-results'
+          path: test-results/
+
+      - name: Generate coverage report
+        run: |
+          npm run test:coverage --merge
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: reports/coverage/
+          retention-days: 90
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: karoliste/coverage-comment@v1
+        with:
+          coverage-path: reports/coverage/coverage-summary.json
+
+  # ============================================
+  # Summary & Reporting
+  # ============================================
+  summary:
+    name: Test Summary
+    needs: [setup, api-tests, ui-tests, database-tests, integration-tests, performance-regression, coverage]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Regression Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ needs.setup.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.setup.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Tags:** ${{ needs.setup.outputs.test_tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API Tests | ${{ needs.api-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| UI Tests | ${{ needs.ui-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Database Tests | ${{ needs.database-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Tests | ${{ needs.performance-regression.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Regression Tests
+          path: test-results/
+          reporter: java-junit
+
+      - name: Store baseline
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-baseline
+          path: reports/current/
+          retention-days: 30
+
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,took
+          mention: ${{ job.status == 'failure' && '@here' || '' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

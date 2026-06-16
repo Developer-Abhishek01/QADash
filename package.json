@@ -1,0 +1,53 @@
+{
+  "name": "qadash-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise QA Dashboard Monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "test": "turbo run test",
+    "test:unit": "turbo run test --filter=@qadash/backend --filter=@qadash/frontend",
+    "test:e2e": "turbo run test --filter=@qadash/automation",
+    "test:integration": "turbo run test --filter=@qadash/backend --filter=@qadash/automation",
+    "test:regression": "turbo run test --filter=@qadash/automation",
+    "test:smoke": "echo 'Smoke tests: run specific test files'",
+    "test:ui": "echo 'UI tests: run via Playwright'",
+    "test:db": "echo 'DB tests: run via backend test suite'",
+    "test:coverage": "turbo run test --coverage",
+    "test:performance": "echo 'Performance tests: run via k6 or similar'",
+    "test:performance:smoke": "echo 'Performance smoke tests'",
+    "compare:performance": "echo 'Compare performance baselines'",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "eslint": "^8.57.0",
+    "husky": "^9.0.0",
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.0.0",
+  "dependencies": {
+    "uuid": "^14.0.0"
+  }
+}

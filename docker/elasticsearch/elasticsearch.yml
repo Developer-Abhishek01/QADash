@@ -1,0 +1,39 @@
+# Elasticsearch Configuration
+cluster.name: qadash-logs
+node.name: qadash-elasticsearch
+
+# Network
+network.host: 0.0.0.0
+http.port: 9200
+transport.host: 0.0.0.0
+transport.tcp.port: 9300
+
+# Memory
+bootstrap.memory_lock: false
+bootstrap.system_call_filter: false
+
+# Discovery
+discovery.type: single-node
+discovery.seed_hosts: []
+
+# Security
+xpack.security.enabled: true
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# HTTP
+http.max_content_length: 200MB
+
+# Logging
+logger.level: info
+
+# Indices
+indices.memory.index_buffer_size: 20%
+indices.queries.cache.size: 10%
+
+# Thread Pools
+thread_pool.write.size: 30
+thread_pool.search.size: 30
+
+# Disable swapping
+bootstrap.mlockall: false

@@ -1,0 +1,49 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: qadash-staging
+
+resources:
+- ../../base
+
+patches:
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: qadash-backend
+    spec:
+      replicas: 2
+- patch: |-
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: qadash-backend-hpa
+    spec:
+      minReplicas: 1
+      maxReplicas: 5
+
+replicas:
+- name: backend
+  count: 2
+- name: frontend
+  count: 2
+- name: worker
+  count: 3
+
+configMapGenerator:
+- name: qadash-config
+  behavior: replace
+  literals:
+  - NODE_ENV=staging
+  - LOG_LEVEL=debug
+  - API_URL=https://staging-api.qadash.io
+  - FRONTEND_URL=https://staging.qadash.io
+
+images:
+- name: qadash/backend
+  newTag: staging-1.0.0
+- name: qadash/frontend
+  newTag: staging-1.0.0
+- name: qadash/worker
+  newTag: staging-1.0.0

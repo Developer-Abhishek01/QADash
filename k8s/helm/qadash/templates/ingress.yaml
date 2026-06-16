@@ -1,0 +1,78 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "qadash.fullname" . }}-ingress
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.annotations.proxy-body-size | default "50m" }}
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: {{ .Values.ingress.annotations.proxy-connect-timeout | default "60" }}
+    nginx.ingress.kubernetes.io/proxy-read-timeout: {{ .Values.ingress.annotations.proxy-read-timeout | default "300" }}
+    nginx.ingress.kubernetes.io/proxy-send-timeout: {{ .Values.ingress.annotations.proxy-send-timeout | default "300" }}
+    nginx.ingress.kubernetes.io/proxy-buffering: "on"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+  {{- range .Values.ingress.tls }}
+  - hosts:
+    {{- range .hosts }}
+    - {{ . | quote }}
+    {{- end }}
+    secretName: {{ .secretName }}
+  {{- end }}
+  {{- end }}
+  rules:
+  {{- range .Values.ingress.hosts }}
+  - host: {{ .host | quote }}
+    http:
+      paths:
+      {{- range .paths }}
+      - path: {{ .path }}
+        pathType: {{ .pathType }}
+        backend:
+          service:
+            name: {{ $.Release.Name }}-{{ .service }}
+            port:
+              number: {{ .port }}
+      {{- end }}
+  {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "qadash.fullname" . }}-ingress-websocket
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+    app: websocket
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-next-upstream: "error timeout non_idempotent"
+    nginx.ingress.kubernetes.io/proxy-next-upstream-tries: "3"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+  - hosts:
+    - api.qadash.io
+    secretName: qadash-tls
+  rules:
+  - host: api.qadash.io
+    http:
+      paths:
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-backend
+            port:
+              number: 3001

@@ -1,0 +1,151 @@
+version: '3.9'
+
+# Development docker-compose override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+services:
+  # ========================================
+  # Backend - Development Mode with Hot-Reload
+  # ========================================
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile.dev
+      target: development
+    volumes:
+      - ./apps/backend/src:/app/src
+      - ./packages:/app/packages
+    environment:
+      - NODE_ENV=development
+      - DEBUG=*
+    command: ["pnpm", "dev"]
+
+  # ========================================
+  # Frontend - Development Mode with Hot-Reload
+  # ========================================
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile.dev
+      target: development
+    volumes:
+      - ./apps/frontend/src:/app/src
+      - ./apps/frontend/public:/app/public
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    command: ["pnpm", "dev"]
+
+  # ========================================
+  # AI Engine - Development Mode with Hot-Reload
+  # ========================================
+  ai-engine:
+    volumes:
+      - ./apps/ai-engine:/app
+    environment:
+      - DEBUG=*
+    command: ["uvicorn", "src.main:app", "--reload", "--host", "0.0.0.0", "--port", "3002"]
+
+  # ========================================
+  # Playwright - Development Mode
+  # ========================================
+  playwright-workers:
+    volumes:
+      - ./apps/automation:/app
+    environment:
+      - NODE_ENV=development
+      - DEBUG=*
+
+  # ========================================
+  # PostgreSQL - Development with SQL Editor
+  # ========================================
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+      - "${PGADMIN_PORT:-5050}:5050"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # ========================================
+  # Redis - Development with Redis Commander
+  # ========================================
+  redis:
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_COMM_PORT:-8081}:8081"
+
+  # ========================================
+  # MinIO - Development Console
+  # ========================================
+  minio:
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+
+  # ========================================
+  # Elasticsearch - Development
+  # ========================================
+  elasticsearch:
+    ports:
+      - "${ES_PORT:-9200}:9200"
+      - "${ES_TRANSPORT:-9300}:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+
+  # ========================================
+  # Kibana - Development
+  # ========================================
+  kibana:
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+
+  # ========================================
+  # Prometheus - Development
+  # ========================================
+  prometheus:
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+  # ========================================
+  # Grafana - Development
+  # ========================================
+  grafana:
+    ports:
+      - "${GRAFANA_PORT:-3003}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_FEATURE_TOGGLES_ENABLE=liveGrafanaDashboard
+
+  # ========================================
+  # Development-specific Services
+  # ========================================
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: qadash-mailhog
+    restart: always
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - qadash-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: qadash-redis-commander
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-redis123}
+    depends_on:
+      - redis
+    networks:
+      - qadash-network
+
+networks:
+  qadash-network:
+    driver: bridge

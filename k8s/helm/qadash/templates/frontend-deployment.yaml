@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qadash.fullname" . }}-frontend
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+    app: frontend
+    component: web
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: {{ .Values.rollout.strategy }}
+    rollingUpdate:
+      maxSurge: {{ .Values.rollout.maxSurge }}
+      maxUnavailable: {{ .Values.rollout.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "qadash.selectorLabels" . | nindent 6 }}
+      app: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "qadash.selectorLabels" . | nindent 8 }}
+        app: frontend
+        component: web
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - frontend
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: frontend
+        image: "{{ .Values.global.image.registry }}/{{ .Values.frontend.image }}:{{ .Values.frontend.tag }}"
+        imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.frontend.port }}
+          protocol: TCP
+        env:
+        {{- range .Values.frontend.env }}
+        - name: {{ .name }}
+          {{- if .value }}
+          value: {{ .value | quote }}
+          {{- else if .valueFrom }}
+          valueFrom:
+            {{- toYaml .valueFrom | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "qadash.fullname" . }}-config
+        resources:
+          {{- toYaml .Values.global.resources.frontend | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.frontend.healthCheck.path }}
+            port: {{ .Values.frontend.healthCheck.port }}
+          initialDelaySeconds: {{ .Values.frontend.healthCheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.frontend.healthCheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.frontend.healthCheck.timeoutSeconds }}
+          failureThreshold: {{ .Values.frontend.healthCheck.failureThreshold }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.frontend.healthCheck.path }}
+            port: {{ .Values.frontend.healthCheck.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: cache
+          mountPath: /tmp
+      volumes:
+      - name: cache
+        emptyDir:
+          medium: Memory
+          sizeLimit: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qadash.fullname" . }}-frontend
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+    app: frontend
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: {{ .Values.service.frontend.port }}
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    {{- include "qadash.selectorLabels" . | nindent 4 }}
+    app: frontend

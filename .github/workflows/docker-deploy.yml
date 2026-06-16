@@ -1,0 +1,338 @@
+name: Docker Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      action:
+        description: 'Deployment action'
+        required: true
+        type: choice
+        options:
+          - deploy
+          - scale
+          - restart
+          - rollback
+        default: deploy
+      version:
+        description: 'Image version (tag)'
+        required: false
+        type: string
+      replicas:
+        description: 'Number of replicas'
+        required: false
+        type: number
+        default: 1
+
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: string
+      action:
+        description: 'Deployment action'
+        required: false
+        type: string
+        default: deploy
+      version:
+        description: 'Image version'
+        required: false
+        type: string
+        default: ''
+      replicas:
+        description: 'Number of replicas'
+        required: false
+        type: number
+        default: 1
+    secrets:
+      DOCKER_REGISTRY_TOKEN:
+        required: true
+      KUBECONFIG:
+        required: true
+
+concurrency:
+  group: docker-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NAMESPACE: qadash
+
+jobs:
+  # ============================================
+  # Configuration & Setup
+  # ============================================
+  setup:
+    name: Setup Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.config.outputs.environment }}
+      namespace: ${{ steps.config.outputs.namespace }}
+      version: ${{ steps.config.outputs.version }}
+      action: ${{ steps.config.outputs.action }}
+      replicas: ${{ steps.config.outputs.replicas }}
+      registry_url: ${{ steps.config.outputs.registry_url }}
+    steps:
+      - name: Configure deployment
+        id: config
+        run: |
+          NAMESPACE="${{ env.NAMESPACE }}"
+          VERSION="${{ inputs.version }}"
+          REGISTRY_URL="${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}"
+          
+          case "${{ inputs.environment }}" in
+            development)
+              NAMESPACE="${NAMESPACE}-dev"
+              REGISTRY_URL="${REGISTRY_URL}-dev"
+              ;;
+            staging)
+              NAMESPACE="${NAMESPACE}-staging"
+              REGISTRY_URL="${REGISTRY_URL}-staging"
+              ;;
+            production)
+              REGISTRY_URL="${REGISTRY_URL}"
+              ;;
+          esac
+          
+          if [ -z "$VERSION" ]; then
+            VERSION="latest"
+          fi
+          
+          echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "action=${{ inputs.action }}" >> $GITHUB_OUTPUT
+          echo "replicas=${{ inputs.replicas }}" >> $GITHUB_OUTPUT
+          echo "registry_url=$REGISTRY_URL" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to registry
+        run: |
+          echo "${{ secrets.DOCKER_REGISTRY_TOKEN }}" | docker login ${{ env.DOCKER_REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Validate Kubernetes access
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
+          export KUBECONFIG=kubeconfig.yaml
+          kubectl version --client
+          kubectl get nodes
+
+  # ============================================
+  # Image Update
+  # ============================================
+  update-images:
+    name: Update Images
+    needs: setup
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.action == 'deploy'
+    steps:
+      - name: Pull new images
+        run: |
+          docker pull ${{ needs.setup.outputs.registry_url }}/backend:${{ needs.setup.outputs.version }}
+          docker pull ${{ needs.setup.outputs.registry_url }}/frontend:${{ needs.setup.outputs.version }}
+          docker pull ${{ needs.setup.outputs.registry_url }}/nginx:${{ needs.setup.outputs.version }}
+
+      - name: Update Kubernetes deployment
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          # Update backend
+          kubectl set image deployment/backend \
+            backend=${{ needs.setup.outputs.registry_url }}/backend:${{ needs.setup.outputs.version }} \
+            -n ${{ needs.setup.outputs.namespace }}
+          
+          # Update frontend
+          kubectl set image deployment/frontend \
+            frontend=${{ needs.setup.outputs.registry_url }}/frontend:${{ needs.setup.outputs.version }} \
+            -n ${{ needs.setup.outputs.namespace }}
+          
+          # Update nginx
+          kubectl set image deployment/nginx \
+            nginx=${{ needs.setup.outputs.registry_url }}/nginx:${{ needs.setup.outputs.version }} \
+            -n ${{ needs.setup.outputs.namespace }}
+
+      - name: Create deployment record
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          kubectl create configmap deployment-info \
+            --from-literal=version=${{ needs.setup.outputs.version }} \
+            --from-literal=deployed-at=$TIMESTAMP \
+            --from-literal=environment=${{ needs.setup.outputs.environment }} \
+            --from-literal=commit=${{ github.sha }} \
+            -n ${{ needs.setup.outputs.namespace }} \
+            -o yaml --dry-run=client | kubectl apply -f -
+
+  # ============================================
+  # Scale Operations
+  # ============================================
+  scale:
+    name: Scale Services
+    needs: setup
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.action == 'scale'
+    steps:
+      - name: Scale deployments
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          kubectl scale deployment backend \
+            --replicas=${{ needs.setup.outputs.replicas }} \
+            -n ${{ needs.setup.outputs.namespace }}
+          
+          kubectl scale deployment frontend \
+            --replicas=${{ needs.setup.outputs.replicas }} \
+            -n ${{ needs.setup.outputs.namespace }}
+
+      - name: Verify scaling
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          kubectl get deployment -n ${{ needs.setup.outputs.namespace }}
+
+  # ============================================
+  # Restart Services
+  # ============================================
+  restart:
+    name: Restart Services
+    needs: setup
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.action == 'restart'
+    strategy:
+      matrix:
+        service: [backend, frontend, nginx]
+    steps:
+      - name: Restart service
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          kubectl rollout restart deployment/${{ matrix.service }} \
+            -n ${{ needs.setup.outputs.namespace }}
+
+      - name: Wait for rollout
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          kubectl rollout status deployment/${{ matrix.service }} \
+            -n ${{ needs.setup.outputs.namespace }} \
+            --timeout=300s
+
+  # ============================================
+  # Rollback
+  # ============================================
+  rollback:
+    name: Rollback
+    needs: setup
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.action == 'rollback'
+    steps:
+      - name: Get previous deployment
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          # Get previous revision
+          REVISION=$(kubectl rollout history deployment/backend -n ${{ needs.setup.outputs.namespace }} | tail -2 | head -1 | awk '{print $1}')
+          echo "Rolling back to revision: $REVISION"
+
+      - name: Perform rollback
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          kubectl rollout undo deployment/backend -n ${{ needs.setup.outputs.namespace }}
+          kubectl rollout undo deployment/frontend -n ${{ needs.setup.outputs.namespace }}
+          kubectl rollout undo deployment/nginx -n ${{ needs.setup.outputs.namespace }}
+
+      - name: Verify rollback
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          
+          kubectl rollout status deployment/backend -n ${{ needs.setup.outputs.namespace }} --timeout=300s
+          kubectl rollout status deployment/frontend -n ${{ needs.setup.outputs.namespace }} --timeout=300s
+          
+          echo "Rollback completed"
+
+  # ============================================
+  # Health Check
+  # ============================================
+  health-check:
+    name: Health Check
+    needs: [update-images, scale, restart]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Wait for deployment
+        run: |
+          sleep 30
+
+      - name: Check API health
+        run: |
+          ENDPOINT="${{ secrets.API_BASE_URL }}/health"
+          curl -f -s --max-time 30 "$ENDPOINT" || exit 1
+
+      - name: Check frontend health
+        run: |
+          ENDPOINT="${{ secrets.FRONTEND_URL }}"
+          curl -f -s --max-time 30 "$ENDPOINT" | grep -q "html" || exit 1
+
+      - name: Check database connectivity
+        run: |
+          export KUBECONFIG=kubeconfig.yaml
+          kubectl exec -it backend-0 -n ${{ needs.setup.outputs.namespace }} -- \
+            sh -c "nc -zv database 5432" || echo "Database check via pod"
+
+  # ============================================
+  # Cleanup
+  # ============================================
+  cleanup:
+    name: Cleanup
+    needs: health-check
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Clean up old images
+        run: |
+          docker system prune -f || true
+
+      - name: Clean up kubeconfig
+        run: |
+          rm -f kubeconfig.yaml
+
+      - name: Log cleanup
+        run: |
+          echo "Deployment cleanup completed"
+
+  # ============================================
+  # Summary
+  # ============================================
+  summary:
+    name: Deployment Summary
+    needs: [setup, update-images, scale, restart, rollback, health-check, cleanup]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Docker Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** ${{ needs.setup.outputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.setup.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace:** ${{ needs.setup.outputs.namespace }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Setup | ${{ needs.setup.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Update Images | ${{ needs.update-images.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Scale | ${{ needs.scale.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Restart | ${{ needs.restart.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rollback | ${{ needs.rollback.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Health Check | ${{ needs.health-check.result }} |" >> $GITHUB_STEP_SUMMARY

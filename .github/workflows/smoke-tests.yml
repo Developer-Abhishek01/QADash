@@ -1,0 +1,354 @@
+name: Smoke Tests Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: 'Version to test (commit SHA or tag)'
+        required: false
+        type: string
+      run_id:
+        description: 'Run ID for tracking'
+        required: false
+        type: string
+
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: string
+        default: 'staging'
+      version:
+        description: 'Version to test'
+        required: false
+        type: string
+        default: ''
+      baseline:
+        description: 'Use baseline metrics'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      API_BASE_URL:
+        required: true
+      SLACK_WEBHOOK_URL:
+        required: false
+
+concurrency:
+  group: smoke-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  TEST_TIMEOUT: 300000
+  RETRY_COUNT: 2
+  PARALLEL_WORKERS: 4
+
+jobs:
+  # ============================================
+  # Setup & Configuration
+  # ============================================
+  setup:
+    name: Setup Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.config.outputs.environment }}
+      version: ${{ steps.config.outputs.version }}
+      base_url: ${{ steps.config.outputs.base_url }}
+    steps:
+      - name: Configure environment
+        id: config
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ github.sha }}"
+          fi
+          
+          case "${{ inputs.environment }}" in
+            staging)
+              BASE_URL="${{ secrets.STAGING_API_URL }}"
+              ;;
+            production)
+              BASE_URL="${{ secrets.PRODUCTION_API_URL }}"
+              ;;
+          esac
+          
+          echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Send start notification
+        if: inputs.environment == 'production'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author
+          text: "🔍 Smoke tests started for ${{ inputs.environment }}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ============================================
+  # API Health Checks (Parallel)
+  # ============================================
+  api-health:
+    name: API Health Check
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check API health
+        run: |
+          MAX_RETRIES=5
+          RETRY_DELAY=10
+          ENDPOINT="${{ needs.setup.outputs.base_url }}/health"
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES: Checking $ENDPOINT"
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$ENDPOINT" --max-time 30)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✓ API is healthy"
+              echo "$RESPONSE" | head -n-1
+              exit 0
+            fi
+            echo "✗ Health check failed (HTTP $HTTP_CODE)"
+            sleep $RETRY_DELAY
+          done
+          
+          echo "❌ API health check failed after $MAX_RETRIES attempts"
+          exit 1
+
+  # ============================================
+  # Critical Path Tests (Sequential)
+  # ============================================
+  critical-path:
+    name: Critical Path Tests
+    needs: [setup, api-health]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test:
+          - name: user-auth
+            test_file: tests/smoke/auth.spec.ts
+          - name: project-creation
+            test_file: tests/smoke/projects.spec.ts
+          - name: test-execution
+            test_file: tests/smoke/execution.spec.ts
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run critical path test
+        run: |
+          npm run test:smoke "${{ matrix.test.test_file }}" \
+            --base-url="${{ needs.setup.outputs.base_url }}" \
+            --timeout=${{ env.TEST_TIMEOUT }} \
+            --retries=${{ env.RETRY_COUNT }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: critical-path-${{ matrix.test.name }}
+          path: |
+            test-results/smoke/*.json
+            test-results/smoke/*.html
+          retention-days: 14
+
+  # ============================================
+  # Parallel Feature Tests
+  # ============================================
+  feature-tests:
+    name: Feature Tests - ${{ matrix.feature }}
+    needs: [setup, api-health]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature:
+          - tests/features/reports.spec.ts
+          - tests/features/analytics.spec.ts
+          - tests/features/notifications.spec.ts
+          - tests/features/scheduler.spec.ts
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run feature tests
+        run: |
+          npm run test:smoke "${{ matrix.feature }}" \
+            --base-url="${{ needs.setup.outputs.base_url }}" \
+            --workers=${{ env.PARALLEL_WORKERS }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-tests-${{ matrix.feature }}
+          path: test-results/smoke/
+          retention-days: 14
+
+  # ============================================
+  # Performance Smoke Tests
+  # ============================================
+  performance-smoke:
+    name: Performance Smoke Tests
+    needs: [setup, api-health]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run performance tests
+        run: |
+          npm run test:performance:smoke \
+            --base-url="${{ needs.setup.outputs.base_url }}" \
+            --threshold=2000
+
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-smoke-report
+          path: reports/performance/
+          retention-days: 30
+
+      - name: Publish performance results
+        uses: dorny/paths-filter@v2
+        if: always()
+        with:
+          name: performance-results
+          path: reports/performance/
+
+  # ============================================
+  # Database Connection Tests
+  # ============================================
+  database-tests:
+    name: Database Connection Tests
+    needs: [setup, api-health]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test database connection
+        run: |
+          npm run -w @qadash/backend prisma db execute \
+            --sql="SELECT 1 as health_check" \
+            --database-url="${{ secrets.DATABASE_URL }}"
+
+      - name: Test database queries
+        run: |
+          npm run -w @qadash/backend prisma db execute \
+            --sql="SELECT COUNT(*) as user_count FROM users" \
+            --database-url="${{ secrets.DATABASE_URL }}"
+
+  # ============================================
+  # External Service Tests
+  # ============================================
+  external-services:
+    name: External Service Tests
+    needs: [setup, api-health]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: redis
+            check: redis-cli ping
+            url: ${{ secrets.REDIS_URL }}
+          - name: s3
+            check: s3 ls
+            url: ${{ secrets.AWS_S3_BUCKET }}
+    steps:
+      - name: Check external service
+        run: |
+          echo "Checking ${{ matrix.service.name }}..."
+
+  # ============================================
+  # Final Summary & Reporting
+  # ============================================
+  summary:
+    name: Test Summary
+    needs: [setup, api-health, critical-path, feature-tests, performance-smoke, database-tests, external-services]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate test summary
+        run: |
+          echo "## Smoke Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.setup.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API Health | ${{ needs.api-health.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical Path | ${{ needs.critical-path.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Feature Tests | ${{ needs.feature-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance | ${{ needs.performance-smoke.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Database | ${{ needs.database-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| External Services | ${{ needs.external-services.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.critical-path.result }}" == "failure" ]; then
+            echo "### 🚨 Critical path tests failed!" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-summary
+          path: test-results/
+          retention-days: 30
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Smoke Tests
+          path: test-results/
+          reporter: java-junit
+
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

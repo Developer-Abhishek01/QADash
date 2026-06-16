@@ -1,0 +1,528 @@
+name: Release Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      pre_release:
+        description: 'Is this a pre-release?'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PACKAGE_VERSION: ''
+
+jobs:
+  # ============================================
+  # Version & Metadata
+  # ============================================
+  version:
+    name: Version Management
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_release: ${{ steps.version.outputs.is_release }}
+      release_type: ${{ steps.version.outputs.release_type }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+      branch: ${{ steps.version.outputs.branch }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION=""
+          IS_RELEASE="false"
+          RELEASE_TYPE="patch"
+          BRANCH="${{ github.ref_name }}"
+          
+          if [[ "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            IS_RELEASE="true"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            IS_RELEASE="true"
+            if [[ "$VERSION" =~ - ]]; then
+              RELEASE_TYPE="prerelease"
+            else
+              case $VERSION in
+                *.*.0) RELEASE_TYPE="major" ;;
+                *.*.1) RELEASE_TYPE="minor" ;;
+                *) RELEASE_TYPE="patch" ;;
+              esac
+            fi
+          elif [[ "$BRANCH" == "main" ]]; then
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/v//')
+            VERSION="${VERSION:-0.0.0}"
+            IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
+            MAJOR=${VERSION_PARTS[0]}
+            MINOR=${VERSION_PARTS[1]}
+            PATCH=$((VERSION_PARTS[2] + 1))
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          else
+            VERSION=$(git rev-parse --short HEAD)
+            IS_RELEASE="false"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          git fetch origin main --tags --deep 1
+          CHANGELOG=$(git log --no-merges --format="%h - %s (%an)" --since="$(git describe --tags --abbrev=0 --match='v*' 2>/dev/null || echo '1970-01-01')" HEAD)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  # ============================================
+  # Pre-release Checks
+  # ============================================
+  preflight:
+    name: Pre-release Checks
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify version format
+        run: |
+          if [[ "${{ needs.version.outputs.is_release }}" == "true" ]]; then
+            if ! [[ "${{ needs.version.outputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+              echo "Invalid version format: ${{ needs.version.outputs.version }}"
+              exit 1
+            fi
+          fi
+          echo "Version format OK"
+
+      - name: Check required secrets
+        run: |
+          required_secrets=(
+            "DOCKER_REGISTRY_TOKEN"
+            "SLACK_WEBHOOK_URL"
+          )
+          for secret in "${required_secrets[@]}"; do
+            if [ -z "${!secret}" ]; then
+              echo "Missing required secret: $secret"
+              exit 1
+            fi
+          done
+          echo "All required secrets are available"
+
+      - name: Check Docker Hub quota
+        run: |
+          echo "Checking Docker Hub rate limits..."
+          TOKEN=$(echo "${{ secrets.DOCKER_REGISTRY_TOKEN }}" | head -c 50)
+          if [ -z "$TOKEN" ]; then
+            echo "Docker registry token not configured"
+          fi
+
+  # ============================================
+  # Build (Parallel)
+  # ============================================
+  build-backend:
+    name: Build Backend
+    needs: [version, preflight]
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run -w @qadash/backend prisma generate
+
+      - name: Build backend
+        run: npm run -w @qadash/backend build
+
+      - name: Set image tag
+        id: build
+        run: |
+          IMAGE_TAG="${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ needs.version.outputs.version }}"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Building $IMAGE_TAG"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/backend
+          push: true
+          tags: ${{ steps.build.outputs.image_tag }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+            VERSION=${{ needs.version.outputs.version }}
+
+  build-frontend:
+    name: Build Frontend
+    needs: [version, preflight]
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run -w @qadash/frontend build
+
+      - name: Set image tag
+        id: build
+        run: |
+          IMAGE_TAG="${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ needs.version.outputs.version }}"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/frontend
+          push: true
+          tags: ${{ steps.build.outputs.image_tag }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+            VERSION=${{ needs.version.outputs.version }}
+
+  build-nginx:
+    name: Build Nginx
+    needs: [version, preflight]
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: build
+        run: |
+          IMAGE_TAG="${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/nginx:${{ needs.version.outputs.version }}"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push nginx image
+        uses: docker/build-push-action@v5
+        with:
+          context: docker
+          push: true
+          tags: ${{ steps.build.outputs.image_tag }}
+          cache-from: type=gha,scope=nginx
+          cache-to: type=gha,mode=max,scope=nginx
+
+  # ============================================
+  # Security Scan
+  # ============================================
+  security-scan:
+    name: Security Scan
+    needs: [build-backend, build-frontend, build-nginx]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: .
+          format: 'json'
+          output: 'trivy-report.json'
+
+      - name: Run Snyk scan
+        if: env.SNYK_TOKEN != ''
+        run: |
+          npx snyk container test ${{ needs.build-backend.outputs.image_tag }}
+          npx snyk container test ${{ needs.build-frontend.outputs.image_tag }}
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: trivy-report.json
+          retention-days: 30
+
+      - name: Fail on critical vulnerabilities
+        run: |
+          if grep -q "CRITICAL" trivy-report.json; then
+            echo "Critical vulnerabilities found!"
+            exit 1
+          fi
+          echo "No critical vulnerabilities found"
+
+  # ============================================
+  # Tag & Release
+  # ============================================
+  create-release:
+    name: Create Release
+    needs: [version, build-backend, build-frontend, build-nginx, security-scan]
+    runs-on: ubuntu-latest
+    if: needs.version.outputs.is_release == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          release_name: Release v${{ needs.version.outputs.version }}
+          body: |
+            ## What's New in v${{ needs.version.outputs.version }}
+            
+            ${{ needs.version.outputs.changelog }}
+            
+            ### Docker Images
+            - Backend: `${{ needs.build-backend.outputs.image_tag }}`
+            - Frontend: `${{ needs.build-frontend.outputs.image_tag }}`
+            - Nginx: `${{ needs.build-nginx.outputs.image_tag }}`
+            
+            ### Installation
+            ```bash
+            docker pull ${{ needs.build-backend.outputs.image_tag }}
+            docker pull ${{ needs.build-frontend.outputs.image_tag }}
+            docker pull ${{ needs.build-nginx.outputs.image_tag }}
+            ```
+          draft: false
+          prerelease: ${{ github.event.inputs.pre_release }}
+          commitish: ${{ needs.version.outputs.branch }}
+
+      - name: Create Git tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/v${{ needs.version.outputs.version }}',
+              sha: context.sha
+            })
+
+      - name: Update GitHub deployment
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: Production
+          description: Deployed v${{ needs.version.outputs.version }}
+          state: success
+
+  # ============================================
+  # Deploy to Staging
+  # ============================================
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [version, build-backend, build-frontend, build-nginx, security-scan]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'staging' || github.ref_name == 'develop'
+    environment: staging
+    steps:
+      - name: Deploy to Kubernetes (staging)
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+
+      - name: Update deployment
+        run: |
+          kubectl set image deployment/backend backend=${{ needs.build-backend.outputs.image_tag }} -n qadash-staging
+          kubectl set image deployment/frontend frontend=${{ needs.build-frontend.outputs.image_tag }} -n qadash-staging
+          kubectl set image deployment/nginx nginx=${{ needs.build-nginx.outputs.image_tag }} -n qadash-staging
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n qadash-staging --timeout=300s
+          kubectl rollout status deployment/frontend -n qadash-staging --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          curl -f ${{ secrets.STAGING_URL }}/health || exit 1
+
+      - name: Run smoke tests
+        uses: ./.github/workflows/smoke-tests.yml
+        with:
+          environment: staging
+          version: ${{ needs.version.outputs.version }}
+        secrets:
+          API_BASE_URL: ${{ secrets.STAGING_API_URL }}
+
+  # ============================================
+  # Deploy to Production (Manual Approval)
+  # ============================================
+  deploy-production:
+    name: Deploy to Production
+    needs: [version, build-backend, build-frontend, build-nginx, security-scan, create-release]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' || (github.ref == 'refs/heads/main' && needs.version.outputs.is_release == 'true')
+    environment: production
+    steps:
+      - name: Create rollback point
+        run: |
+          kubectl get deployment -n qadash -o json > rollback/previous-deployment.json
+          echo "Previous deployment saved for rollback"
+
+      - name: Deploy to Kubernetes (production)
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+
+      - name: Update deployment
+        run: |
+          kubectl set image deployment/backend backend=${{ needs.build-backend.outputs.image_tag }} -n qadash
+          kubectl set image deployment/frontend frontend=${{ needs.build-frontend.outputs.image_tag }} -n qadash
+          kubectl set image deployment/nginx nginx=${{ needs.build-nginx.outputs.image_tag }} -n qadash
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n qadash --timeout=600s
+          kubectl rollout status deployment/frontend -n qadash --timeout=600s
+
+      - name: Verify deployment
+        run: |
+          sleep 15
+          curl -f ${{ secrets.PRODUCTION_URL }}/health || exit 1
+          curl -f ${{ secrets.PRODUCTION_URL }}/api/health || exit 1
+
+      - name: Run smoke tests
+        uses: ./.github/workflows/smoke-tests.yml
+        with:
+          environment: production
+          version: ${{ needs.version.outputs.version }}
+        secrets:
+          API_BASE_URL: ${{ secrets.PRODUCTION_API_URL }}
+
+      - name: Update release status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id,
+              body: '✅ Deployed to production'
+            })
+
+      - name: Send success notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          fields: repo,message,commit,author,took
+          text: "🚀 Successfully deployed v${{ needs.version.outputs.version }} to production!"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ============================================
+  # Rollback on Failure
+  # ============================================
+  rollback:
+    name: Rollback
+    needs: [deploy-production]
+    if: failure() && github.event.inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rollback deployment
+        run: |
+          kubectl rollout undo deployment/backend -n qadash
+          kubectl rollout undo deployment/frontend -n qadash
+          kubectl rollout undo deployment/nginx -n qadash
+
+      - name: Wait for rollback
+        run: |
+          kubectl rollout status deployment/backend -n qadash --timeout=300s
+          kubectl rollout status deployment/frontend -n qadash --timeout=300s
+
+      - name: Notify failure
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          fields: repo,message,commit,author
+          text: "❌ Deployment failed and rolled back to previous version"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ============================================
+  # Summary
+  # ============================================
+  summary:
+    name: Release Summary
+    needs: [version, build-backend, build-frontend, build-nginx, security-scan, deploy-staging, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ needs.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Type:** ${{ needs.version.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ needs.version.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ${{ needs.build-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.build-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Nginx | ${{ needs.build-nginx.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging | ${{ needs.deploy-staging.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY

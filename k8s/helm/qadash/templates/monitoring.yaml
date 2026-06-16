@@ -1,0 +1,135 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "qadash.fullname" . }}-backend-monitor
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /monitoring/metrics
+    scheme: http
+    tlsConfig:
+      insecureSkipVerify: false
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "qadash.fullname" . }}-worker-monitor
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: worker
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /monitoring/metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "qadash.fullname" . }}-alerts
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+spec:
+  groups:
+  - name: qadash.application
+    rules:
+    - alert: QADashBackendDown
+      expr: up{job="qadash-backend"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "QADash Backend API is down"
+        description: "Backend API has been down for more than 2 minutes"
+    - alert: QADashHighErrorRate
+      expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is {{ $value | humanizePercentage }}"
+    - alert: QADashHighLatency
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High API latency"
+        description: "p95 latency is {{ $value }}s"
+    - alert: QADashQueueBacklog
+      expr: sum(queue_jobs_pending) > 100
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Queue backlog building"
+        description: "More than 100 jobs waiting in queue"
+    - alert: QADashWorkerScaleUp
+      expr: kube_hpa_status_condition{condition="AbleToScale",status="true",metric_type="cpu"} > 80
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Workers scaling up"
+        description: "Worker pods are scaling up due to load"
+  - name: qadash.infrastructure
+    rules:
+    - alert: QADashHighCPUUsage
+      expr: (sum(rate(container_cpu_usage_seconds_total{namespace="qadash"}[5m])) by (pod) / sum(container_spec_cpu_quota{namespace="qadash"}/container_spec_cpu_period{namespace="qadash"}) by (pod)) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage on {{ $labels.pod }}"
+        description: "CPU usage is above 80%"
+    - alert: QADashHighMemoryUsage
+      expr: (sum(container_memory_working_set_bytes{namespace="qadash"}) by (pod) / sum(container_spec_memory_limit_bytes{namespace="qadash"}) by (pod)) * 100 > 85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage on {{ $labels.pod }}"
+        description: "Memory usage is above 85%"
+    - alert: QADashPodRestarting
+      expr: increase(kube_pod_container_status_restarts_total{namespace="qadash"}[15m]) > 3
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.pod }} is restarting frequently"
+        description: "Pod has restarted {{ $value }} times in the last 15 minutes"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "qadash.fullname" . }}-backend-pod-monitor
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  podMetricsEndpoints:
+  - port: metrics
+    path: /monitoring/metrics
+    interval: 30s
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,322 @@
+global:
+  name: qadash
+  environment: production
+  domain: qadash.io
+  
+  image:
+    registry: ghcr.io
+    pullPolicy: IfNotPresent
+  
+  resources:
+    backend:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    frontend:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    worker:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+replicaCount:
+  backend: 3
+  frontend: 3
+  worker: 5
+
+autoscaling:
+  enabled: true
+  minReplicas:
+    backend: 2
+    frontend: 2
+    worker: 3
+  maxReplicas:
+    backend: 10
+    frontend: 10
+    worker: 20
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+
+backend:
+  image: qadash/backend
+  tag: latest
+  port: 3001
+  replicas: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: LOG_LEVEL
+      value: "info"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: qadash-secrets
+          key: database-url
+    - name: REDIS_URL
+      valueFrom:
+        secretKeyRef:
+          name: qadash-secrets
+          key: redis-url
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: qadash-secrets
+          key: jwt-secret
+  healthCheck:
+    path: /health
+    port: 3001
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    path: /health/ready
+    port: 3001
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+frontend:
+  image: qadash/frontend
+  tag: latest
+  port: 3000
+  replicas: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: NEXT_PUBLIC_API_URL
+      value: "https://api.qadash.io"
+    - name: NEXT_PUBLIC_WS_URL
+      value: "wss://api.qadash.io"
+  healthCheck:
+    path: /
+    port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+worker:
+  image: qadash/worker
+  tag: latest
+  replicas: 5
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    queueThreshold: 10
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: WORKER_CONCURRENCY
+      value: "5"
+    - name: WORKER_TIMEOUT
+      value: "300000"
+  queueTypes:
+    - file-import
+    - test-execution
+    - report-generation
+    - ai-processing
+    - security-scan
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  hosts:
+    - host: qadash.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 3000
+    - host: api.qadash.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: backend
+          port: 3001
+  tls:
+    - secretName: qadash-tls
+      hosts:
+        - qadash.io
+        - api.qadash.io
+
+service:
+  type: ClusterIP
+  backend:
+    port: 3001
+    targetPort: 3001
+  frontend:
+    port: 3000
+    targetPort: 3000
+
+persistence:
+  enabled: true
+  storageClass: "gp3"
+  accessMode: ReadWriteOnce
+  size: 20Gi
+  uploads:
+    enabled: true
+    size: 50Gi
+    path: /app/uploads
+  reports:
+    enabled: true
+    size: 100Gi
+    path: /app/reports
+
+database:
+  enabled: true
+  postgresql:
+    enabled: true
+    architecture: replication
+    primary:
+      replicaCount: 2
+    readReplicas:
+      replicaCount: 2
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    persistence:
+      size: 50Gi
+
+cache:
+  enabled: true
+  redis:
+    enabled: true
+    architecture: replication
+    master:
+      replicaCount: 1
+    replica:
+      replicaCount: 2
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    persistence:
+      size: 10Gi
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: 15d
+    storageSize: 50Gi
+  grafana:
+    enabled: true
+    adminUser: admin
+    persistence:
+      size: 10Gi
+
+logging:
+  enabled: true
+  elasticsearch:
+    enabled: true
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      size: 30Gi
+  kibana:
+    enabled: true
+
+networkPolicy:
+  enabled: true
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 3000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+priorityClassName: system-cluster-critical
+
+serviceAccount:
+  create: true
+  name: qadash
+  annotations:
+    description: "Service account for QADash application"
+
+rbac:
+  create: true
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  prometheusRule:
+    enabled: true
+  alerting:
+    enabled: true
+    receivers:
+      slack:
+        enabled: true
+        channel: "#qadash-alerts"
+      email:
+        enabled: false
+        recipients:
+          - team@qadash.io
+
+rollout:
+  strategy: RollingUpdate
+  maxSurge: 1
+  maxUnavailable: 0
+
+resources:
+  limits:
+    cpu: 4000m
+    memory: 4Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi

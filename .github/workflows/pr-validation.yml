@@ -1,0 +1,410 @@
+name: PR Validation Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to validate'
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: '20'
+  CACHE_VERSION: 'v1'
+
+jobs:
+  # ============================================
+  # Metadata & Setup
+  # ============================================
+  metadata:
+    name: Extract Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.metadata.outputs.is_release }}
+      branch_name: ${{ steps.metadata.outputs.branch_name }}
+      pr_number: ${{ steps.metadata.outputs.pr_number }}
+      changed_services: ${{ steps.metadata.outputs.changed_services }}
+    steps:
+      - name: Extract metadata
+        id: metadata
+        run: |
+          echo "branch_name=${{ github.head_ref || github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "pr_number=${{ github.event.pull_request.number || '' }}" >> $GITHUB_OUTPUT
+          
+          # Check if release PR
+          if [[ "${{ github.head_ref }}" =~ ^release/.*$ ]]; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Detect changed services
+          CHANGED_SERVICES=""
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            git fetch origin main --depth=1 2>/dev/null || true
+            CHANGES=$(git diff --name-only HEAD origin/main...HEAD 2>/dev/null || echo "")
+            for change in $CHANGES; do
+              case $change in
+                apps/frontend/*) CHANGED_SERVICES="${CHANGED_SERVICES}frontend," ;;
+                apps/backend/*) CHANGED_SERVICES="${CHANGED_SERVICES}backend," ;;
+              esac
+            done
+          fi
+          echo "changed_services=${CHANGED_SERVICES%,}" >> $GITHUB_OUTPUT
+
+  # ============================================
+  # Lint & Code Quality
+  # ============================================
+  lint:
+    name: Lint & Code Quality
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Run TypeScript type check
+        run: npm run typecheck
+        continue-on-error: true
+
+      - name: Run Backend lint
+        run: npm run lint -w @qadash/backend
+        continue-on-error: true
+
+      - name: Upload lint reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: |
+            apps/frontend/.next/analysis
+            apps/backend/dist/analysis
+          retention-days: 7
+
+  # ============================================
+  # Security Scanning (Parallel)
+  # ============================================
+  security-scan:
+    name: Security Scan
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run Snyk security scan
+        if: env.SNYK_TOKEN != ''
+        run: |
+          npx snyk test --all-projects --severity-threshold=high
+        continue-on-error: true
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: |
+            snyk-report.json
+            audit-report.json
+          retention-days: 30
+
+  # ============================================
+  # Dependency Audit
+  # ============================================
+  dependency-audit:
+    name: Dependency Audit
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for outdated dependencies
+        run: npm outdated
+
+      - name: Check for unused packages
+        run: npm dedupe
+
+  # ============================================
+  # Build (Parallel)
+  # ============================================
+  build-backend:
+    name: Build Backend
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run -w @qadash/backend prisma generate
+
+      - name: Build backend
+        run: npm run -w @qadash/backend build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: |
+            apps/backend/dist/
+            apps/backend/package.json
+          retention-days: 1
+
+  build-frontend:
+    name: Build Frontend
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run -w @qadash/frontend build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            apps/frontend/.next/
+            apps/frontend/package.json
+          retention-days: 1
+
+  # ============================================
+  # Unit Tests
+  # ============================================
+  unit-tests-backend:
+    name: Unit Tests - Backend
+    needs: [build-backend]
+    runs-on: ubuntu-latest
+    container:
+      image: node:20-alpine
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: apps/backend/
+
+      - name: Run unit tests
+        run: npm run -w @qadash/backend test
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: apps/backend/coverage
+          retention-days: 7
+
+  unit-tests-frontend:
+    name: Unit Tests - Frontend
+    needs: [build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: apps/frontend/
+
+      - name: Run unit tests
+        run: npm run -w @qadash/frontend test
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: apps/frontend/coverage
+          retention-days: 7
+
+  # ============================================
+  # Integration Tests
+  # ============================================
+  integration-tests:
+    name: Integration Tests
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: qadash_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: apps/backend/
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: apps/frontend/
+
+      - name: Run migrations
+        run: npm run -w @qadash/backend prisma migrate deploy
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: apps/backend/test-results
+          retention-days: 7
+
+  # ============================================
+  # Build Summary
+  # ============================================
+  summary:
+    name: Build Summary
+    needs: [metadata, lint, security-scan, dependency-audit, build-backend, build-frontend, unit-tests-backend, unit-tests-frontend, integration-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Create PR Summary
+        run: |
+          echo "## PR Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & Code Quality | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Audit | ${{ needs.dependency-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Build | ${{ needs.build-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Build | ${{ needs.build-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (Backend) | ${{ needs.unit-tests-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (Frontend) | ${{ needs.unit-tests-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.lint.result }}" == "failure" ] || [ "${{ needs.security-scan.result }}" == "failure" ] || [ "${{ needs.integration-tests.result }}" == "failure" ]; then
+            echo "### ⚠️ Some checks failed. Please review the errors above." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Send Slack notification
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          fields: repo,message,commit,author
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

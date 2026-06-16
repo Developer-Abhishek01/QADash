@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qadash.fullname" . }}-config
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.global.environment }}
+  LOG_LEVEL: {{ .Values.backend.env.LOG_LEVEL | default "info" }}
+  API_URL: "https://api.{{ .Values.global.domain }}"
+  FRONTEND_URL: "https://{{ .Values.global.domain }}"
+  NEXT_PUBLIC_API_URL: "https://api.{{ .Values.global.domain }}"
+  NEXT_PUBLIC_WS_URL: "wss://api.{{ .Values.global.domain }}"
+  REDIS_DB: "0"
+  CACHE_TTL: "3600"
+  SESSION_SECRET: {{ randAlphaNum 24 }}
+  RATE_LIMIT_TTL: "60"
+  RATE_LIMIT_MAX: "100"
+  UPLOAD_MAX_SIZE: "52428800"
+  REPORT_RETENTION_DAYS: "30"
+  WORKER_CONCURRENCY: "5"
+  WORKER_TIMEOUT: "300000"
+  AI_PROVIDER: "openai"
+  AI_MODEL: "gpt-4"
+  AI_MAX_TOKENS: "4096"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qadash.fullname" . }}-env-config
+  labels:
+    {{- include "qadash.labels" . | nindent 4 }}
+data:
+  DATABASE_POOL_MIN: "5"
+  DATABASE_POOL_MAX: "20"
+  DATABASE_SSL: "true"
+  REDIS_CLUSTER_MODE: "false"
+  CORS_ORIGIN: "https://{{ .Values.global.domain }}"
+  CORS_CREDENTIALS: "true"
+  FEATURE_AI: "true"
+  FEATURE_SCHEDULER: "true"
+  FEATURE_REALTIME: "true"

@@ -1,0 +1,1400 @@
+# QADash Enterprise API Contracts
+# Version: 1.0.0
+# Specification: OpenAPI 3.0.3
+
+openapi: 3.0.3
+info:
+  title: QADash Enterprise API
+  description: |
+    Enterprise AI-Driven Testing Platform API
+    
+    ## Authentication
+    All endpoints require authentication via JWT Bearer token.
+    Include the token in Authorization header: `Authorization: Bearer <token>`
+    
+    ## Rate Limiting
+    - Default: 100 requests/minute
+    - Authenticated: 1000 requests/minute
+    - Enterprise: Unlimited
+    
+    ## Response Format
+    All responses follow standard JSON format with success status.
+  version: 1.0.0
+  contact:
+    name: QADash Support
+    email: support@qadash.io
+    url: https://qadash.io/support
+  license:
+    name: Enterprise License
+    url: https://qadash.io/license
+
+servers:
+  - url: https://api.qadash.io/v1
+    description: Production Server
+  - url: https://staging-api.qadash.io/v1
+    description: Staging Server
+  - url: https://dev-api.qadash.io/v1
+    description: Development Server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+tags:
+  - name: Orchestration
+    description: Job orchestration and queue management
+  - name: Execution
+    description: Test execution management
+  - name: AI
+    description: AI-powered analysis and insights
+  - name: Reports
+    description: Report generation and management
+  - name: Security
+    description: Security scanning operations
+  - name: Performance
+    description: Performance testing
+  - name: Bugs
+    description: Bug tracking and management
+  - name: Mobile
+    description: Mobile-optimized endpoints
+
+paths:
+
+  # ==========================================
+  # ORCHESTRATION ENDPOINTS
+  # ==========================================
+  /orchestration/jobs:
+    post:
+      tags: [Orchestration]
+      summary: Submit new orchestration job
+      operationId: submitJob
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrchestrationJobInput'
+            examples:
+              test:
+                summary: Submit test job
+                value:
+                  type: test
+                  priority: high
+                  payload:
+                    executionId: "exec-123"
+                    tests: ["test-1", "test-2"]
+                  options:
+                    timeout: 300000
+                    retries: 3
+              security:
+                summary: Submit security scan
+                value:
+                  type: security
+                  priority: critical
+                  payload:
+                    targetUrl: "https://app.example.com"
+                    scanType: full
+      responses:
+        '201':
+          description: Job submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestrationJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    
+    get:
+      tags: [Orchestration]
+      summary: List all jobs
+      operationId: listJobs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by job status
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+        - name: type
+          in: query
+          description: Filter by job type
+          schema:
+            type: string
+            enum: [test, security, performance, accessibility, ai-analysis, report]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: "-createdAt"
+      responses:
+        '200':
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobListResponse'
+
+  /orchestration/jobs/{jobId}:
+    parameters:
+      - $ref: '#/components/parameters/jobId'
+    
+    get:
+      tags: [Orchestration]
+      summary: Get job details
+      operationId: getJob
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestrationJobDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags: [Orchestration]
+      summary: Cancel job
+      operationId: cancelJob
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Job cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /orchestration/jobs/{jobId}/retry:
+    parameters:
+      - $ref: '#/components/parameters/jobId'
+    
+    post:
+      tags: [Orchestration]
+      summary: Retry failed job
+      operationId: retryJob
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                options:
+                  type: object
+                  properties:
+                    force:
+                      type: boolean
+                      default: false
+      responses:
+        '202':
+          description: Job retry initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestrationJobResponse'
+
+  /orchestration/execute/{executionId}:
+    parameters:
+      - $ref: '#/components/parameters/executionId'
+    
+    post:
+      tags: [Orchestration]
+      summary: Orchestrate full execution
+      description: |
+        Submit a complete execution with multiple test types.
+        This will create jobs for all enabled test types and coordinate their execution.
+      operationId: orchestrateExecution
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionOrchestrationInput'
+            example:
+              tests: true
+              security: true
+              performance: false
+              accessibility: true
+              aiAnalysis: true
+              priority: high
+              options:
+                parallel: true
+                maxRetries: 3
+                timeout: 600000
+      responses:
+        '202':
+          description: Execution orchestrated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionOrchestrationResponse'
+
+  /orchestration/services/health:
+    get:
+      tags: [Orchestration]
+      summary: Get all services health
+      operationId: getServiceHealth
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceHealth'
+
+  /orchestration/services/{name}/scale:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [frontend, backend, ai-engine, playwright-workers]
+    
+    post:
+      tags: [Orchestration]
+      summary: Scale a service
+      operationId: scaleService
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [replicas]
+              properties:
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+      responses:
+        '202':
+          description: Scaling initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                  replicas:
+                    type: integer
+                  status:
+                    type: string
+
+  # ==========================================
+  # EXECUTION ENDPOINTS
+  # ==========================================
+  /executions:
+    post:
+      tags: [Execution]
+      summary: Create execution
+      operationId: createExecution
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExecutionInput'
+      responses:
+        '201':
+          description: Execution created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Execution'
+    
+    get:
+      tags: [Execution]
+      summary: List executions
+      operationId: listExecutions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionListResponse'
+
+  /executions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/executionId'
+    
+    get:
+      tags: [Execution]
+      summary: Get execution details
+      operationId: getExecution
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Execution details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionDetail'
+    
+    delete:
+      tags: [Execution]
+      summary: Cancel execution
+      operationId: cancelExecution
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Execution cancelled
+
+  /executions/{id}/retry:
+    parameters:
+      - $ref: '#/components/parameters/executionId'
+    
+    post:
+      tags: [Execution]
+      summary: Retry execution
+      operationId: retryExecution
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                failedOnly:
+                  type: boolean
+                  default: false
+      responses:
+        '202':
+          description: Retry initiated
+
+  # ==========================================
+  # AI ENDPOINTS
+  # ==========================================
+  /ai/analyze:
+    post:
+      tags: [AI]
+      summary: Analyze with AI
+      operationId: analyzeWithAI
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [code, execution, bug, locator, nlp]
+                  description: Type of analysis to perform
+                data:
+                  type: object
+                  description: Data for analysis
+                options:
+                  type: object
+                  description: Optional analysis options
+      responses:
+        '200':
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIAnalysisResponse'
+
+  /ai/self-heal:
+    post:
+      tags: [AI]
+      summary: Trigger self-healing
+      description: Trigger AI-powered self-healing for a failed test
+      operationId: triggerSelfHealing
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [executionId, failedTestId]
+              properties:
+                executionId:
+                  type: string
+                  format: uuid
+                failedTestId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Self-healing result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelfHealingResponse'
+
+  /ai/generate:
+    post:
+      tags: [AI]
+      summary: Generate tests
+      description: Use AI to generate test cases from description
+      operationId: generateTests
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, description]
+              properties:
+                projectId:
+                  type: string
+                  format: uuid
+                description:
+                  type: string
+                  description: Natural language description of tests to generate
+                count:
+                  type: integer
+                  default: 5
+                  minimum: 1
+                  maximum: 20
+                type:
+                  type: string
+                  enum: [unit, integration, e2e, performance]
+                  default: e2e
+      responses:
+        '201':
+          description: Generated tests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedTestsResponse'
+
+  /ai/predictions:
+    post:
+      tags: [AI]
+      summary: Get predictions
+      description: Get AI predictions for execution outcomes
+      operationId: getPredictions
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectId:
+                  type: string
+                  format: uuid
+                executionId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Prediction results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIPredictionResponse'
+
+  # ==========================================
+  # BUG ENDPOINTS
+  # ==========================================
+  /bugs:
+    post:
+      tags: [Bugs]
+      summary: Create bug
+      operationId: createBug
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBugInput'
+      responses:
+        '201':
+          description: Bug created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bug'
+    
+    get:
+      tags: [Bugs]
+      summary: List bugs
+      operationId: listBugs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, resolved, closed]
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: List of bugs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BugListResponse'
+
+  /bugs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    
+    get:
+      tags: [Bugs]
+      summary: Get bug details
+      operationId: getBug
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Bug details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BugDetail'
+    
+    patch:
+      tags: [Bugs]
+      summary: Update bug
+      operationId: updateBug
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBugInput'
+      responses:
+        '200':
+          description: Bug updated
+
+  # ==========================================
+  # MOBILE ENDPOINTS
+  # ==========================================
+  /mobile/dashboard:
+    get:
+      tags: [Mobile]
+      summary: Get mobile dashboard
+      description: Optimized dashboard data for mobile apps
+      operationId: getMobileDashboard
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileDashboard'
+
+  /mobile/sync:
+    post:
+      tags: [Mobile]
+      summary: Sync offline data
+      description: Synchronize offline changes with server
+      operationId: syncOfflineData
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfflineSyncInput'
+      responses:
+        '200':
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineSyncResponse'
+
+# ==========================================
+# COMPONENTS
+# ==========================================
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/login endpoint
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for service-to-service communication
+
+  parameters:
+    jobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique job identifier
+    
+    executionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique execution identifier
+    
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+      description: Page number for pagination
+    
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+      description: Number of items per page
+
+  schemas:
+    # Common schemas
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Bad request"
+        error:
+          type: string
+          example: "Validation Error"
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    # Orchestration schemas
+    OrchestrationJobInput:
+      type: object
+      required: [type, payload]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Optional job ID (auto-generated if not provided)
+        type:
+          type: string
+          enum: [test, security, performance, accessibility, ai-analysis, report, bug-sync]
+          description: Type of job to execute
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+          default: medium
+        payload:
+          type: object
+          description: Job-specific payload data
+        dependencies:
+          type: array
+          items:
+            type: string
+          description: List of job IDs that must complete before this job
+        callback:
+          type: string
+          description: Webhook URL to call on completion
+        options:
+          type: object
+          properties:
+            timeout:
+              type: integer
+              default: 300000
+            retries:
+              type: integer
+              default: 3
+            parallel:
+              type: boolean
+              default: false
+
+    OrchestrationJobResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        estimatedTime:
+          type: integer
+          description: Estimated completion time in seconds
+        queuePosition:
+          type: integer
+          description: Position in queue (if pending)
+
+    OrchestrationJobDetail:
+      allOf:
+        - $ref: '#/components/schemas/OrchestrationJobInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [pending, running, completed, failed, cancelled]
+            progress:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 100
+            createdAt:
+              type: string
+              format: date-time
+            startedAt:
+              type: string
+              format: date-time
+            completedAt:
+              type: string
+              format: date-time
+            result:
+              type: object
+              description: Job execution result
+            error:
+              type: string
+              description: Error message if failed
+            workerId:
+              type: string
+              description: Assigned worker ID
+
+    JobListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrchestrationJobDetail'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    ExecutionOrchestrationInput:
+      type: object
+      properties:
+        tests:
+          type: boolean
+          default: true
+          description: Run functional tests
+        security:
+          type: boolean
+          default: false
+          description: Run security scan
+        performance:
+          type: boolean
+          default: false
+          description: Run performance tests
+        accessibility:
+          type: boolean
+          default: false
+          description: Run accessibility tests
+        aiAnalysis:
+          type: boolean
+          default: true
+          description: Run AI analysis on results
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+          default: medium
+        options:
+          type: object
+          properties:
+            parallel:
+              type: boolean
+              default: true
+            maxRetries:
+              type: integer
+              default: 3
+            timeout:
+              type: integer
+              default: 600000
+
+    ExecutionOrchestrationResponse:
+      type: object
+      properties:
+        orchestrationId:
+          type: string
+          format: uuid
+        executionId:
+          type: string
+          format: uuid
+        jobs:
+          type: array
+          items:
+            type: object
+            properties:
+              jobId:
+                type: string
+                format: uuid
+              type:
+                type: string
+              status:
+                type: string
+        status:
+          type: string
+
+    ServiceHealth:
+      type: object
+      properties:
+        service:
+          type: string
+          example: "backend"
+        status:
+          type: string
+          enum: [healthy, degraded, down]
+        lastCheck:
+          type: string
+          format: date-time
+        latency:
+          type: integer
+          description: Latency in milliseconds
+        errorRate:
+          type: number
+          format: float
+        version:
+          type: string
+
+    # Execution schemas
+    CreateExecutionInput:
+      type: object
+      required: [name, projectId, testIds]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        projectId:
+          type: string
+          format: uuid
+        testIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+        environmentId:
+          type: string
+          format: uuid
+        browser:
+          type: string
+          enum: [chromium, firefox, webkit]
+          default: chromium
+        options:
+          type: object
+          properties:
+            parallel:
+              type: boolean
+            sharding:
+              type: integer
+            viewport:
+              type: object
+
+    Execution:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        projectId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+          description: Duration in milliseconds
+
+    ExecutionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Execution'
+        - type: object
+          properties:
+            summary:
+              type: object
+              properties:
+                total:
+                  type: integer
+                passed:
+                  type: integer
+                failed:
+                  type: integer
+                skipped:
+                  type: integer
+                passRate:
+                  type: number
+            testResults:
+              type: array
+              items:
+                $ref: '#/components/schemas/TestResult'
+            logs:
+              type: string
+              description: Execution logs
+
+    ExecutionListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Execution'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    TestResult:
+      type: object
+      properties:
+        testId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [passed, failed, skipped, pending]
+        duration:
+          type: integer
+        error:
+          type: string
+        screenshots:
+          type: array
+          items:
+            type: string
+        videoUrl:
+          type: string
+
+    # AI schemas
+    AIAnalysisResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        result:
+          type: object
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        processingTime:
+          type: integer
+          description: Processing time in milliseconds
+        suggestions:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              message:
+                type: string
+              confidence:
+                type: number
+
+    SelfHealingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        fixed:
+          type: boolean
+        originalError:
+          type: string
+        fix:
+          type: object
+          properties:
+            action:
+              type: string
+            description:
+              type: string
+            confidence:
+              type: number
+        testRerunResult:
+          type: string
+          enum: [passed, failed, skipped]
+
+    GeneratedTestsResponse:
+      type: object
+      properties:
+        tests:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              description:
+                type: string
+              code:
+                type: string
+              confidence:
+                type: number
+        totalCount:
+          type: integer
+
+    AIPredictionResponse:
+      type: object
+      properties:
+        predictions:
+          type: array
+          items:
+            type: object
+            properties:
+              testId:
+                type: string
+              outcome:
+                type: string
+                enum: [pass, fail, flaky]
+              confidence:
+                type: number
+        overallPrediction:
+          type: object
+          properties:
+            passRate:
+              type: number
+            flakyTests:
+              type: array
+              items:
+                type: string
+
+    # Bug schemas
+    CreateBugInput:
+      type: object
+      required: [title, severity]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+        assigneeId:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+
+    UpdateBugInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        assigneeId:
+          type: string
+          format: uuid
+        resolution:
+          type: string
+          enum: [fixed, wont_fix, duplicate, cant_fix]
+
+    Bug:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    BugDetail:
+      allOf:
+        - $ref: '#/components/schemas/Bug'
+        - type: object
+          properties:
+            assignee:
+              type: object
+            reporter:
+              type: object
+            linkedExecutions:
+              type: array
+              items:
+                type: string
+                format: uuid
+            comments:
+              type: array
+              items:
+                type: object
+
+    BugListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bug'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # Mobile schemas
+    MobileDashboard:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            executionsToday:
+              type: integer
+            passRate:
+              type: number
+            failedTests:
+              type: integer
+            pendingJobs:
+              type: integer
+        recentExecutions:
+          type: array
+          items:
+            type: object
+        alerts:
+          type: array
+          items:
+            type: object
+        quickActions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+              icon:
+                type: string
+
+    OfflineSyncInput:
+      type: object
+      required: [clientId, lastSync]
+      properties:
+        clientId:
+          type: string
+        lastSync:
+          type: string
+          format: date-time
+        changes:
+          type: object
+          properties:
+            executions:
+              type: array
+              items:
+                type: object
+            bugs:
+              type: array
+              items:
+                type: object
+
+    OfflineSyncResponse:
+      type: object
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        applied:
+          type: array
+          items:
+            type: string
+        conflicts:
+          type: array
+          items:
+            type: object
+        updates:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 400
+            message: "Validation failed"
+            error: "Bad Request"
+    
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 401
+            message: "Invalid or expired token"
+            error: "Unauthorized"
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 404
+            message: "Job not found"
+            error: "Not Found"
+    
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 429
+            message: "Rate limit exceeded"
+            error: "Too Many Requests"

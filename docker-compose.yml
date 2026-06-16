@@ -1,0 +1,55 @@
+# QADash Enterprise Docker Compose - Core Services Only
+services:
+  # ========================================
+  # PostgreSQL Database
+  # ========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: qadash-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: qadash
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - qadash-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # Redis Cache & Queue
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: qadash-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass redis123 --bind 0.0.0.0
+    volumes:
+      - redis_data:/data
+    networks:
+      - qadash-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  qadash-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

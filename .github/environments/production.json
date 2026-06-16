@@ -1,0 +1,90 @@
+{
+  "name": "production",
+  "protection": "required_reviewers",
+  "reviewers": [
+    {
+      "type": "required",
+      "id": "team-leads"
+    }
+  ],
+  "variables": [
+    {
+      "name": "NODE_ENV",
+      "value": "production"
+    },
+    {
+      "name": "LOG_LEVEL",
+      "value": "warn"
+    },
+    {
+      "name": "API_URL",
+      "value": "https://api.qadash.io"
+    },
+    {
+      "name": "NEXT_PUBLIC_API_URL",
+      "value": "https://api.qadash.io"
+    },
+    {
+      "name": "ENABLE_METRICS",
+      "value": "true"
+    }
+  ],
+  "secrets": [
+    {
+      "name": "DATABASE_URL",
+      "value": "postgres://user:***@prod-db:5432/qadash"
+    },
+    {
+      "name": "REDIS_URL",
+      "value": "redis://prod-redis:6379"
+    },
+    {
+      "name": "JWT_SECRET",
+      "value": "***"
+    },
+    {
+      "name": "JWT_REFRESH_SECRET",
+      "value": "***"
+    },
+    {
+      "name": "ENCRYPTION_KEY",
+      "value": "***"
+    },
+    {
+      "name": "PRODUCTION_API_URL",
+      "value": "https://api.qadash.io"
+    },
+    {
+      "name": "PRODUCTION_URL",
+      "value": "https://qadash.io"
+    },
+    {
+      "name": "PRODUCTION_KUBECONFIG",
+      "value": "***"
+    },
+    {
+      "name": "AWS_ACCESS_KEY_ID",
+      "value": "***"
+    },
+    {
+      "name": "AWS_SECRET_ACCESS_KEY",
+      "value": "***"
+    },
+    {
+      "name": "AWS_S3_BUCKET",
+      "value": "qadash-production-uploads"
+    },
+    {
+      "name": "SLACK_WEBHOOK_URL",
+      "value": "***"
+    },
+    {
+      "name": "SENTRY_DSN",
+      "value": "***"
+    },
+    {
+      "name": "DATADOG_API_KEY",
+      "value": "***"
+    }
+  ]
+}

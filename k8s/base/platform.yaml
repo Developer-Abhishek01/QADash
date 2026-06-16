@@ -1,0 +1,415 @@
+# K8s Base Configuration for QADash Enterprise Platform
+# Version: 1.0.0
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qadash
+  labels:
+    name: qadash
+    environment: production
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: qadash-backend
+  namespace: qadash
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qadash-config
+  namespace: qadash
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  API_URL: "http://backend:3001"
+  AI_ENGINE_URL: "http://ai-engine:3002"
+  WS_URL: "ws://backend:3001"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: qadash-secrets
+  namespace: qadash
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://postgres:password@postgres:5432/qadash"
+  REDIS_URL: "redis://:password@redis:6379"
+  JWT_SECRET: "your-jwt-secret-change-in-production"
+  JWT_PUBLIC_KEY: ""
+  API_KEY: "your-api-key"
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: qadash
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/qadash/frontend:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: qadash-config
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: qadash
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: qadash
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      serviceAccountName: qadash-backend
+      containers:
+        - name: backend
+          image: ghcr.io/qadash/backend:latest
+          ports:
+            - containerPort: 3001
+            - containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: qadash-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: qadash-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: qadash-secrets
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: qadash
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+    - name: websocket
+      port: 3002
+      targetPort: 3002
+
+---
+# AI Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-engine
+  namespace: qadash
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-engine
+  template:
+    metadata:
+      labels:
+        app: ai-engine
+    spec:
+      containers:
+        - name: ai-engine
+          image: ghcr.io/qadash/ai-engine:latest
+          ports:
+            - containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: qadash-config
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 2Gi
+            limits:
+              cpu: 4000m
+              memory: 8Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-engine
+  namespace: qadash
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-engine
+  ports:
+    - name: http
+      port: 3002
+      targetPort: 3002
+
+---
+# Playwright Workers Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: playwright-workers
+  namespace: qadash
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: playwright-workers
+  template:
+    metadata:
+      labels:
+        app: playwright-workers
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/qadash/automation:latest
+          env:
+            - name: API_URL
+              value: "http://backend:3001"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+
+---
+# Horizontal Pod Autoscalers
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+  namespace: qadash
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: qadash
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-engine-hpa
+  namespace: qadash
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-engine
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: playwright-workers-hpa
+  namespace: qadash
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: playwright-workers
+  minReplicas: 5
+  maxReplicas: 50
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# Ingress Configuration
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qadash-ingress
+  namespace: qadash
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  tls:
+    - hosts:
+        - qadash.io
+        - api.qadash.io
+      secretName: qadash-tls
+  rules:
+    - host: qadash.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+    - host: api.qadash.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 3001
+
+---
+# Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qadash-network-policy
+  namespace: qadash
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+  egress:
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector: {}
