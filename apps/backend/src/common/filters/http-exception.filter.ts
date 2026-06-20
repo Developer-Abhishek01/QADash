@@ -41,7 +41,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof err.statusCode === 'number') {
         status = err.statusCode;
       }
-      this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      if (err.type === 'entity.too.large') {
+        status = HttpStatus.PAYLOAD_TOO_LARGE;
+      }
+      this.logger.error(`Unhandled error: ${exception.message} (status: ${status}, type: ${err.type || 'unknown'})`, exception.stack);
     }
 
     response.status(status).json({

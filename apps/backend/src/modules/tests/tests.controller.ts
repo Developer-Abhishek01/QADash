@@ -3,6 +3,8 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { TestsService } from './tests.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ExecutionsService } from '../executions/executions.service';
+import { CreateTestDto } from './dto/create-test.dto';
+import { UpdateTestDto } from './dto/update-test.dto';
 
 @ApiTags('tests')
 @ApiBearerAuth()
@@ -25,7 +27,7 @@ export class TestsController {
   }
 
   @Post()
-  create(@Body() data: { name: string; description?: string; projectId?: string; config?: object; code?: string; specFile?: string; tags?: string[]; status?: string }, @Request() req: any) {
+  create(@Body() data: CreateTestDto, @Request() req: any) {
     return this.testsService.create({ ...data, userId: req.user.id });
   }
 
@@ -44,7 +46,7 @@ export class TestsController {
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: { name?: string; description?: string; status?: string; config?: object; code?: string; specFile?: string; tags?: string[] }) {
+  update(@Param('id') id: string, @Body() data: UpdateTestDto) {
     return this.testsService.update(id, data);
   }
 

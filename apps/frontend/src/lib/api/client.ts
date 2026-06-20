@@ -134,7 +134,7 @@ export const authApi = {
   logout: () => apiClient.post<void>('auth/logout'),
   me: () => apiClient.get<any>('auth/me'),
   refreshToken: (refreshToken: string) =>
-    apiClient.post<{ accessToken: string }>('auth/refresh', { refreshToken }),
+    apiClient.post<{ accessToken: string; refreshToken?: string }>('auth/refresh', { refreshToken }),
 };
 
 export const executionsApi = {

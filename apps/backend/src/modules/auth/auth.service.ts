@@ -139,7 +139,6 @@ export class AuthService {
       { secret: this.configService.get('JWT_RESET_SECRET'), expiresIn: '15m' }
     );
 
-    this.logger.log(`Password reset token for ${user.email}: ${resetToken}`);
     return { message: 'If the email exists, a reset link will be sent' };
   }
 

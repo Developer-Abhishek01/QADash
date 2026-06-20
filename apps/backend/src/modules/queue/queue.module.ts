@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ReportProcessor } from './processors/report.processor';
 import { AiProcessor } from './processors/ai.processor';
 import { NotificationProcessor } from './processors/notification.processor';
+import { ExecutionProcessor } from './processors/execution.processor';
 import { PrismaService } from '../../common/prisma.service';
 import { QUEUES } from './queue.constants';
 import { ExecutionsModule } from '../executions/executions.module';
@@ -53,6 +54,7 @@ import { ExecutionsModule } from '../executions/executions.module';
     ReportProcessor,
     AiProcessor,
     NotificationProcessor,
+    ExecutionProcessor,
   ],
   exports: [QueueService, QueueHealthService],
 })

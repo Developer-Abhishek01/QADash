@@ -6,6 +6,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { LoginDto, RegisterDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto, UpdateUserRoleDto } from './dto/auth.dto';
+import { LogoutDto } from './dto/logout.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -27,7 +29,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  async logout(@Request() req: any, @Body() body: { refreshToken?: string }) {
+  async logout(@Request() req: any, @Body() body: LogoutDto) {
     await this.authService.logout(req.user.id, body.refreshToken);
     return { message: 'Logged out successfully' };
   }
@@ -48,7 +50,7 @@ export class AuthController {
   @Put('profile')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  updateProfile(@Request() req: any, @Body() body: { name?: string; avatar?: string }) { return this.authService.updateProfile(req.user.id, body); }
+  updateProfile(@Request() req: any, @Body() body: UpdateProfileDto) { return this.authService.updateProfile(req.user.id, body); }
 
   @Post('change-password')
   @HttpCode(HttpStatus.OK)

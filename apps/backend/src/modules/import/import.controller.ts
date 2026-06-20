@@ -17,6 +17,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagg
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImportService } from './import.service';
 import { CreateImportDto, SaveMappingsDto, ProcessImportDto, ImportFilterDto } from './dto/import.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Response } from 'express';
 
@@ -119,7 +120,7 @@ export class ImportController {
 
   @Post('templates')
   @ApiOperation({ summary: 'Create import template' })
-  async createTemplate(@Body() body: { name: string; projectId: string; fileType: string; fields: unknown[] }) {
+  async createTemplate(@Body() body: CreateTemplateDto) {
     return { message: 'Template created', template: body };
   }
 }

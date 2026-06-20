@@ -72,6 +72,6 @@ export class TestsService {
   }
 
   async delete(id: string) {
-    return this.prisma.test.delete({ where: { id } });
+    await this.prisma.test.deleteMany({ where: { id } });
   }
 }

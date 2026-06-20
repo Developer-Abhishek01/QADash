@@ -2,6 +2,9 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Requ
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateProjectDto } from './dto/create-project.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
+import { AddProjectUserDto } from './dto/add-project-user.dto';
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -21,12 +24,12 @@ export class ProjectsController {
   }
 
   @Post()
-  create(@Body() data: { name: string; description?: string; settings?: object }) {
+  create(@Body() data: CreateProjectDto) {
     return this.projectsService.create(data);
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: { name?: string; description?: string; status?: string; settings?: object }) {
+  update(@Param('id') id: string, @Body() data: UpdateProjectDto) {
     return this.projectsService.update(id, data);
   }
 
@@ -36,7 +39,7 @@ export class ProjectsController {
   }
 
   @Post(':id/users')
-  addUser(@Param('id') id: string, @Body() data: { userId: string; role?: string }) {
+  addUser(@Param('id') id: string, @Body() data: AddProjectUserDto) {
     return this.projectsService.addUser(id, data.userId, data.role);
   }
 

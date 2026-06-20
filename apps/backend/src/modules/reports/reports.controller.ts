@@ -2,6 +2,7 @@ import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request }
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateReportDto } from './dto/create-report.dto';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -15,7 +16,7 @@ export class ReportsController {
   @Get(':id')
   findOne(@Param('id') id: string) { return this.reportsService.findById(id); }
   @Post()
-  create(@Body() data: { projectId: string; type: string; name: string; summary: object; data?: object }, @Request() req: any) {
+  create(@Body() data: CreateReportDto, @Request() req: any) {
     return this.reportsService.create({ ...data, userId: req.user.id });
   }
   @Delete('bulk')

@@ -45,7 +45,7 @@ import {
   ListAlt as TestCasesIcon,
 } from '@mui/icons-material';
 import { PageHeader } from '@/components/common/PageHeader';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSnackbar } from 'notistack';
 import { testsApi, executionsApi, projectsApi, environmentsApi } from '@/lib/api/client';
@@ -190,27 +190,50 @@ export default function TestCasesPage() {
     }
     if (!action) return null;
 
+    // Split comma-separated actions like "navigate,input,click" into individual steps
+    const actions = action.split(',').map(a => a.trim()).filter(Boolean);
     const selector = getVal(row, ['selector', 'element', 'target', 'locator', 'css', 'xpath']);
-    const value = getVal(row, ['value', 'url', 'text', 'input', 'data'])
+    const desc = getVal(row, ['description', 'comment', 'desc', 'remark']);
+    const urlCol = getVal(row, ['url', 'baseurl', 'site']);
+    const testData = getVal(row, ['value', 'text', 'input', 'data'])
       || getVal(row, ['test_data', 'test data', 'testdata']);
-    const description = getVal(row, ['description', 'comment', 'desc', 'remark']);
 
-    if (action.startsWith('navigate') || action.startsWith('goto') || action.startsWith('open') || action.startsWith('go to')) {
-      return { type: 'navigate', url: value || selector, description };
-    } else if (action.startsWith('click')) {
-      return { type: 'click', selector, description };
-    } else if (action.startsWith('type') || action.startsWith('fill') || action.startsWith('input') || action.startsWith('enter') || action.startsWith('set')) {
-      return { type: 'type', selector, value, description };
-    } else if (action.startsWith('select') || action.startsWith('choose') || action.startsWith('pick')) {
-      return { type: 'select', selector, value, description };
-    } else if (action.startsWith('assert') || action.startsWith('check') || action.startsWith('verify') || action.startsWith('expect') || action.startsWith('should')) {
-      return { type: 'assert', selector, value, description };
-    } else if (action.startsWith('wait') || action.startsWith('pause') || action.startsWith('delay') || action.startsWith('sleep')) {
-      return { type: 'wait', ms: parseInt(value) || 2000, description };
-    } else if (action.startsWith('screenshot') || action.startsWith('capture') || action.startsWith('snapshot')) {
-      return { type: 'screenshot', description };
-    }
-    return { type: action, selector, value, description };
+    const makeStep = (a: string) => {
+      if (a.startsWith('navigate') || a.startsWith('goto') || a.startsWith('open') || a.startsWith('go to')) {
+        const urlMatch = a.match(/(https?:\/\/[^\s]+)/i);
+        const url = urlMatch ? urlMatch[1] : (urlCol || '');
+        return { type: 'navigate', url, description: desc || a };
+      } else if (a.startsWith('click') || a.startsWith('tap') || a.startsWith('press') || a.startsWith('submit')) {
+        const target = a.replace(/^(?:click|tap|press|submit)\s+(?:on\s+)?/i, '').trim();
+        return { type: 'click', selector: selector || (target ? `text="${target}"` : ''), description: desc || a };
+      } else if (a.startsWith('type') || a.startsWith('fill') || a.startsWith('input') || a.startsWith('enter') || a.startsWith('set') || a.startsWith('write') || a.startsWith('put')) {
+        const inMatch = a.match(/^(?:type|enter|fill|input|set|write|put)\s+(.+?)(?:\s+in\s+|\s+into\s+|\s+on\s+|\s+at\s+)(.+)/i);
+        if (inMatch && !selector) {
+          return { type: 'type', value: inMatch[1].trim(), selector: `text="${inMatch[2].trim()}"`, description: desc || a };
+        }
+        const value = testData || a.replace(/^(?:type|enter|fill|input|set|write|put)\s+/i, '').trim();
+        return { type: 'type', selector: selector || 'input', value, description: desc || a };
+      } else if (a.startsWith('select') || a.startsWith('choose') || a.startsWith('pick')) {
+        const matchVal = a.match(/^(?:select|choose|pick)\s+(.+?)(?:\s+from\s+|\s+in\s+)(.+)/i);
+        if (matchVal && !selector) {
+          return { type: 'select', value: matchVal[1].trim(), selector: `text="${matchVal[2].trim()}"`, description: desc || a };
+        }
+        return { type: 'select', selector: selector || '', value: testData || '', description: desc || a };
+      } else if (a.startsWith('assert') || a.startsWith('verify') || a.startsWith('check') || a.startsWith('expect') || a.startsWith('should')) {
+        return { type: 'assert', selector: selector || 'body', value: testData || a.replace(/^(?:assert|verify|check|expect|should)\s+/i, '').trim(), description: desc || a };
+      } else if (a.startsWith('wait') || a.startsWith('pause') || a.startsWith('delay') || a.startsWith('sleep')) {
+        const msMatch = a.match(/(\d+)\s*(ms|sec|seconds?)/i);
+        const ms = msMatch ? parseInt(msMatch[1]) * (msMatch[2].toLowerCase().startsWith('ms') ? 1 : 1000) : (parseInt(testData) || 2000);
+        return { type: 'wait', ms, description: desc || a };
+      } else if (a.startsWith('screenshot') || a.startsWith('capture') || a.startsWith('snapshot')) {
+        return { type: 'screenshot', description: desc || a };
+      }
+      return { type: 'custom', selector: selector || '', value: testData || '', description: desc || a };
+    };
+
+    const steps = actions.map(makeStep);
+    if (steps.length === 0) return null;
+    return { _multi: steps };
   };
 
   // Parse multi-line step text like "1. Step one\n2. Step two" into step objects
@@ -285,8 +308,7 @@ export default function TestCasesPage() {
         return { type: 'navigate', url: urlMatch[1], description: cleaned };
       }
 
-      // Fallback: treat as a navigate step with the description as the URL fragment
-      return { type: 'navigate', url: '', description: cleaned };
+      return { type: 'custom', description: cleaned };
     });
   };
 
@@ -304,26 +326,37 @@ export default function TestCasesPage() {
         if (rows.length === 0) return [];
 
         const headers = Object.keys(rows[0]).map(h => h.toLowerCase());
-        const hasTestCaseName = headers.some(h => h.includes('test') || h.includes('name') || h.includes('case') || h.includes('scenario') || h.includes('title'));
+        const hasTestCaseName = headers.some(h => {
+          const isNameLike = h.includes('test') || h.includes('name') || h.includes('case') || h.includes('scenario') || h.includes('title');
+          const isStepLike = h.includes('step') || h.includes('action') || h.includes('command') || h.includes('keyword') || h.includes('type') || h.includes('data');
+          return isNameLike && !isStepLike;
+        });
         const hasAction = headers.some(h => h.includes('action') || h.includes('type') || h.includes('step') || h.includes('command') || h.includes('keyword'));
 
         if (hasAction && !hasTestCaseName) {
           // Each row is a step -> group them as one test case
           const steps: any[] = [];
           let firstUrl = '';
+          const allRowData: Record<string, string> = {};
           for (const row of rows) {
             const cleanRow: Record<string, string> = {};
             for (const [k, v] of Object.entries(row)) {
               cleanRow[k.toLowerCase()] = String(v ?? '');
             }
+            // Merge all row data to capture full file content
+            Object.assign(allRowData, cleanRow);
             const step = rowToStep(cleanRow);
             if (step) {
-              steps.push(step);
-              if (step.url && !firstUrl) firstUrl = step.url;
+              if (step._multi) {
+                for (const s of step._multi) { steps.push(s); if (s.url && !firstUrl) firstUrl = s.url; }
+              } else {
+                steps.push(step);
+                if (step.url && !firstUrl) firstUrl = step.url;
+              }
             }
           }
           const name = fileName.replace(/\.[^/.]+$/, '');
-          return [{ name, steps, url: firstUrl, sourceRow: 0, sourceData: {} }];
+          return [{ name, steps, url: firstUrl, sourceRow: 0, sourceData: allRowData }];
         }
 
         // Each row is a separate test case
@@ -338,7 +371,7 @@ export default function TestCasesPage() {
           const tcName = cleanRow.test_case || cleanRow.testcasename || cleanRow.test_name || cleanRow.testname || cleanRow.name || cleanRow.scenario || cleanRow.title || `Test Case ${i + 1}`;
           const tcUrl = cleanRow.url || cleanRow.baseurl || cleanRow.site || '';
           if (step) {
-            testCases.push({ name: tcName, steps: [step], url: tcUrl, sourceRow: i, sourceData: cleanRow });
+            testCases.push({ name: tcName, steps: step._multi || [step], url: tcUrl, sourceRow: i, sourceData: cleanRow });
           } else {
             // No action column found — check for multi-line steps column
             const stepsKey = Object.keys(cleanRow).find(k => k.includes('step') || k.includes('action') || k.includes('testcase') || k.includes('description'));
@@ -351,9 +384,6 @@ export default function TestCasesPage() {
               );
               const allText = nonNameCols.map(k => cleanRow[k]).filter(Boolean).join('\n');
               parsedSteps = parseStepsText(allText);
-            }
-            if (parsedSteps.length === 0) {
-              parsedSteps = [{ type: 'custom', description: `Execute test: ${tcName}` }];
             }
             testCases.push({ name: tcName, steps: parsedSteps, url: tcUrl, sourceRow: i, sourceData: cleanRow });
           }
@@ -377,15 +407,17 @@ export default function TestCasesPage() {
           if (first.action || first.type || first.step) {
             // Array of steps - one test case
             const name = fileName.replace(/\.[^/.]+$/, '');
-            return [{ name, steps: parsed, url: parsed.find((s: any) => s.url)?.url || '', sourceRow: 0, sourceData: {} }];
+            const allData: Record<string, string> = {};
+            for (const s of parsed) {
+              Object.assign(allData, Object.fromEntries(Object.entries(s).map(([k, v]) => [k, String(v ?? '')])));
+            }
+            return [{ name, steps: parsed, url: parsed.find((s: any) => s.url)?.url || '', sourceRow: 0, sourceData: allData }];
           }
           // Array of test case objects
           return parsed.map((item: any, idx: number) => {
             const name = item.name || item.test_case || item.testCase || item.title || item.scenario || `Test Case ${idx + 1}`;
             let steps = item.steps || item.actions || (item.action ? [item] : []);
-            if (!Array.isArray(steps) || steps.length === 0) {
-              steps = [{ type: 'custom', description: `Execute test: ${name}` }];
-            }
+            if (!Array.isArray(steps)) steps = [];
             return {
               name,
               steps,
@@ -409,25 +441,35 @@ export default function TestCasesPage() {
       const lines = contentStr.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       if (lines.length < 2) return [];
       const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
-      const hasTestCaseName = headers.some(h => h.includes('test') || h.includes('name') || h.includes('case') || h.includes('scenario') || h.includes('title'));
+      const hasTestCaseName = headers.some(h => {
+        const isNameLike = h.includes('test') || h.includes('name') || h.includes('case') || h.includes('scenario') || h.includes('title');
+        const isStepLike = h.includes('step') || h.includes('action') || h.includes('command') || h.includes('keyword') || h.includes('type') || h.includes('data');
+        return isNameLike && !isStepLike;
+      });
       const hasAction = headers.some(h => h.includes('action') || h.includes('type') || h.includes('step') || h.includes('command') || h.includes('keyword'));
 
       if (hasAction && !hasTestCaseName) {
         // Each row is a step -> group as one test case
         const steps: any[] = [];
         let firstUrl = '';
+        const allRowData: Record<string, string> = {};
         for (let i = 1; i < lines.length; i++) {
           const vals = parseCsvLine(lines[i]);
           const row: Record<string, string> = {};
           headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+          Object.assign(allRowData, row);
           const step = rowToStep(row);
           if (step) {
-            steps.push(step);
-            if (step.url && !firstUrl) firstUrl = step.url;
+            if (step._multi) {
+              for (const s of step._multi) { steps.push(s); if (s.url && !firstUrl) firstUrl = s.url; }
+            } else {
+              steps.push(step);
+              if (step.url && !firstUrl) firstUrl = step.url;
+            }
           }
         }
         const name = fileName.replace(/\.[^/.]+$/, '');
-        return [{ name, steps, url: firstUrl, sourceRow: 0, sourceData: {} }];
+        return [{ name, steps, url: firstUrl, sourceRow: 0, sourceData: allRowData }];
       }
 
       // Each row is a separate test case
@@ -440,7 +482,7 @@ export default function TestCasesPage() {
         const tcName = row.test_case || row.testcasename || row.test_name || row.testname || row.name || row.scenario || row.title || `Test Case ${i}`;
         const tcUrl = row.url || row.baseurl || row.site || '';
         if (step) {
-          testCases.push({ name: tcName, steps: [step], url: tcUrl, sourceRow: i, sourceData: row });
+          testCases.push({ name: tcName, steps: step._multi || [step], url: tcUrl, sourceRow: i, sourceData: row });
         } else {
           const stepsKey = Object.keys(row).find(k => k.includes('step') || k.includes('action') || k.includes('testcase') || k.includes('description'));
           const stepsText = stepsKey ? row[stepsKey] || '' : '';
@@ -451,9 +493,6 @@ export default function TestCasesPage() {
             );
             const allText = nonNameCols.map(k => row[k]).filter(Boolean).join('\n');
             parsedSteps = parseStepsText(allText);
-          }
-          if (parsedSteps.length === 0) {
-            parsedSteps = [{ type: 'custom', description: `Execute test: ${tcName}` }];
           }
           testCases.push({ name: tcName, steps: parsedSteps, url: tcUrl, sourceRow: i, sourceData: row });
         }
@@ -614,21 +653,26 @@ export default function TestCasesPage() {
 
         // Create a parent group test (single card) that references all children
         const allSteps = selectedCases.flatMap(tc =>
-          tc.steps.length > 0 ? tc.steps : [{ type: 'navigate', url: targetUrl || tc.url || 'https://example.com', description: 'Navigate to application' }]
+          tc.steps.length > 0 ? tc.steps : [{ type: 'navigate', url: tc.url || targetUrl || 'https://example.com', description: 'Navigate to application' }]
         );
         const allSourceData = parsedTestCases.map(p => p.sourceData).filter(sd => sd && Object.keys(sd).length > 0);
+
+        const allUrls = selectedCases.map(tc => tc.url).filter(Boolean);
+        const uniqueUrls = [...new Set(allUrls)];
+        const groupUrl = uniqueUrls.length === 1 ? uniqueUrls[0] : (targetUrl || '');
 
         const parentPayload: any = {
           name: selectedFileName.replace(/\.[^/.]+$/, ''),
           status: 'ACTIVE',
           tags: ['uploaded', 'file-group', `source:${selectedFileName}`],
           config: {
-            url: targetUrl || selectedCases[0]?.url || '',
+            url: groupUrl,
             steps: allSteps,
             _sourceFileName: selectedFileName,
             _sourceFileData: allSourceData,
             _isGroup: true,
             _childTestIds: allChildIds,
+            _childUrls: allUrls.length > 0 ? allUrls : undefined,
           },
         };
         parentPayload.projectName = projectName;
@@ -666,7 +710,7 @@ export default function TestCasesPage() {
     enqueueSnackbar(`AI Mapping started for ${tc.name}...`, { variant: 'info' });
 
     try {
-      const configUrl = tc.config?.url || targetUrl || 'https://example.com';
+      const configUrl = tc.config?.url || '';
       let aiSteps: any[] = [];
 
       if (tc.code) {
@@ -779,9 +823,11 @@ export default function TestCasesPage() {
       const tc = testCases.find(t => t.id === id);
       const childIds = tc?.config?._childTestIds;
       if (Array.isArray(childIds) && childIds.length > 0) {
-        await Promise.all(childIds.map((cid: string) => testsApi.delete(cid)));
+        await Promise.all(childIds.map((cid: string) =>
+          testsApi.delete(cid).catch(() => {})
+        ));
       }
-      await testsApi.delete(id);
+      await testsApi.delete(id).catch(() => {});
       enqueueSnackbar('Test case deleted successfully', { variant: 'success' });
       await fetchTestCases();
     } catch (error) {
@@ -807,7 +853,7 @@ export default function TestCasesPage() {
           allIdsToDelete.push(id);
         }
       }
-      await Promise.all(allIdsToDelete.map(id => testsApi.delete(id)));
+      await Promise.all(allIdsToDelete.map(id => testsApi.delete(id).catch(() => {})));
       enqueueSnackbar(`Deleted ${selectedTestIds.length} test case(s)`, { variant: 'success' });
       setSelectedTestIds([]);
       await fetchTestCases();
@@ -938,7 +984,20 @@ export default function TestCasesPage() {
                     <Chip label={tc.project.name} size="small" variant="outlined" color="primary" sx={{ height: 20, '& .MuiChip-label': { fontSize: '0.65rem', px: 0.5 } }} />
                   )}
                 </Box>
-                {tc.config?.url && (
+                {tc.config?._isGroup ? (
+                  tc.config?._childUrls && tc.config._childUrls.length > 0 && (
+                    <Box sx={{ mb: 1.5 }}>
+                      {tc.config._childUrls.slice(0, 2).map((u: string, i: number) => (
+                        <Typography key={i} variant="caption" color="info.main" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'rgba(2, 136, 209, 0.08)', px: 0.8, py: 0.3, borderRadius: 0.5, display: 'inline-block', mr: 0.5, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {u}
+                        </Typography>
+                      ))}
+                      {tc.config._childUrls.length > 2 && (
+                        <Typography variant="caption" color="text.secondary">+{tc.config._childUrls.length - 2} more</Typography>
+                      )}
+                    </Box>
+                  )
+                ) : tc.config?.url && (
                   <Box sx={{ mb: 1.5 }}>
                     <Typography variant="caption" color="info.main" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'rgba(2, 136, 209, 0.08)', px: 0.8, py: 0.3, borderRadius: 0.5, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {tc.config.url}
@@ -1085,19 +1144,32 @@ export default function TestCasesPage() {
                       </Typography>
                     </FormLabel>
                     {parsedTestCases.map((tc, idx) => (
-                      <Box key={idx} sx={{ display: 'flex', alignItems: 'center', px: 1, py: 0.3, bgcolor: selectedCaseIndices.includes(idx) ? 'action.selected' : 'transparent', borderRadius: 0.5 }}>
-                        <Checkbox
-                          size="small"
-                          checked={selectedCaseIndices.includes(idx)}
-                          onChange={() => {
-                            setSelectedCaseIndices(prev =>
-                              prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
-                            );
-                          }}
-                        />
-                        <Box sx={{ ml: 0.5 }}>
-                          <Typography variant="body2">{tc.name}</Typography>
-                          <Typography variant="caption" color="text.secondary">{tc.steps.length} step(s) | {tc.url || targetUrl || 'No URL'}</Typography>
+                      <Box key={idx}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', px: 1, py: 0.5, bgcolor: selectedCaseIndices.includes(idx) ? 'action.selected' : 'transparent', borderRadius: 0.5 }}>
+                          <Checkbox
+                            size="small"
+                            sx={{ mt: 0.3 }}
+                            checked={selectedCaseIndices.includes(idx)}
+                            onChange={() => {
+                              setSelectedCaseIndices(prev =>
+                                prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+                              );
+                            }}
+                          />
+                          <Box sx={{ ml: 0.5, flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" fontWeight={600}>{tc.name}</Typography>
+                            {tc.sourceData && Object.keys(tc.sourceData).length > 0 && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3, mt: 0.2, wordBreak: 'break-word' }}>
+                                {Object.entries(tc.sourceData).map(([key, val]) => {
+                                  const displayVal = val.length > 40 ? val.substring(0, 40) + '...' : val;
+                                  return `${key}: ${displayVal}`;
+                                }).join(' | ')}
+                              </Typography>
+                            )}
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.2 }}>
+                              {tc.steps.length} step(s){tc.url ? ` | URL: ${tc.url.substring(0, 50)}` : ''}
+                            </Typography>
+                          </Box>
                         </Box>
                       </Box>
                     ))}
@@ -1127,6 +1199,7 @@ export default function TestCasesPage() {
                       <TableRow>
                         <TableCell>#</TableCell>
                         <TableCell>Test Case Name</TableCell>
+                        <TableCell>File Data</TableCell>
                         <TableCell>Steps</TableCell>
                         <TableCell>URL</TableCell>
                       </TableRow>
@@ -1136,6 +1209,18 @@ export default function TestCasesPage() {
                         <TableRow key={idx}>
                           <TableCell>{idx + 1}</TableCell>
                           <TableCell><strong>{tc.name}</strong></TableCell>
+                          <TableCell sx={{ maxWidth: 300 }}>
+                            {tc.sourceData && Object.keys(tc.sourceData).length > 0 ? (
+                              <Typography variant="caption" sx={{ lineHeight: 1.3, wordBreak: 'break-word' }}>
+                                {Object.entries(tc.sourceData).map(([key, val]) => {
+                                  const displayVal = val.length > 50 ? val.substring(0, 50) + '...' : val;
+                                  return `${key}: ${displayVal}`;
+                                }).join(' | ')}
+                              </Typography>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">-</Typography>
+                            )}
+                          </TableCell>
                           <TableCell>{tc.steps.length} step(s)</TableCell>
                           <TableCell><code>{tc.url || targetUrl || '-'}</code></TableCell>
                         </TableRow>

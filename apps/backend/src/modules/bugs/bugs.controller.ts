@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { BugsService, BugCreateInput, BugUpdateInput } from './bugs.service';
+import { BugsService } from './bugs.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -8,7 +8,16 @@ import { ExcelIntegration } from './integrations/excel.integration';
 import { JiraIntegration } from './integrations/jira.integration';
 import { UserRole } from '../rbac/rbac.service';
 import { Response } from 'express';
+import { CreateBugDto } from './dto/create-bug.dto';
+import { UpdateBugDto } from './dto/update-bug.dto';
+import { AddAttachmentDto } from './dto/add-attachment.dto';
+import { CheckDuplicateDto } from './dto/check-duplicate.dto';
+import { AssignBugDto } from './dto/assign-bug.dto';
+import { UpdateBugStatusDto } from './dto/update-status.dto';
+import { ImportBugsExcelDto, ImportBugsCsvDto } from './dto/import-bugs.dto';
 
+@ApiTags('bugs')
+@ApiBearerAuth()
 @Controller('bugs')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BugsController {
@@ -21,8 +30,8 @@ export class BugsController {
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER)
   @ApiOperation({ summary: 'Create a new bug' })
-  async create(@Body() createBugDto: any, @Req() req: any) {
-    return this.bugsService.create({ ...createBugDto, userId: req.user.id });
+  async create(@Body() createBugDto: CreateBugDto, @Req() req: any) {
+    return this.bugsService.create({ ...createBugDto, userId: req.user.id } as any);
   }
 
   @Get()
@@ -40,40 +49,38 @@ export class BugsController {
   }
 
   @Post(':id/duplicate-check')
-  async checkDuplicates(@Param('id') id: string, @Body('title') title: string) {
+  @ApiOperation({ summary: 'Check for duplicate bugs' })
+  async checkDuplicates(@Param('id') id: string, @Body() body: CheckDuplicateDto) {
     const bug = await this.bugsService.findById(id);
-    return this.bugsService.detectDuplicates(title || bug.title, bug.projectId);
+    return this.bugsService.detectDuplicates(body.title || bug.title, bug.projectId);
   }
 
   @Put(':id')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER, UserRole.DEVELOPER)
   @ApiOperation({ summary: 'Update bug' })
-  async update(@Param('id') id: string, @Body() updateBugDto: BugUpdateInput) {
-    return this.bugsService.update(id, updateBugDto);
+  async update(@Param('id') id: string, @Body() updateBugDto: UpdateBugDto) {
+    return this.bugsService.update(id, updateBugDto as any);
   }
 
   @Put(':id/status')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER, UserRole.DEVELOPER)
   @ApiOperation({ summary: 'Update bug status' })
-  async updateStatus(@Param('id') id: string, @Body('status') status: any) {
-    return this.bugsService.updateStatus(id, status);
+  async updateStatus(@Param('id') id: string, @Body() body: UpdateBugStatusDto) {
+    return this.bugsService.updateStatus(id, body.status as any);
   }
 
   @Post(':id/assign')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Assign bug' })
-  async assign(@Param('id') id: string, @Body('assigneeId') assigneeId: string) {
-    return this.bugsService.assign(id, assigneeId);
+  async assign(@Param('id') id: string, @Body() body: AssignBugDto) {
+    return this.bugsService.assign(id, body.assigneeId);
   }
 
   @Post(':id/attachments')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER)
   @ApiOperation({ summary: 'Add attachment to bug' })
-  async addAttachment(
-    @Param('id') id: string,
-    @Body() body: { type: 'screenshot' | 'video' | 'log'; url: string },
-  ) {
-    return this.bugsService.addAttachment(id, body.type, body.url);
+  async addAttachment(@Param('id') id: string, @Body() body: AddAttachmentDto) {
+    return this.bugsService.addAttachment(id, body.type as 'screenshot' | 'video' | 'log', body.url);
   }
 
   @Post(':id/sync-jira')
@@ -127,19 +134,17 @@ export class BugsController {
   @Post('import/excel')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Import bugs from Excel' })
-  async importExcel(@Body() body: { buffer: string; projectId: string }) {
+  async importExcel(@Body() body: ImportBugsExcelDto) {
     const buffer = Buffer.from(body.buffer, 'base64');
     const bugs = await this.excelIntegration.importFromExcel(buffer, body.projectId);
-    // You would typically save these to the database here
     return { imported: bugs.length, bugs };
   }
 
   @Post('import/csv')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Import bugs from CSV' })
-  async importCsv(@Body() body: { content: string; projectId: string }) {
+  async importCsv(@Body() body: ImportBugsCsvDto) {
     const bugs = await this.excelIntegration.importFromCsv(body.content, body.projectId);
-    // You would typically save these to the database here
     return { imported: bugs.length, bugs };
   }
 

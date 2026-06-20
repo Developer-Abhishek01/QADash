@@ -20,6 +20,7 @@ import {
   ResolveIssueDto,
   CreateBaselineDto,
 } from './dto/accessibility.dto';
+import { GenerateReportDto } from './dto/generate-report.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Accessibility')
@@ -103,9 +104,7 @@ export class AccessibilityController {
 
   @Post('reports/generate')
   @ApiOperation({ summary: 'Generate accessibility report' })
-  async generateReport(
-    @Body() body: { testId: string; format: 'json' | 'html' | 'pdf' },
-  ) {
+  async generateReport(@Body() body: GenerateReportDto) {
     return this.accessibilityService.generateReport(body.testId, body.format);
   }
 }

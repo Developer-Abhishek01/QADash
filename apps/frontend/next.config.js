@@ -3,10 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   transpilePackages: ['@qadash/types', '@qadash/utils', '@qadash/config', '@qadash/logger'],
   webpack: (config) => {

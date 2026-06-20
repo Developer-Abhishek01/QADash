@@ -1,11 +1,10 @@
 module.exports = {
   root: true,
-  resolvePluginsRelativeTo: __dirname,
   extends: ['@qadash/eslint-config/base'],
   overrides: [
     {
       files: ['apps/frontend/**/*.ts', 'apps/frontend/**/*.tsx'],
-      extends: ['@qadash/eslint-config/nextjs', '@qadash/eslint-config/react'],
+      extends: ['@qadash/eslint-config/nextjs'],
     },
     {
       files: ['apps/backend/**/*.ts'],

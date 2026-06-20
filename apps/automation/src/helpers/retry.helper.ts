@@ -52,9 +52,9 @@ export class RetryHelper {
         }
 
         this.logger.warn(`Attempt ${attempt}/${maxAttempts} failed: ${lastError.message}. Retrying in ${currentDelay}ms...`);
-        
+
         await this.sleep(currentDelay);
-        
+
         currentDelay = Math.min(currentDelay * backoffMultiplier, maxDelayMs);
       }
     }
@@ -68,7 +68,7 @@ export class RetryHelper {
     intervalMs = 1000
   ): Promise<T> {
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < timeoutMs) {
       try {
         return await fn();
@@ -79,7 +79,7 @@ export class RetryHelper {
         await this.sleep(intervalMs);
       }
     }
-    
+
     throw new Error('Timeout exceeded');
   }
 
@@ -90,7 +90,7 @@ export class RetryHelper {
   ): Promise<T> {
     for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
       const result = await fn();
-      
+
       if (condition(result)) {
         return result;
       }

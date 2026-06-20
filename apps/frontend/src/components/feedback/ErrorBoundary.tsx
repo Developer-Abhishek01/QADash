@@ -74,19 +74,32 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-export class AsyncErrorBoundary extends Component<Props & { children: (error: Error | null) => ReactNode }> {
-  state = { error: null };
+interface AsyncErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
 
-  static getDerivedStateFromError(error: Error): State {
+export class AsyncErrorBoundary extends Component<Props & { children: (error: Error | null) => ReactNode }, AsyncErrorBoundaryState> {
+  state: AsyncErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): AsyncErrorBoundaryState {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('AsyncErrorBoundary caught:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
-    if (this.state.error) {
+    if (this.state.hasError) {
       return this.props.fallback || (
         <Box sx={{ p: 3, textAlign: 'center' }}>
-          <Typography color="error">{(this.state.error as Error).message}</Typography>
-          <Button onClick={() => this.setState({ error: null })} sx={{ mt: 2 }}>
+          <Typography color="error">{this.state.error?.message || 'An error occurred'}</Typography>
+          <Button onClick={this.handleReset} sx={{ mt: 2 }}>
             Retry
           </Button>
         </Box>

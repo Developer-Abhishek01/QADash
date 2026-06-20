@@ -108,13 +108,13 @@ if "%BYPASS_DOCKER%"=="1" (
 REM 4. Launch Services
 echo [3/4] Launching Services...
 
-REM Launch Backend (Using pre-built dist for stability and speed)
-echo Starting Backend...
-start "QADash-Backend" cmd /k "cd apps\backend && echo Backend Log Window && npm run start"
+REM Launch Backend (Build latest changes first, then start)
+echo Building Backend...
+start "QADash-Backend" cmd /k "cd apps\backend && echo Backend Log Window && npm run build && npm run start"
 
-REM Launch Frontend
+REM Launch Frontend (fixed port 3000)
 echo Starting Frontend...
-start "QADash-Frontend" cmd /k "cd apps\frontend && echo Frontend Log Window && npm run dev"
+start "QADash-Frontend" cmd /k "cd apps\frontend && echo Frontend Log Window && npx next dev --port 3000"
 
 REM Launch Automation Worker
 echo Starting Automation Worker...
@@ -123,24 +123,40 @@ start "QADash-Automation" cmd /k "cd apps\automation && echo Automation Worker L
 echo [4/4] Finalizing...
 echo [INFO] Waiting for Dashboard to be ready...
 
+set "TIMEOUT_COUNT=0"
+
 :WAIT_BACKEND
+set /a "TIMEOUT_COUNT+=1"
+if !TIMEOUT_COUNT! gtr 60 (
+    echo [WARNING] Backend did not start within 60s. Check the Backend Log Window.
+    goto :SKIP_BACKEND_WAIT
+)
 ping 127.0.0.1 -n 2 >nul
-netstat -ano | findstr :3001 | findstr LISTENING >nul
+netstat -ano | findstr ":3001" | findstr "LISTENING" >nul
 if %errorlevel% neq 0 (
     goto :WAIT_BACKEND
 )
 echo [OK] Backend is Live.
+:SKIP_BACKEND_WAIT
+
+set "TIMEOUT_COUNT=0"
 
 :WAIT_FRONTEND
+set /a "TIMEOUT_COUNT+=1"
+if !TIMEOUT_COUNT! gtr 60 (
+    echo [WARNING] Frontend did not start within 60s. Check the Frontend Log Window.
+    goto :SKIP_FRONTEND_WAIT
+)
 ping 127.0.0.1 -n 2 >nul
-netstat -ano | findstr :3000 | findstr LISTENING >nul
+netstat -ano | findstr ":3000" | findstr "LISTENING" >nul
 if %errorlevel% neq 0 (
     goto :WAIT_FRONTEND
 )
 echo [OK] Frontend is Live.
+:SKIP_FRONTEND_WAIT
 
 echo [SUCCESS] QADash is ready! Opening Dashboard...
-start http://localhost:3000
+start "" "http://localhost:3000"
 
 echo.
 echo ========================================

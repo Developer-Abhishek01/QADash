@@ -1,9 +1,15 @@
 import { Controller, Get, Post, Body, Param, Query, Res, StreamableFile } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { MobileService, MobileTestConfig } from './mobile.service';
 import { DeviceManagementService } from './device-management.service';
 import { MobileReportService } from './mobile-report.service';
+import { UploadAppDto } from './dto/upload-app.dto';
+import { RunMobileTestsDto } from './dto/run-mobile-tests.dto';
+import { CreateDeviceDto } from './dto/create-device.dto';
+import { ReserveDeviceDto } from './dto/reserve-device.dto';
 
+@ApiTags('mobile')
 @Controller('mobile')
 export class MobileController {
   constructor(
@@ -13,9 +19,7 @@ export class MobileController {
   ) {}
 
   @Post('upload-app')
-  async uploadApp(
-    @Body() body: { projectId: string; fileName: string },
-  ): Promise<{ appId: string; path: string }> {
+  async uploadApp(@Body() body: UploadAppDto): Promise<{ appId: string; path: string }> {
     return { appId: `app_${Date.now()}`, path: `apps/${body.projectId}/app_${Date.now()}.apk` };
   }
 
@@ -35,17 +39,7 @@ export class MobileController {
   }
 
   @Post('devices')
-  async registerDevice(
-    @Body() body: {
-      name: string;
-      platform: 'android' | 'ios';
-      type: 'emulator' | 'real';
-      osVersion: string;
-      manufacturer?: string;
-      model?: string;
-      udid?: string;
-    },
-  ): Promise<{ deviceId: string }> {
+  async registerDevice(@Body() body: CreateDeviceDto): Promise<{ deviceId: string }> {
     return this.mobileService.registerDevice(body);
   }
 
@@ -58,10 +52,7 @@ export class MobileController {
   }
 
   @Post('devices/:id/reserve')
-  async reserveDevice(
-    @Param('id') deviceId: string,
-    @Body() body: { userId: string },
-  ): Promise<{ reservationId: string }> {
+  async reserveDevice(@Param('id') deviceId: string, @Body() body: ReserveDeviceDto): Promise<{ reservationId: string }> {
     return this.mobileService.reserveDevice(deviceId, body.userId);
   }
 

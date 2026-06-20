@@ -26,6 +26,9 @@ export class TestWorker extends Worker<TestJobData> {
   }
 
   private async processExecution(job: Job<TestJobData>): Promise<{ status: string; passed: number; failed: number }> {
+    if (process.env.AUTOMATION_WORKER_ENABLED !== 'true') {
+      throw new Error('Automation worker is disabled. Set AUTOMATION_WORKER_ENABLED=true to use this worker.');
+    }
     const { executionId } = job.data;
     const startTime = Date.now();
 
@@ -438,7 +441,9 @@ export class TestWorker extends Worker<TestJobData> {
       const step = steps[i];
       switch (step.type) {
         case 'navigate':
-          await page.goto(step.url, { waitUntil: 'networkidle', timeout: 30000 });
+          if (step.url) {
+            await page.goto(step.url, { waitUntil: 'networkidle', timeout: 30000 });
+          }
           break;
         case 'click':
           await page.click(step.selector);

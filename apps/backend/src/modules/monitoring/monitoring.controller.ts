@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Query, Res, Headers } from '@nestjs
 import { Response } from 'express';
 import { MetricsService } from './metrics.service';
 import { HealthService } from './health.service';
+import { CustomMetricDto } from './dto/custom-metric.dto';
 
 @Controller('monitoring')
 export class MonitoringController {
@@ -23,9 +24,7 @@ export class MonitoringController {
   }
 
   @Post('metrics/custom')
-  recordCustomMetric(
-    @Body() body: { name: string; value: number; labels?: Record<string, string> },
-  ): { success: boolean } {
+  recordCustomMetric(@Body() body: CustomMetricDto): { success: boolean } {
     return { success: true };
   }
 

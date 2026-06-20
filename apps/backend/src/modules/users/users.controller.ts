@@ -5,6 +5,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -26,12 +28,12 @@ export class UsersController {
 
   @Post()
   @Roles(UserRole.ADMIN)
-  create(@Body() data: { email: string; password: string; name: string; role?: string }) {
+  create(@Body() data: CreateUserDto) {
     return this.usersService.create(data);
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: { name?: string; avatar?: string; role?: string }) {
+  update(@Param('id') id: string, @Body() data: UpdateUserDto) {
     return this.usersService.update(id, data);
   }
 

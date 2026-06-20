@@ -2,6 +2,7 @@ import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request }
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ExecutionsService } from './executions.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateExecutionDto } from './dto/create-execution.dto';
 
 @ApiTags('executions')
 @ApiBearerAuth()
@@ -21,7 +22,7 @@ export class ExecutionsController {
   }
 
   @Post()
-  create(@Body() data: { name: string; projectId: string; testIds: string[] }, @Request() req: any) {
+  create(@Body() data: CreateExecutionDto, @Request() req: any) {
     return this.executionsService.create({ ...data, userId: req.user.id });
   }
 

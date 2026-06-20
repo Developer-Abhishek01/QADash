@@ -14,7 +14,6 @@ import { initConfig } from '@qadash/config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import helmet from 'helmet';
-import * as bodyParser from 'body-parser';
 import * as express from 'express';
 
 async function bootstrap() {
@@ -24,21 +23,29 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 
-  // Forcefully replace default body-parsers (100kb limit) with high-limit ones
   const expressApp = app.getHttpAdapter().getInstance();
-  const layers = expressApp._router?.stack;
-  if (layers) {
-    for (let i = layers.length - 1; i >= 0; i--) {
-      const name = layers[i]?.name?.toLowerCase() || '';
-      if (name === 'jsonparser' || name === 'urlencodedparser') {
-        layers.splice(i, 1);
+
+  // Force lazy-router to init so _router.stack exists
+  expressApp.use((_req: any, _res: any, next: any) => next());
+
+  if (expressApp._router?.stack) {
+    const router = express.Router();
+    const jsonMw = express.json({ limit: '500mb' });
+    const urlMw = express.urlencoded({ limit: '500mb', extended: true });
+    router.use(jsonMw);
+    router.use(urlMw);
+
+    // Remove default 100kb body parsers and inject 500mb parsers at the front
+    const stack = expressApp._router.stack;
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const name = stack[i]?.name || '';
+      if (name === 'jsonParser' || name === 'urlencodedParser') {
+        stack.splice(i, 1);
       }
     }
-    // Insert custom parsers at the front (before routes)
-    const router = require('express').Router();
-    router.use(require('body-parser').json({ limit: '500mb' }));
-    router.use(require('body-parser').urlencoded({ limit: '500mb', extended: true }));
-    layers.unshift(...router.stack);
+
+    // Insert high-limit parsers at the front (before all routes)
+    stack.unshift(...router.stack);
   }
 
   app.use(helmet({
@@ -49,7 +56,7 @@ async function bootstrap() {
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   
   app.enableCors({
-    origin: true, // Allow all origins in development
+    origin: isProduction ? process.env.CORS_ORIGIN || 'http://localhost:3000' : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [

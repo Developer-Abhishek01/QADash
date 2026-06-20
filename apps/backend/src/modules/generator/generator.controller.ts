@@ -2,6 +2,7 @@ import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { GeneratorService, GenerateDto } from './generator.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RunActionDto } from './dto/run-action.dto';
 
 @ApiTags('generator')
 @ApiBearerAuth()
@@ -16,7 +17,7 @@ export class GeneratorController {
   }
 
   @Post('action')
-  runAction(@Body() body: { action: string; data: any }) {
+  runAction(@Body() body: RunActionDto) {
     return this.generatorService.runAction(body.action, body.data);
   }
 }

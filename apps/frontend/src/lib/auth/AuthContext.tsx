@@ -174,7 +174,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login');
   };
 
-  const refreshToken = async () => {};
+  const refreshToken = async () => {
+    const currentRefreshToken = localStorage.getItem('refreshToken');
+    if (!currentRefreshToken) return;
+    try {
+      const response = await authApi.refreshToken(currentRefreshToken);
+      if (response?.accessToken) {
+        localStorage.setItem('accessToken', response.accessToken);
+        if (response.refreshToken) {
+          localStorage.setItem('refreshToken', response.refreshToken);
+        }
+      }
+    } catch {
+      logout();
+    }
+  };
 
   const hasPermission = (permission: string): boolean => {
     if (!state.user) return false;

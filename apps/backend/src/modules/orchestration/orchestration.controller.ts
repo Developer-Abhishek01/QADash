@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { OrchestrationService, OrchestrationJob, ServiceHealth } from './orchestration.service';
 import { QueueService } from './services/queue.service';
 import { EventHubService } from './services/event-hub.service';
+import { ExecuteOptionsDto } from './dto/execute-options.dto';
+import { ScaleServiceDto } from './dto/scale-service.dto';
 
 @ApiTags('Orchestration')
 @Controller('api/v1/orchestration')
@@ -50,16 +52,9 @@ export class OrchestrationController {
   @ApiResponse({ status: 201, description: 'Execution orchestrated successfully' })
   async orchestrateExecution(
     @Param('executionId') executionId: string,
-    @Body() options: {
-      tests?: boolean;
-      security?: boolean;
-      performance?: boolean;
-      accessibility?: boolean;
-      aiAnalysis?: boolean;
-      priority?: 'critical' | 'high' | 'medium' | 'low';
-    }
+    @Body() options: ExecuteOptionsDto,
   ) {
-    const result = await this.orchestrationService.orchestrateExecution(executionId, options);
+    const result = await this.orchestrationService.orchestrateExecution(executionId, options as any);
     return result;
   }
 
@@ -74,10 +69,7 @@ export class OrchestrationController {
   @ApiOperation({ summary: 'Scale a service' })
   @ApiQuery({ name: 'replicas', required: true, type: Number })
   @ApiResponse({ status: 200, description: 'Service scaling initiated' })
-  async scaleService(
-    @Param('name') name: string,
-    @Body() body: { replicas: number }
-  ) {
+  async scaleService(@Param('name') name: string, @Body() body: ScaleServiceDto) {
     await this.orchestrationService.scaleService(name, body.replicas);
     return { service: name, replicas: body.replicas, status: 'scaling' };
   }

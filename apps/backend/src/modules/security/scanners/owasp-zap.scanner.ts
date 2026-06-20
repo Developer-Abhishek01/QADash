@@ -13,9 +13,11 @@ export class OwaspZapScanner {
   private readonly logger = new Logger(OwaspZapScanner.name);
   private zapUrl: string;
   private config: ZapConfig;
+  private zapApiKey: string;
 
   constructor() {
     this.zapUrl = process.env.ZAP_API_URL || 'http://localhost:8080';
+    this.zapApiKey = process.env.ZAP_API_KEY || '';
     this.config = {
       apiKey: process.env.ZAP_API_KEY,
       port: 8080,
@@ -60,11 +62,29 @@ export class OwaspZapScanner {
     return { vulnerabilities, targets };
   }
 
+  private getZapHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'User-Agent': 'QADash-SecurityScanner/1.0' };
+    if (this.zapApiKey) {
+      headers['X-ZAP-API-Key'] = this.zapApiKey;
+    }
+    return headers;
+  }
+
+  private buildZapUrl(path: string, params: Record<string, string> = {}): string {
+    const url = new URL(`${this.zapUrl}${path}`);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    return url.toString();
+  }
+
+  private async zapFetch(url: string, timeoutMs = 30000): Promise<Response> {
+    return fetch(url, { headers: this.getZapHeaders(), signal: AbortSignal.timeout(timeoutMs) });
+  }
+
   private async runSpider(targetUrl: string): Promise<TargetResult[]> {
     const targets: TargetResult[] = [];
 
     try {
-      const spiderUrl = `${this.zapUrl}/JSON/spider/action/scan?url=${encodeURIComponent(targetUrl)}&apikey=${this.config.apiKey || ''}`;
+      const spiderUrl = this.buildZapUrl('/JSON/spider/action/scan', { url: targetUrl });
       const response = await fetch(spiderUrl, { signal: AbortSignal.timeout(30000) });
       const data = await response.json() as any;
 
@@ -84,8 +104,8 @@ export class OwaspZapScanner {
     const vulnerabilities: VulnerabilityResult[] = [];
 
     try {
-      const ascanUrl = `${this.zapUrl}/JSON/ascan/action/scan/?url=${encodeURIComponent(targetUrl)}&apikey=${this.config.apiKey || ''}`;
-      const response = await fetch(ascanUrl, { signal: AbortSignal.timeout(60000) });
+      const ascanUrl = this.buildZapUrl('/JSON/ascan/action/scan/', { url: targetUrl });
+      const response = await this.zapFetch(ascanUrl, 60000);
       const data = await response.json() as any;
 
       if (data.scan) {
@@ -102,13 +122,13 @@ export class OwaspZapScanner {
     const targets: TargetResult[] = [];
 
     try {
-      const ajaxUrl = `${this.zapUrl}/JSON/ajaxSpider/action/scan?url=${encodeURIComponent(targetUrl)}&apikey=${this.config.apiKey || ''}`;
-      await fetch(ajaxUrl, { signal: AbortSignal.timeout(60000) });
+      const ajaxUrl = this.buildZapUrl('/JSON/ajaxSpider/action/scan', { url: targetUrl });
+      await this.zapFetch(ajaxUrl, 60000);
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      const resultsUrl = `${this.zapUrl}/JSON/ajaxSpider/view/results/?apikey=${this.config.apiKey || ''}`;
-      const response = await fetch(resultsUrl, { signal: AbortSignal.timeout(10000) });
+      const resultsUrl = this.buildZapUrl('/JSON/ajaxSpider/view/results/');
+      const response = await this.zapFetch(resultsUrl, 10000);
       const data = await response.json() as any;
 
       if (data.results) {
@@ -129,8 +149,8 @@ export class OwaspZapScanner {
 
   private async getAlerts(targetUrl: string): Promise<Record<string, unknown>[]> {
     try {
-      const alertsUrl = `${this.zapUrl}/JSON/alerts/view/alerts/?url=${encodeURIComponent(targetUrl)}&apikey=${this.config.apiKey || ''}`;
-      const response = await fetch(alertsUrl, { signal: AbortSignal.timeout(10000) });
+      const alertsUrl = this.buildZapUrl('/JSON/alerts/view/alerts/', { url: targetUrl });
+      const response = await this.zapFetch(alertsUrl, 10000);
       const data = await response.json() as any;
       return (data.alerts || []) as Record<string, unknown>[];
     } catch {
@@ -201,8 +221,8 @@ export class OwaspZapScanner {
     const targets: TargetResult[] = [];
 
     try {
-      const resultsUrl = `${this.zapUrl}/JSON/spider/view/results/?url=${encodeURIComponent(targetUrl)}&apikey=${this.config.apiKey || ''}`;
-      const response = await fetch(resultsUrl, { signal: AbortSignal.timeout(10000) });
+      const resultsUrl = this.buildZapUrl('/JSON/spider/view/results/', { url: targetUrl });
+      const response = await this.zapFetch(resultsUrl, 10000);
       const data = await response.json() as any;
     if (data && data.results) {
       for (const url of data.results) {
@@ -224,8 +244,8 @@ export class OwaspZapScanner {
     const maxAttempts = 60;
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const statusUrl = `${this.zapUrl}/JSON/spider/view/status/${scanId}?apikey=${this.config.apiKey || ''}`;
-        const response = await fetch(statusUrl, { signal: AbortSignal.timeout(5000) });
+        const statusUrl = this.buildZapUrl(`/JSON/spider/view/status/${scanId}`);
+        const response = await this.zapFetch(statusUrl, 5000);
         const data = await response.json() as any;
 
         if (data.status === '100') break;
@@ -240,8 +260,8 @@ export class OwaspZapScanner {
     const maxAttempts = 120;
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const statusUrl = `${this.zapUrl}/JSON/ascan/view/status/${scanId}?apikey=${this.config.apiKey || ''}`;
-        const response = await fetch(statusUrl, { signal: AbortSignal.timeout(5000) });
+        const statusUrl = this.buildZapUrl(`/JSON/ascan/view/status/${scanId}`);
+        const response = await this.zapFetch(statusUrl, 5000);
         const data = await response.json() as any;
 
         if (data.status === '100') break;

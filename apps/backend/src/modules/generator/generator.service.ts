@@ -28,10 +28,29 @@ export class GeneratorService {
     // Determine target domain
     const domain = dto.demoKey || 'ecommerce';
     
-    // Simulate complex AI processing delay
+    if (process.env.AI_PROVIDER === 'openai') {
+      try {
+        const { default: OpenAI } = await import('openai');
+        const openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+          baseURL: process.env.AI_BASE_URL || 'https://api.openai.com/v1',
+        });
+        const completion = await openai.chat.completions.create({
+          model: process.env.AI_MODEL || 'gpt-4',
+          messages: [
+            { role: 'system', content: 'Generate comprehensive QA test cases for the given domain.' },
+            { role: 'user', content: `Generate test cases for ${domain} project with options: ${JSON.stringify(dto.options)}` },
+          ],
+          temperature: 0.7,
+        });
+        return { projectName: dto.projectName, aiGenerated: true, content: completion.choices[0]?.message?.content };
+      } catch (aiErr) {
+        this.logger.warn(`OpenAI generation failed, falling back to template: ${aiErr}`);
+      }
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Return deeply realistic, MNC-grade QA documentation
     return this.getMockAITestCases(domain, dto.options);
   }
 

@@ -1,9 +1,10 @@
 import { Controller, Get, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { QueueService } from './queue.service';
 import { QueueHealthService } from './queue-health.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { QUEUES } from './queue.constants';
+import { ScaleWorkersDto } from './dto/scale-workers.dto';
 
 @ApiTags('queue')
 @ApiBearerAuth()
@@ -76,12 +77,12 @@ export class QueueController {
   }
 
   @Post('scale-up')
-  scaleUp(@Body() data: { workers: number }) {
+  scaleUp(@Body() data: ScaleWorkersDto) {
     return { message: `Scaled up to ${data.workers} workers (manual scaling)` };
   }
 
   @Post('scale-down')
-  scaleDown(@Body() data: { workers: number }) {
+  scaleDown(@Body() data: ScaleWorkersDto) {
     return { message: `Scaled down to ${data.workers} workers (manual scaling)` };
   }
 }
