@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Server } from 'socket.io';
 import { Subject } from 'rxjs';
+import { Server } from 'socket.io';
 
 export interface EventMessage {
   id: string;

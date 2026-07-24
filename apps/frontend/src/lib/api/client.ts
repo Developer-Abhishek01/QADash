@@ -45,14 +45,12 @@ class ApiClient {
 
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-        // Handle invalid/mock tokens
-        const token = localStorage.getItem('accessToken');
-        if (error.response?.status === 401 || (token === 'mock-token' && error.message === 'Network Error')) {
+        if (error.response?.status === 401) {
           if (!originalRequest._retry) {
             originalRequest._retry = true;
 
             const refreshToken = localStorage.getItem('refreshToken');
-            if (refreshToken && refreshToken !== 'mock-token') {
+            if (refreshToken) {
               try {
                 const response = await axios.post(`${API_BASE_URL}auth/refresh`, {
                   refreshToken,
@@ -135,6 +133,10 @@ export const authApi = {
   me: () => apiClient.get<any>('auth/me'),
   refreshToken: (refreshToken: string) =>
     apiClient.post<{ accessToken: string; refreshToken?: string }>('auth/refresh', { refreshToken }),
+  updateProfile: (data: { name?: string; avatar?: string }) =>
+    apiClient.put<any>('auth/profile', data),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    apiClient.post<void>('auth/change-password', data),
 };
 
 export const executionsApi = {
@@ -165,14 +167,14 @@ export const projectsApi = {
 };
 
 export const importApi = {
-  list: (params?: any) => apiClient.get<any>('import', params),
+  list: (params?: any) => apiClient.get<any>('import/list', params),
   get: (id: string) => apiClient.get<any>(`import/${id}`),
   upload: (data: FormData) => apiClient.post<any>('import/upload', data),
   delete: (id: string) => apiClient.delete<void>(`import/${id}`),
   getPreview: (id: string, offset = 0, limit = 10) => 
     apiClient.get<any[]>(`import/${id}/preview`, { offset, limit }),
   saveMappings: (id: string, mappings: any[]) => 
-    apiClient.post<any>(`import/${id}/mappings`, { mappings }),
+    apiClient.post<any>('import/mappings/save', { importId: id, mappings }),
   process: (id: string) => apiClient.post<any>(`import/${id}/process`),
 };
 
@@ -203,6 +205,7 @@ export const bugsApi = {
 };
 
 export const analyticsApi = {
+  getDashboard: () => apiClient.get<any>('analytics/dashboard'),
   getOverview: () => apiClient.get<any>('analytics/overview'),
   getTrends: (params?: any) => apiClient.get<any>('analytics/trends', params),
   getFlakyTests: (params?: any) => apiClient.get<any>('analytics/flaky', params),
@@ -210,11 +213,12 @@ export const analyticsApi = {
 };
 
 export const aiApi = {
-  analyze: (testResults: any[], testName: string) =>
-    apiClient.post<any>('ai/analysis', { test_results: testResults, test_name: testName }),
+  analyze: (projectId: string, testCode: string) =>
+    apiClient.post<any>(`ai/projects/${projectId}/analyze-test`, { testCode }),
   predict: (testHistory: any[], currentMetrics: any) =>
-    apiClient.post<any>('ai/predictions', { test_history: testHistory, current_metrics: currentMetrics }),
-  getInsights: (params?: any) => apiClient.get<any>('ai/insights', params),
+    apiClient.post<any>('ai/projects/global/predict', { test_history: testHistory, current_metrics: currentMetrics }),
+  getInsights: (projectId: string) =>
+    apiClient.get<any>(`ai/projects/${projectId}/insights`),
 };
 
 export const schedulerApi = {
@@ -241,7 +245,7 @@ export const settingsApi = {
   get: () => apiClient.get<any>('settings'),
   update: (data: any) => apiClient.put<any>('settings', data),
   getTeam: () => apiClient.get<any>('settings/team'),
-  updateTeam: (data: any) => apiClient.put<any>('settings/team', data),
+  updateTeam: (data: { userId: string; role: string }[]) => apiClient.put<any>('settings/team', data),
   getIntegrations: () => apiClient.get<any>('settings/integrations'),
   updateIntegrations: (data: any) => apiClient.put<any>('settings/integrations', data),
 };
@@ -266,6 +270,7 @@ export const generatorApi = {
 export const orchestrationApi = {
   submitJob: (data: any) => apiClient.post<any>('orchestration/jobs', data),
   submitBatch: (data: any[]) => apiClient.post<any>('orchestration/jobs/batch', data),
+  listJobs: (params?: Record<string, string>) => apiClient.get<any>('orchestration/jobs', params ? { params } : undefined),
   getJobStatus: (id: string) => apiClient.get<any>(`orchestration/jobs/${id}`),
   cancelJob: (id: string) => apiClient.delete<any>(`orchestration/jobs/${id}`),
   orchestrateExecution: (executionId: string, options: any) =>
@@ -303,6 +308,29 @@ export const accessibilityApi = {
   runTest: (id: string) => apiClient.post<any>(`accessibility/tests/${id}/run`),
   getIssues: (params?: any) => apiClient.get<any[]>('accessibility/issues', params),
   getReport: (testId: string) => apiClient.get<any>(`accessibility/tests/${testId}/report`),
+};
+
+export const infrastructureApi = {
+  getInfrastructure: () => apiClient.get<any>('monitoring/infrastructure'),
+  getSystemStatus: () => apiClient.get<any>('monitoring/status'),
+  getSystemInfo: () => apiClient.get<any>('monitoring/system'),
+  getHealth: () => apiClient.get<any>('monitoring/health'),
+  getDetailedHealth: () => apiClient.get<any>('monitoring/health/detailed'),
+};
+
+export const workersApi = {
+  list: () => apiClient.get<any>('monitoring/workers'),
+  getQueueHealth: () => apiClient.get<any>('queue/health'),
+  getQueueMetrics: (queue: string) => apiClient.get<any>(`queue/metrics/${queue}`),
+  getWorkers: () => apiClient.get<any>('queue/workers'),
+  getFailedJobs: (queue?: string) => apiClient.get<any>('queue/failed-jobs', queue ? { queue } : undefined),
+  scaleUp: (workers: number) => apiClient.post<any>('queue/scale-up', { workers }),
+  scaleDown: (workers: number) => apiClient.post<any>('queue/scale-down', { workers }),
+  retryJob: (queue: string, jobId: string) => apiClient.post<any>(`queue/retry/${queue}/${jobId}`),
+  retryAllFailed: (queue: string) => apiClient.post<any>(`queue/retry-all/${queue}`),
+  pauseQueue: (queue: string) => apiClient.post<any>(`queue/pause/${queue}`),
+  resumeQueue: (queue: string) => apiClient.post<any>(`queue/resume/${queue}`),
+  drainQueue: (queue: string) => apiClient.post<any>(`queue/drain/${queue}`),
 };
 
 export default apiClient;

@@ -1,7 +1,10 @@
-import { Server as SocketIOServer, Socket, ServerOptions } from 'socket.io';
-import { Server } from 'http';
-import { Logger } from '../utils/logger';
 import { EventEmitter } from 'events';
+import { Server } from 'http';
+
+import { Server as SocketIOServer, Socket, ServerOptions } from 'socket.io';
+
+import { Logger } from '../utils/logger';
+
 
 export type EventType = 
   | 'execution:started'

@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Button,
   Typography,
@@ -11,8 +16,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Avatar,
-  Chip,
   IconButton,
   Dialog,
   DialogTitle,
@@ -20,54 +23,67 @@ import {
   DialogActions,
   TextField,
   MenuItem,
+  Alert,
+  Snackbar,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  AdminPanelSettings as AdminIcon,
-  Person as UserIcon,
-} from '@mui/icons-material';
-import { PageHeader } from '@/components/common/PageHeader';
-import { useState, useEffect } from 'react';
-import { UserRole } from '@/lib/auth/AuthContext';
+import { useState } from 'react';
 
-const roles: UserRole[] = ['ADMIN' as UserRole, 'QA_LEAD' as UserRole, 'QA_ENGINEER' as UserRole, 'AUTOMATION_ENGINEER' as UserRole, 'DEVELOPER' as UserRole, 'MANAGER' as UserRole, 'VIEWER' as UserRole];
+import { PageHeader } from '@/components/common/PageHeader';
+import { Loading } from '@/components/feedback/Loading';
+import { UserRoleChip, UserStatusChip, UserAvatar } from '@/components/users';
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/lib/users/hooks';
+import type { User } from '@/lib/users/types';
+
+const ROLES = ['ADMIN', 'QA_LEAD', 'QA_ENGINEER', 'AUTOMATION_ENGINEER', 'DEVELOPER', 'MANAGER', 'VIEWER'];
 
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [isMounted, setIsMounted] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [newUser, setNewUser] = useState<{ name: string; email: string; role: UserRole }>({ name: '', email: '', role: 'VIEWER' as unknown as UserRole });
+  const { data: users, isLoading } = useUsers();
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
 
-  // Initial load from localStorage to persist
-  useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('qadash_users');
-      if (saved) {
-        setUsers(JSON.parse(saved));
-      } else {
-        // Only default admin if no users exist
-        setUsers([{ id: '1', name: 'John Admin', email: 'admin@example.com', role: 'ADMIN', status: 'Active' }]);
-      }
-    }
-  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'VIEWER' });
+  const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem('qadash_users', JSON.stringify(users));
-    }
-  }, [users, isMounted]);
-
-  const handleAddUser = () => {
-    setUsers([...users, { ...newUser, id: Date.now().toString(), status: 'Active' }]);
-    setOpen(false);
-    setNewUser({ name: '', email: '', role: 'VIEWER' as unknown as UserRole });
+  const handleOpenAdd = () => {
+    setEditingUser(null);
+    setForm({ name: '', email: '', password: '', role: 'VIEWER' });
+    setDialogOpen(true);
   };
+
+  const handleOpenEdit = (user: User) => {
+    setEditingUser(user);
+    setForm({ name: user.name, email: user.email, password: '', role: user.role });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (editingUser) {
+        await updateUser.mutateAsync({ id: editingUser.id, data: { name: form.name, role: form.role } });
+        setSnackbar({ message: 'User updated', severity: 'success' });
+      } else {
+        await createUser.mutateAsync({ name: form.name, email: form.email, password: form.password, role: form.role });
+        setSnackbar({ message: 'User created', severity: 'success' });
+      }
+      setDialogOpen(false);
+    } catch {
+      setSnackbar({ message: 'Operation failed', severity: 'error' });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteUser.mutateAsync(id);
+      setSnackbar({ message: 'User deleted', severity: 'success' });
+    } catch {
+      setSnackbar({ message: 'Delete failed', severity: 'error' });
+    }
+  };
+
+  if (isLoading) return <Loading />;
 
   return (
     <Box>
@@ -75,7 +91,7 @@ export default function UserManagementPage() {
         title="User Management"
         subtitle="Manage platform users, roles and permissions"
         actions={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenAdd}>
             Add User
           </Button>
         }
@@ -88,80 +104,82 @@ export default function UserManagementPage() {
               <TableCell>User</TableCell>
               <TableCell>Role</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Last Login</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((user) => (
-              <TableRow key={user.id}>
+            {(users || []).map((user: User) => (
+              <TableRow key={user.id} hover>
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>{user.name.charAt(0)}</Avatar>
+                    <UserAvatar name={user.name} avatar={user.avatar} />
                     <Box>
                       <Typography variant="body1" fontWeight={600}>{user.name}</Typography>
                       <Typography variant="caption" color="text.secondary">{user.email}</Typography>
                     </Box>
                   </Box>
                 </TableCell>
+                <TableCell><UserRoleChip role={user.role} /></TableCell>
+                <TableCell><UserStatusChip isActive={user.isActive} /></TableCell>
                 <TableCell>
-                  <Chip 
-                    icon={user.role === 'ADMIN' ? <AdminIcon /> : <UserIcon />} 
-                    label={user.role.replace('_', ' ')} 
-                    variant="outlined" 
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={user.status} 
-                    color={user.status === 'Active' ? 'success' : 'default'} 
-                    size="small" 
-                  />
+                  <Typography variant="body2">
+                    {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
+                  </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton size="small"><EditIcon fontSize="small" /></IconButton>
-                  <IconButton size="small" color="error"><DeleteIcon fontSize="small" /></IconButton>
+                  <IconButton size="small" onClick={() => handleOpenEdit(user)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" color="error" onClick={() => handleDelete(user.id)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}
+            {(!users || users.length === 0) && (
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  <Typography py={4} color="text.secondary">No users found</Typography>
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Add New User</DialogTitle>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField
-              label="Full Name"
-              fullWidth
-              value={newUser.name}
-              onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-            />
-            <TextField
-              label="Email Address"
-              fullWidth
-              value={newUser.email}
-              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-            />
-            <TextField
-              select
-              label="Role"
-              fullWidth
-              value={newUser.role}
-              onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-            >
-              {roles.map((role) => (
-                <MenuItem key={role} value={role}>{role.replace('_', ' ')}</MenuItem>
+            <TextField label="Full Name" fullWidth value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <TextField label="Email" fullWidth value={form.email} disabled={!!editingUser} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            {!editingUser && (
+              <TextField label="Password" type="password" fullWidth value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            )}
+            <TextField select label="Role" fullWidth value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              {ROLES.map((role) => (
+                <MenuItem key={role} value={role}>{role.replace(/_/g, ' ')}</MenuItem>
               ))}
             </TextField>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleAddUser}>Create User</Button>
+          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSave} disabled={createUser.isPending || updateUser.isPending}>
+            {editingUser ? 'Update' : 'Create'}
+          </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        {snackbar ? <Alert severity={snackbar.severity}>{snackbar.message}</Alert> : undefined}
+      </Snackbar>
     </Box>
   );
 }

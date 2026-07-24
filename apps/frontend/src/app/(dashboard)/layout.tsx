@@ -1,7 +1,7 @@
 'use client';
 
-import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 export default function DashboardLayout({
   children,

@@ -103,12 +103,13 @@ export class ApiValidator {
         }
         break;
 
-      case 'date':
+      case 'date': {
         const date = new Date(String(value));
         if (isNaN(date.getTime())) {
           return { valid: false, message: 'must be a valid date' };
         }
         break;
+      }
 
       case 'email':
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
@@ -130,7 +131,7 @@ export class ApiValidator {
         }
         break;
 
-      case 'array':
+      case 'array': {
         if (!Array.isArray(value)) {
           return { valid: false, message: 'must be an array' };
         }
@@ -142,6 +143,7 @@ export class ApiValidator {
           return { valid: false, message: `must have at most ${options?.maxItems} items` };
         }
         break;
+      }
 
       case 'object':
         if (typeof value !== 'object' || Array.isArray(value)) {
@@ -155,12 +157,13 @@ export class ApiValidator {
         }
         break;
 
-      case 'ip':
+      case 'ip': {
         const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
         if (!ipPattern.test(String(value))) {
           return { valid: false, message: 'must be a valid IP address' };
         }
         break;
+      }
 
       case 'json':
         try {

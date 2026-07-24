@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { LoggerService } from '../../common/logging';
+
 import { MobileExecution, MobileExecutionResult } from './mobile-execution.service';
+import { LoggerService } from '../../common/logging';
 
 export interface MobileReport {
   executionId: string;

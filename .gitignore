@@ -16,6 +16,7 @@ out/
 # Environment
 .env
 .env.local
+.env.development
 .env.production
 .env.staging
 *.env.local
@@ -59,8 +60,15 @@ test-results/
 allure-results/
 allure-report/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
 # Runtime data
-uploads/
+/uploads/
 downloads/
 temp/
 tmp/
@@ -68,3 +76,5 @@ tmp/
 # Misc
 *.tgz
 .cache/
+# Backend uploads
+apps/backend/uploads/

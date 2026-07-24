@@ -1,5 +1,5 @@
-import { client } from '../api/client';
 import type { Device, MobileTestConfig, MobileReport, AppUpload } from './types';
+import { client } from '../api/client';
 
 export const mobileApi = {
   uploadApp(projectId: string, file: File): Promise<AppUpload> {

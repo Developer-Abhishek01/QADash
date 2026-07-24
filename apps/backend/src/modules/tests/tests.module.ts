@@ -1,11 +1,13 @@
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
-import { TestsService } from './tests.service';
+
 import { TestsController } from './tests.controller';
+import { TestsService } from './tests.service';
 import { PrismaService } from '../../common/prisma.service';
 import { ExecutionsModule } from '../executions/executions.module';
 
 @Module({
-  imports: [ExecutionsModule],
+  imports: [ExecutionsModule, HttpModule],
   controllers: [TestsController],
   providers: [TestsService, PrismaService],
   exports: [TestsService],

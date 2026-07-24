@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
+import { Job } from 'bullmq';
+
 import { ExecutionsService } from '../../executions/executions.service';
 import { QUEUES } from '../queue.constants';
 

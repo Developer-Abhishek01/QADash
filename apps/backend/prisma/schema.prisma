@@ -112,6 +112,8 @@ model User {
   PerformanceTest   PerformanceTest[]
   AccessibilityTest AccessibilityTest[]
 
+  @@index([role])
+  @@index([isActive])
   @@map("users")
 }
 
@@ -144,6 +146,7 @@ model Project {
   AccessibilityBaseline AccessibilityBaseline[]
   File                  File[]
 
+  @@index([status])
   @@map("projects")
 }
 
@@ -179,7 +182,29 @@ model Test {
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   testRuns TestRun[]
 
+  versions  TestVersion[]
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
   @@map("tests")
+}
+
+model TestVersion {
+  id        String   @id @default(uuid())
+  testId    String
+  version   Int      @default(1)
+  code      String?
+  config    Json?
+  changes   String?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  test Test @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@unique([testId, version])
+  @@index([testId])
+  @@map("test_versions")
 }
 
 model TestRun {
@@ -202,6 +227,10 @@ model TestRun {
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   execution  Execution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
 
+  @@index([testId])
+  @@index([executionId])
+  @@index([status])
+  @@index([projectId])
   @@map("test_runs")
 }
 
@@ -221,6 +250,8 @@ model Environment {
   PerformanceTest   PerformanceTest[]
   AccessibilityTest AccessibilityTest[]
 
+  @@index([projectId])
+  @@index([isActive])
   @@map("environments")
 }
 
@@ -237,6 +268,9 @@ model Report {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([projectId])
+  @@index([type])
+  @@index([createdAt])
   @@map("reports")
 }
 
@@ -267,6 +301,12 @@ model Bug {
   user     User    @relation("BugReporter", fields: [userId], references: [id], onDelete: Cascade)
   assignee User?   @relation("BugAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
+  @@index([projectId])
+  @@index([userId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
   @@map("bugs")
 }
 
@@ -287,6 +327,10 @@ model Job {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+  @@index([type])
   @@map("jobs")
 }
 
@@ -308,6 +352,10 @@ model Execution {
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   testRuns TestRun[]
 
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt])
   @@map("executions")
 }
 
@@ -323,6 +371,9 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([read])
+  @@index([userId, read])
   @@map("notifications")
 }
 
@@ -337,6 +388,9 @@ model Activity {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
   @@map("activities")
 }
 
@@ -566,6 +620,10 @@ model SecurityScan {
   scanSchedules   ScanSchedule[]
   SecurityTarget  SecurityTarget[]
 
+  @@index([projectId])
+  @@index([status])
+  @@index([scanType])
+  @@index([createdAt])
   @@map("security_scans")
 }
 
@@ -759,6 +817,10 @@ model PerformanceTest {
   metrics        PerformanceMetric[]
   ThresholdAlert ThresholdAlert[]
 
+  @@index([projectId])
+  @@index([status])
+  @@index([testType])
+  @@index([createdAt])
   @@map("performance_tests")
 }
 
@@ -894,6 +956,9 @@ model AccessibilityTest {
   issues      AccessibilityIssue[]
   schedules   AccessibilitySchedule[]
 
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
   @@map("accessibility_tests")
 }
 
@@ -940,6 +1005,19 @@ model AccessibilityIssue {
   @@index([testId])
   @@index([impact])
   @@map("accessibility_issues")
+}
+
+model RequirementDocument {
+  id             String   @id @default(uuid())
+  documentType   String
+  rawContent     String?
+  parsedData     Json?
+  summary        Json?
+  status         String   @default("PARSED")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("requirement_documents")
 }
 
 model AccessibilityBaseline {

@@ -1,6 +1,13 @@
 'use client';
 
 import {
+  PlayArrow as PlayIcon,
+  Pause as PauseIcon,
+  Visibility as VisibilityIcon,
+  Code as CodeIcon,
+  Timeline as TimelineIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Typography,
   CircularProgress,
@@ -10,14 +17,7 @@ import {
   Chip,
   alpha,
 } from '@mui/material';
-import {
-  PlayArrow as PlayIcon,
-  Pause as PauseIcon,
-  Visibility as VisibilityIcon,
-  Code as CodeIcon,
-  Timeline as TimelineIcon,
-} from '@mui/icons-material';
-import { useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect, useMemo } from 'react';
 
 interface ActionEvent {
   type: 'click' | 'type' | 'navigate' | 'assert' | 'select' | 'wait' | 'screenshot' | 'scroll' | 'hover';
@@ -75,14 +75,23 @@ const statusColors: Record<string, string> = {
   failed: '#ef4444',
 };
 
-export default function LivePreviewPanel({ livePreview, actionLogs, consoleLogs, elementHighlights, isRunning }: Props) {
+const consoleTypeColor: Record<string, string> = {
+  log: '#10b981',
+  warn: '#f59e0b',
+  error: '#ef4444',
+  api: '#6366f1',
+  info: '#3b82f6',
+};
+
+const LivePreviewPanel = memo<Props>(function LivePreviewPanel({ livePreview, actionLogs, consoleLogs, elementHighlights, isRunning }) {
   const [tab, setTab] = useState<'actions' | 'console'>('actions');
   const [isPaused, setIsPaused] = useState(false);
   const [zoom, setZoom] = useState<number>(1);
   const actionListRef = useRef<HTMLDivElement>(null);
   const consoleListRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const [imgRect, setImgRect] = useState<DOMRect | null>(null);
+  const imgRectRef = useRef<DOMRect | null>(null);
+  const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
 
   useEffect(() => {
     if (actionListRef.current) {
@@ -98,7 +107,7 @@ export default function LivePreviewPanel({ livePreview, actionLogs, consoleLogs,
 
   useEffect(() => {
     if (imgRef.current) {
-      const updateRect = () => setImgRect(imgRef.current!.getBoundingClientRect());
+      const updateRect = () => { imgRectRef.current = imgRef.current!.getBoundingClientRect(); };
       updateRect();
       window.addEventListener('resize', updateRect);
       return () => window.removeEventListener('resize', updateRect);
@@ -106,6 +115,7 @@ export default function LivePreviewPanel({ livePreview, actionLogs, consoleLogs,
   }, [livePreview?.screenshot]);
 
   const scaleOverlay = (rect: { x: number; y: number; width: number; height: number }) => {
+    const imgRect = imgRectRef.current;
     if (!imgRect) return null;
     const naturalW = imgRef.current?.naturalWidth || 1280;
     const naturalH = imgRef.current?.naturalHeight || 720;
@@ -122,23 +132,15 @@ export default function LivePreviewPanel({ livePreview, actionLogs, consoleLogs,
   };
 
   const latestHighlight = elementHighlights.length > 0 ? elementHighlights[elementHighlights.length - 1] : null;
-  const overlayStyle = latestHighlight ? scaleOverlay(latestHighlight.rect) : null;
+  const overlayStyle = useMemo(() => latestHighlight ? scaleOverlay(latestHighlight.rect) : null, [latestHighlight, elementHighlights]);
 
-  const imgSrc = livePreview?.screenshot
-    ? livePreview.screenshot.startsWith('/')
-      ? `http://localhost:3001${livePreview.screenshot}`
-      : livePreview.screenshot.startsWith('/9j/')
-        ? `data:image/jpeg;base64,${livePreview.screenshot}`
+  const imgSrc = useMemo(() => livePreview?.screenshot
+    ? livePreview.screenshot.startsWith('/9j/')
+      ? `data:image/jpeg;base64,${livePreview.screenshot}`
+      : livePreview.screenshot.startsWith('/')
+        ? `http://localhost:3001${livePreview.screenshot}`
         : `data:image/png;base64,${livePreview.screenshot}`
-    : null;
-
-  const consoleTypeColor: Record<string, string> = {
-    log: '#10b981',
-    warn: '#f59e0b',
-    error: '#ef4444',
-    api: '#6366f1',
-    info: '#3b82f6',
-  };
+    : null, [livePreview?.screenshot]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 2, bgcolor: alpha('#6366f1', 0.03), borderRadius: 2, border: '1px solid', borderColor: alpha('#6366f1', 0.15) }}>
@@ -176,29 +178,42 @@ export default function LivePreviewPanel({ livePreview, actionLogs, consoleLogs,
       {/* Main Content */}
       <Box sx={{ display: 'flex', gap: 2, height: 480, minHeight: 0 }}>
         {/* Left: Browser Preview */}
-        <Box sx={{ flex: 3, minWidth: 0 }}>
+        <Box sx={{ flex: 3, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Box sx={{
             width: '100%',
-            height: '100%',
+            height: livePreview?.screenshot ? 'auto' : '100%',
+            maxHeight: '100%',
+            ...(livePreview?.screenshot ? {
+              aspectRatio: imgNatural ? `${imgNatural.w} / ${imgNatural.h}` : '16 / 9',
+            } : {}),
             bgcolor: '#000',
             borderRadius: 2,
             overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             position: 'relative',
+            lineHeight: 0,
             transform: `scale(${zoom})`,
             transformOrigin: 'top left',
           }}>
-            {livePreview?.screenshot && !isPaused ? (
+            {livePreview?.screenshot ? (
               <>
                 <Box
                   component="img"
                   ref={imgRef}
                   src={imgSrc || ''}
-                  sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  onLoad={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                    const img = e.currentTarget;
+                    if (img.naturalWidth && img.naturalHeight) {
+                      setImgNatural({ w: img.naturalWidth, h: img.naturalHeight });
+                    }
+                  }}
+                  sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', opacity: isPaused ? 0.5 : 1 }}
                   alt="Live browser preview"
                 />
+                {isPaused && (
+                  <Box sx={{ position: 'absolute', top: 8, right: 8, bgcolor: alpha('#000', 0.6), color: 'white', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600 }}>
+                    PAUSED
+                  </Box>
+                )}
                 {/* Element highlight overlay */}
                 {overlayStyle && (
                   <Box sx={{
@@ -214,7 +229,7 @@ export default function LivePreviewPanel({ livePreview, actionLogs, consoleLogs,
                 )}
               </>
             ) : (
-              <Box sx={{ textAlign: 'center', color: 'white' }}>
+              <Box sx={{ textAlign: 'center', color: 'white', lineHeight: 1.5 }}>
                 <CircularProgress color="inherit" size={32} sx={{ mb: 1 }} />
                 <Typography variant="body2">{livePreview?.step || 'Initializing browser...'}</Typography>
               </Box>
@@ -331,4 +346,6 @@ export default function LivePreviewPanel({ livePreview, actionLogs, consoleLogs,
       </Box>
     </Box>
   );
-}
+});
+
+export default LivePreviewPanel;

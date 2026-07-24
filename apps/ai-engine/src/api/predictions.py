@@ -1,6 +1,8 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+logger = logging.getLogger("ai-engine.api.predictions")
 router = APIRouter()
 
 
@@ -28,6 +30,8 @@ async def predict_test_outcomes(request: PredictionRequest):
             'recommended_retries': 2 if flaky_risk > 0.2 else 0,
         }
 
+        logger.info(f"Prediction made: flaky_risk={flaky_risk:.2f}, pass_rate={predictions['expected_pass_rate']:.1f}%")
         return PredictionResponse(success=True, predictions=predictions, confidence=0.85)
     except Exception as e:
+        logger.error(f"Prediction failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

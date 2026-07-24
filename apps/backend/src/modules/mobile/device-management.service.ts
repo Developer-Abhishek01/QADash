@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { LoggerService } from '../../common/logging';
 
 export interface Device {
@@ -32,26 +33,53 @@ export class DeviceManagementService {
   private devices: Map<string, Device> = new Map();
   private reservations: Map<string, DeviceReservation> = new Map();
   private readonly logger = new LoggerService({} as any);
+  private appiumUrl: string;
 
   constructor() {
-    this.initializeMockDevices();
+    this.appiumUrl = process.env.APPIUM_URL || 'http://localhost:4723';
+    this.discoverAppiumDevices();
   }
 
-  private initializeMockDevices(): void {
-    const mockDevices: Device[] = [
-      { id: 'device-001', name: 'Android Emulator API 33', platform: 'android', type: 'emulator', osVersion: '13', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion'], manufacturer: 'Google', model: 'Pixel 7' },
-      { id: 'device-002', name: 'Android Emulator API 34', platform: 'android', type: 'emulator', osVersion: '14', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion'], manufacturer: 'Google', model: 'Pixel 8' },
-      { id: 'device-003', name: 'Samsung Galaxy S23', platform: 'android', type: 'real', osVersion: '14', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion', 'deviceName'], manufacturer: 'Samsung', model: 'SM-S918B', udid: 'RF8N12345ABC' },
-      { id: 'device-004', name: 'Google Pixel 8 Pro', platform: 'android', type: 'real', osVersion: '14', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion', 'deviceName'], manufacturer: 'Google', model: 'Pixel 8 Pro', udid: '1A2B3C4D5E' },
-      { id: 'device-005', name: 'iPhone 15 Simulator', platform: 'ios', type: 'emulator', osVersion: '17.0', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion'], manufacturer: 'Apple', model: 'iPhone 15' },
-      { id: 'device-006', name: 'iPhone 15 Pro Simulator', platform: 'ios', type: 'emulator', osVersion: '17.2', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion'], manufacturer: 'Apple', model: 'iPhone 15 Pro' },
-      { id: 'device-007', name: 'iPhone 14 Pro', platform: 'ios', type: 'real', osVersion: '17.0', status: 'busy', capabilities: ['automationName', 'platformName', 'platformVersion', 'deviceName'], manufacturer: 'Apple', model: 'iPhone 14 Pro', udid: '00001234-0001234567', reservedBy: 'user-123', reservedUntil: new Date(Date.now() + 3600000) },
-      { id: 'device-008', name: 'iPad Pro 12.9', platform: 'ios', type: 'real', osVersion: '17.0', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion', 'deviceName'], manufacturer: 'Apple', model: 'iPad Pro 12.9', udid: '00001234-0009876543' },
-      { id: 'device-009', name: 'OnePlus 11', platform: 'android', type: 'real', osVersion: '14', status: 'maintenance', capabilities: ['automationName', 'platformName', 'platformVersion'], manufacturer: 'OnePlus', model: 'PHB110' },
-      { id: 'device-010', name: 'Android Emulator API 35', platform: 'android', type: 'emulator', osVersion: '15', status: 'available', capabilities: ['automationName', 'platformName', 'platformVersion'], manufacturer: 'Google', model: 'Pixel 9' },
-    ];
+  private async discoverAppiumDevices(): Promise<void> {
+    try {
+      const response = await fetch(`${this.appiumUrl}/wd/hub/sessions`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) return;
+      const sessions: { value?: any[] } = await response.json();
+      if (sessions?.value) {
+        for (const session of sessions.value) {
+          const caps = session.capabilities || {};
+          this.devices.set(session.id, {
+            id: session.id,
+            name: caps.deviceName || caps.deviceUDID || `Device-${session.id}`,
+            platform: (caps.platformName || '').toLowerCase() as 'android' | 'ios',
+            type: caps.isEmulator ? 'emulator' : 'real',
+            osVersion: caps.platformVersion || '',
+            manufacturer: caps.deviceManufacturer,
+            model: caps.deviceModel || caps.deviceName,
+            udid: caps.deviceUDID,
+            host: new URL(this.appiumUrl).hostname,
+            port: parseInt(new URL(this.appiumUrl).port, 10) || 4723,
+            status: 'available',
+            capabilities: Object.keys(caps),
+          });
+        }
+      }
+    } catch {
+      this.logger.logBusinessEvent({
+        event: 'appium_discovery_failed',
+        entity: 'device',
+        entityId: 'appium',
+        metadata: { appiumUrl: this.appiumUrl, error: 'Appium server not reachable' },
+      });
+    }
+  }
 
-    mockDevices.forEach(device => this.devices.set(device.id, device));
+  async refreshDevices(): Promise<Device[]> {
+    this.devices.clear();
+    await this.discoverAppiumDevices();
+    return this.getDevices();
   }
 
   async getDevices(platform?: 'android' | 'ios'): Promise<Device[]> {

@@ -1,8 +1,8 @@
 'use client';
 
-import { Component, ReactNode } from 'react';
-import { Box, Typography, Button, Card, CardContent } from '@mui/material';
 import { Error as ErrorIcon, Refresh } from '@mui/icons-material';
+import { Box, Typography, Button, Card, CardContent } from '@mui/material';
+import { Component, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;

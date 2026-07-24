@@ -1,8 +1,9 @@
 import { APIRequestContext, request } from '@playwright/test';
+
 import { Logger } from '../utils/logger';
+import { TokenManager } from './auth/token.manager';
 import { RequestInterceptor } from './interceptors/request.interceptor';
 import { ResponseInterceptor } from './interceptors/response.interceptor';
-import { TokenManager } from './auth/token.manager';
 
 export interface ApiClientConfig {
   baseURL: string;
@@ -152,25 +153,23 @@ export class ApiClient {
 
     const response = await this.requestContext.fetch(url, requestOptions);
 
-    const responseBody = await this.parseResponseBody<T>(response);
+    const text = await response.text();
     const responseHeaders = response.headers();
+
+    let responseBody: T;
+    try {
+      responseBody = JSON.parse(text) as T;
+    } catch {
+      responseBody = text as unknown as T;
+    }
 
     return {
       status: response.status(),
       statusText: response.statusText(),
       headers: responseHeaders,
       body: responseBody,
-      rawBody: await response.text(),
+      rawBody: text,
     };
-  }
-
-  private async parseResponseBody<T>(response: { text(): Promise<string>; json(): Promise<T> }): Promise<T> {
-    const text = await response.text();
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      return text as unknown as T;
-    }
   }
 
   private buildUrl(path: string, queryParams?: Record<string, string | number | boolean>): string {

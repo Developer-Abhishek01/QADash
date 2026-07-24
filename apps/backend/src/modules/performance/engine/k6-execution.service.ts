@@ -1,11 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../common/prisma.service';
-import { MetricsCollectorService } from '../metrics/metrics-collector.service';
-import { AlertService } from '../alerts/alert.service';
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+
+import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
+
+import { PrismaService } from '../../../common/prisma.service';
+import { AlertService } from '../alerts/alert.service';
+import { MetricsCollectorService } from '../metrics/metrics-collector.service';
 
 interface K6TestConfig {
   vus?: number;

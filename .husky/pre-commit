@@ -1,4 +1,5 @@
 #!/bin/sh
-npx turbo run lint --since=HEAD~1
-npx turbo run typecheck --since=HEAD~1
-npx turbo run test --since=HEAD~1 --filter=@qadash/backend --filter=@qadash/frontend
+
+npx turbo run lint
+npx turbo run typecheck
+npx turbo run test --filter=@qadash/backend --filter=@qadash/frontend

@@ -1,5 +1,5 @@
-import { Logger } from '../utils/logger';
 import { AnalyticsDataClient, TrendData } from './analytics-client';
+import { Logger } from '../utils/logger';
 
 export interface FilterOptions {
   projectId?: string;
@@ -134,9 +134,9 @@ export class AnalyticsService {
 
     return {
       summary: {
-        totalExecutions: 1250,
-        totalTests: 45000,
-        avgPassRate: 82,
+        totalExecutions: trends?.length || 0,
+        totalTests: 0,
+        avgPassRate: 0,
       },
       trends,
       browsers,
@@ -154,14 +154,8 @@ export class AnalyticsService {
     return {
       testId,
       name: `Test ${testId}`,
-      recentRuns: [
-        { date: '2024-01-15', status: 'passed', duration: 25000 },
-        { date: '2024-01-14', status: 'failed', duration: 28000 },
-        { date: '2024-01-13', status: 'passed', duration: 24000 },
-      ],
-      errorHistory: [
-        { date: '2024-01-14', error: 'Element not found', frequency: 3 },
-      ],
+      recentRuns: [],
+      errorHistory: [],
     };
   }
 
@@ -235,16 +229,12 @@ export class AnalyticsService {
     };
   }
 
-  getRealTimeUpdates(_projectId: string): any {
-    return {
-      activeExecutions: 2,
-      queuedJobs: 5,
-      recentResults: [
-        { executionId: 'exec-1', status: 'passed', passRate: 85 },
-        { executionId: 'exec-2', status: 'running', passRate: 45 },
-      ],
-      lastUpdated: new Date().toISOString(),
-    };
+  async getRealTimeUpdates(_projectId: string): Promise<any> {
+    try {
+      return await this.dataClient.getExecutionDetails('latest');
+    } catch {
+      return { activeExecutions: 0, queuedJobs: 0, recentResults: [], lastUpdated: new Date().toISOString() };
+    }
   }
 }
 

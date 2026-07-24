@@ -1,5 +1,5 @@
-import { IsString, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional } from 'class-validator';
 
 export class CreateReportDto {
   @ApiProperty({ example: 'project-uuid-here', description: 'Project ID' })

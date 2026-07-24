@@ -1,5 +1,5 @@
 import { TransformInterceptor } from './transform.interceptor';
-import { of } from 'rxjs';
+import { of, lastValueFrom } from 'rxjs';
 
 describe('TransformInterceptor', () => {
   let interceptor: TransformInterceptor<unknown>;
@@ -8,43 +8,37 @@ describe('TransformInterceptor', () => {
     interceptor = new TransformInterceptor();
   });
 
-  const mockExecutionContext = (): any => ({
+  const mockExecutionContext = () => ({
     switchToHttp: () => ({
       getRequest: () => ({ method: 'GET', url: '/api/test' }),
       getResponse: () => ({ statusCode: 200, get: () => '100' }),
     }),
   });
 
-  it('wraps response in success object', (done) => {
+  it('wraps response in success object', async () => {
     const context = mockExecutionContext();
     const next = { handle: () => of({ id: '1', name: 'test' }) };
 
-    interceptor.intercept(context, next).subscribe((result) => {
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('data', { id: '1', name: 'test' });
-      expect(result).toHaveProperty('timestamp');
-      done();
-    });
+    const result = await lastValueFrom(interceptor.intercept(context, next));
+    expect(result).toHaveProperty('success', true);
+    expect(result).toHaveProperty('data', { id: '1', name: 'test' });
+    expect(result).toHaveProperty('timestamp');
   });
 
-  it('preserves data shape', (done) => {
+  it('preserves data shape', async () => {
     const context = mockExecutionContext();
     const data = [{ id: '1' }, { id: '2' }];
     const next = { handle: () => of(data) };
 
-    interceptor.intercept(context, next).subscribe((result) => {
-      expect(result.data).toEqual(data);
-      done();
-    });
+    const result = await lastValueFrom(interceptor.intercept(context, next));
+    expect(result.data).toEqual(data);
   });
 
-  it('handles empty data', (done) => {
+  it('handles empty data', async () => {
     const context = mockExecutionContext();
     const next = { handle: () => of(null) };
 
-    interceptor.intercept(context, next).subscribe((result) => {
-      expect(result.data).toBeNull();
-      done();
-    });
+    const result = await lastValueFrom(interceptor.intercept(context, next));
+    expect(result.data).toBeNull();
   });
 });

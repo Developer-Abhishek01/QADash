@@ -1,5 +1,5 @@
-import { IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString } from 'class-validator';
 
 export class UploadAppDto {
   @ApiProperty({ example: 'project-uuid-here', description: 'Project ID' })

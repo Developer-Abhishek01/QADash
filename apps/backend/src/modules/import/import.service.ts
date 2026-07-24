@@ -1,20 +1,29 @@
-import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
-import { FileParserService } from './parsers/file-parser.service';
-import { ValidationService } from './validators/validation.service';
-import { MappingService } from './services/mapping.service';
-import { CreateImportDto, ImportFilterDto, SaveMappingsDto, ProcessImportDto } from './dto/import.dto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+
+import { HttpService } from '@nestjs/axios';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
 import { v4 as uuid } from 'uuid';
+
+import { CreateTemplateDto } from './dto/create-template.dto';
+import { CreateImportDto, ImportFilterDto, SaveMappingsDto, ProcessImportDto } from './dto/import.dto';
+import { FileParserService } from './parsers/file-parser.service';
+import { MappingService } from './services/mapping.service';
+import { ValidationService } from './validators/validation.service';
+import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()
 export class ImportService implements OnModuleInit {
+  private readonly logger = new Logger(ImportService.name);
+  private readonly AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8002';
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly parserService: FileParserService,
     private readonly validationService: ValidationService,
     private readonly mappingService: MappingService,
+    private readonly httpService: HttpService,
   ) {}
 
   async onModuleInit() {}
@@ -278,6 +287,154 @@ export class ImportService implements OnModuleInit {
     }
   }
 
+  async processImportWithAI(importId: string, userId: string): Promise<any> {
+    const fileImport = await this.prisma.fileImport.findUnique({
+      where: { id: importId },
+      include: { mappings: true, project: true },
+    });
+    if (!fileImport) throw new NotFoundException('Import not found');
+
+    await this.prisma.fileImport.update({
+      where: { id: importId },
+      data: { status: 'PROCESSING' },
+    });
+
+    try {
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      const filePath = path.join(uploadsDir, fileImport.storedFilename);
+      const parsedData = await this.parserService.parse(filePath, fileImport.fileType as any);
+
+      const apiKey = process.env.AI_ENGINE_API_KEY || 'qadash-ai-dev-key';
+      const response = await firstValueFrom(
+        this.httpService.post(`${this.AI_ENGINE_URL}/api/ai/pipeline/excel-to-tests`,
+          { rows: parsedData },
+          { timeout: 120000, headers: { 'X-API-Key': apiKey } }
+        )
+      );
+      const pipelineResult = response.data;
+
+      if (!pipelineResult.success || !pipelineResult.test_cases || pipelineResult.test_cases.length === 0) {
+        const reason = pipelineResult.success === false
+          ? 'AI pipeline returned unsuccessful response'
+          : 'AI pipeline returned no test cases';
+        await this.prisma.fileImport.update({
+          where: { id: importId },
+          data: { status: 'FAILED', completedAt: new Date(), errorSummary: { error: reason } },
+        });
+        return { importId, status: 'FAILED', reason };
+      }
+
+      let createdCount = 0;
+      let failedCount = 0;
+      const createdTests = [];
+
+      for (let i = 0; i < pipelineResult.test_cases.length; i++) {
+        const tc = pipelineResult.test_cases[i];
+        if (tc.validation?.is_valid && tc.generated_code) {
+          try {
+            const steps = (tc.steps || []).map((s: any) => ({
+              ...s,
+              type: s.type || s.action,
+            }));
+
+            const test = await this.prisma.test.create({
+              data: {
+                name: tc.name || 'Imported Test',
+                projectId: fileImport.projectId,
+                userId,
+                config: {
+                  url: tc.url || '',
+                  steps,
+                  _sourceFileData: tc.test_data || {},
+                } as any,
+                code: tc.generated_code,
+                tags: tc.tags || [],
+                status: 'ACTIVE',
+              },
+            });
+
+            const lastVersion = await (this.prisma as any).testVersion.findFirst({
+              where: { testId: test.id },
+              orderBy: { version: 'desc' },
+            });
+            await (this.prisma as any).testVersion.create({
+              data: {
+                testId: test.id,
+                version: (lastVersion?.version || 0) + 1,
+                code: tc.generated_code,
+                config: { url: tc.url || '', steps } as any,
+                changes: 'Imported via AI pipeline',
+                createdBy: userId,
+              },
+            });
+
+            createdTests.push(test);
+            createdCount++;
+          } catch (err) {
+            this.logger.error(`Failed to create test from import: ${err.message}`);
+            await this.prisma.importError.create({
+              data: {
+                importId,
+                rowNumber: i + 1,
+                fieldName: 'test',
+                value: tc.name || '',
+                errorType: 'CREATE_FAILED',
+                errorMessage: `Failed to create test: ${err.message}`,
+              },
+            });
+            failedCount++;
+          }
+        } else {
+          const validationErrors = tc.validation?.errors || [];
+          const errorMsg = validationErrors.length > 0
+            ? validationErrors.map((e: any) => e.message).join('; ')
+            : 'Validation failed or no generated code';
+          await this.prisma.importError.create({
+            data: {
+              importId,
+              rowNumber: i + 1,
+              fieldName: 'validation',
+              value: tc.name || '',
+              errorType: 'VALIDATION_FAILED',
+              errorMessage: errorMsg,
+            },
+          });
+          failedCount++;
+        }
+      }
+
+      const finalStatus = failedCount === 0 ? 'COMPLETED' : createdCount === 0 ? 'FAILED' : 'PARTIAL';
+      await this.prisma.fileImport.update({
+        where: { id: importId },
+        data: {
+          status: finalStatus,
+          processedRows: parsedData.length,
+          successRows: createdCount,
+          errorRows: failedCount,
+          completedAt: new Date(),
+          errorSummary: { created: createdCount, failed: failedCount },
+        },
+      });
+
+      return {
+        importId,
+        totalRows: parsedData.length,
+        createdTests: createdCount,
+        failedRows: failedCount,
+        status: finalStatus,
+        tests: createdTests,
+        pipelineResult,
+      };
+    } catch (error) {
+      this.logger.error(`AI Pipeline import failed: ${error.message}`);
+      await this.prisma.fileImport.update({
+        where: { id: importId },
+        data: { status: 'FAILED', completedAt: new Date(), errorSummary: { error: error.message } },
+      });
+      throw error;
+    }
+  }
+
   async deleteImport(importId: string) {
     const fileImport = await this.prisma.fileImport.findUnique({ where: { id: importId } });
     if (!fileImport) throw new NotFoundException('Import not found');
@@ -323,6 +480,24 @@ export class ImportService implements OnModuleInit {
     return this.prisma.importError.findMany({
       where: { importId },
       orderBy: { rowNumber: 'asc' },
+    });
+  }
+
+  async getTemplates(projectId: string) {
+    return this.prisma.dataImportTemplate.findMany({
+      where: { projectId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createTemplate(dto: CreateTemplateDto) {
+    return this.prisma.dataImportTemplate.create({
+      data: {
+        name: dto.name,
+        projectId: dto.projectId,
+        fileType: dto.fileType as any,
+        fields: (dto.fields || []) as any,
+      },
     });
   }
 }

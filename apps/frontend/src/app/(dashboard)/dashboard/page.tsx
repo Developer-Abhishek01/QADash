@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import {
+  PlayArrow as ExecutionIcon,
+  CheckCircle as PassIcon,
+  Error as FailIcon,
+  TrendingUp as TrendIcon,
+  Speed as PerformanceIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Grid,
@@ -15,17 +21,12 @@ import {
   LinearProgress,
   Chip,
 } from '@mui/material';
-import {
-  PlayArrow as ExecutionIcon,
-  CheckCircle as PassIcon,
-  Error as FailIcon,
-  TrendingUp as TrendIcon,
-  Speed as PerformanceIcon,
-} from '@mui/icons-material';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { useRouter } from 'next/navigation';
-import { executionsApi } from '@/lib/api/client';
+import { executionsApi, analyticsApi } from '@/lib/api/client';
 
 interface StatCardProps {
   title: string;
@@ -75,22 +76,28 @@ function StatCard({ title, value, subtitle, icon, trend, color = 'primary' }: St
 export default function DashboardPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<{
+    totalExecutions: number;
+    passRate: string;
+    failedTests: number;
+    avgDuration: string;
+    recentExecutions: any[];
+    flakyTests: any[];
+  }>({
     totalExecutions: 0,
     passRate: '0%',
     failedTests: 0,
     avgDuration: '0s',
     recentExecutions: [],
-    flakyTests: [
-      { name: 'Payment Gateway', flaky: '35%', trend: 'up' },
-      { name: 'OAuth Login', flaky: '28%', trend: 'down' },
-      { name: 'File Upload', flaky: '22%', trend: 'up' },
-    ]
+    flakyTests: []
   });
 
   const fetchDashboardStats = async () => {
     try {
-      const executions = await executionsApi.list();
+      const [executions, flaky] = await Promise.all([
+        executionsApi.list(),
+        analyticsApi.getFlakyTests().catch(() => []),
+      ]);
       const passed = Array.isArray(executions) ? executions.filter(e => e.status === 'passed').length : 0;
       const failed = Array.isArray(executions) ? executions.filter(e => e.status === 'failed').length : 0;
       const total = Array.isArray(executions) ? executions.length : 0;
@@ -101,7 +108,8 @@ export default function DashboardPage() {
         totalExecutions: total,
         passRate: total > 0 ? ((passed / total) * 100).toFixed(1) + '%' : '0%',
         failedTests: failed,
-        recentExecutions: recent as any
+        recentExecutions: recent as any,
+        flakyTests: Array.isArray(flaky) ? flaky.slice(0, 3) : prev.flakyTests,
       }));
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
@@ -217,7 +225,7 @@ export default function DashboardPage() {
                 Flaky Tests
               </Typography>
               <List>
-                {stats.flakyTests.map((test, index) => (
+                {stats.flakyTests.length > 0 ? stats.flakyTests.map((test: any, index: number) => (
                   <ListItem key={index} sx={{ px: 0 }}>
                     <ListItemText
                       primary={test.name}
@@ -233,7 +241,11 @@ export default function DashboardPage() {
                       }
                     />
                   </ListItem>
-                ))}
+                )) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+                    No flaky tests data available.
+                  </Typography>
+                )}
               </List>
             </CardContent>
           </Card>

@@ -1,4 +1,5 @@
 import { Page } from '@playwright/test';
+
 import { Vulnerability } from '../types';
 
 export class HeaderValidator {

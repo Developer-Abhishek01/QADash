@@ -1,5 +1,5 @@
-import { client } from '../api/client';
 import type { ValidationRule, ValidationResult, ValidationConfig, ValidationResponse, SchemaValidation } from './types';
+import { client } from '../api/client';
 
 export const validationApi = {
   validate(data: Record<string, unknown>, config: ValidationConfig): Promise<ValidationResponse> {

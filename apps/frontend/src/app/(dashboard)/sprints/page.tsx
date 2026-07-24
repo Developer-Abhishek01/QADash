@@ -1,6 +1,10 @@
 'use client';
 
 import {
+  Add as AddIcon,
+  Event as SprintIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Button,
   Card,
@@ -10,22 +14,19 @@ import {
   Chip,
   LinearProgress,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Event as SprintIcon,
-} from '@mui/icons-material';
+import { useQuery } from '@tanstack/react-query';
+
 import { PageHeader } from '@/components/common/PageHeader';
-import { useState, useEffect } from 'react';
+import { Loading } from '@/components/feedback/Loading';
+import { apiClient } from '@/lib/api/client';
 
 export default function SprintsPage() {
-  const [sprints, setSprints] = useState<any[]>([]);
+  const { data: sprints, isLoading } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: () => apiClient.get<any[]>('sprints'),
+  });
 
-  useEffect(() => {
-    const saved = localStorage.getItem('qadash_sprints');
-    if (saved) {
-      setSprints(JSON.parse(saved));
-    }
-  }, []);
+  if (isLoading) return <Loading />;
 
   return (
     <Box>
@@ -40,7 +41,7 @@ export default function SprintsPage() {
       />
 
       <Grid container spacing={3}>
-        {sprints.length > 0 ? sprints.map((sprint: any) => (
+        {sprints && sprints.length > 0 ? sprints.map((sprint: any) => (
           <Grid item xs={12} md={6} key={sprint.id}>
             <Card>
               <CardContent>
@@ -49,17 +50,12 @@ export default function SprintsPage() {
                     <SprintIcon color="primary" />
                     <Typography variant="subtitle2">{sprint.id}</Typography>
                   </Box>
-                  <Chip 
-                    label={sprint.status} 
-                    size="small" 
-                    color={sprint.status === 'Active' ? 'primary' : sprint.status === 'Completed' ? 'success' : 'default'} 
-                  />
+                  <Chip label={sprint.status} size="small" color={sprint.status === 'Active' ? 'primary' : sprint.status === 'Completed' ? 'success' : 'default'} />
                 </Box>
                 <Typography variant="h6" gutterBottom>{sprint.name}</Typography>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   {sprint.start} to {sprint.end}
                 </Typography>
-                
                 <Box sx={{ mt: 3 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="caption">Testing Progress</Typography>
@@ -67,7 +63,6 @@ export default function SprintsPage() {
                   </Box>
                   <LinearProgress variant="determinate" value={sprint.progress} />
                 </Box>
-
                 <Grid container spacing={2} sx={{ mt: 2 }}>
                   <Grid item xs={4}>
                     <Typography variant="caption" color="text.secondary">Total Tests</Typography>

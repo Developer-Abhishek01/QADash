@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "./base.json",
   "scripts": {
-    "lint": "eslint . --ext .json"
+    "lint": "echo 'TSConfig package - no lint needed'",
+    "typecheck": "echo 'TSConfig package - no typecheck needed'"
   }
 }

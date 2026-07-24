@@ -1,7 +1,8 @@
 import { test } from '@playwright/test';
+
+import { Logger } from '../../utils/logger';
 import { ApiClient } from '../api-client';
 import { ApiAssertions } from '../assertions/api.assertions';
-import { Logger } from '../../utils/logger';
 
 const logger = new Logger('AuthApiTest');
 const api = new ApiClient(
@@ -9,6 +10,9 @@ const api = new ApiClient(
   logger
 );
 const assertions = new ApiAssertions(logger);
+
+const adminEmail = process.env.TEST_ADMIN_EMAIL || '';
+const adminPass = process.env.TEST_ADMIN_PASSWORD || '';
 
 test.describe('Authentication API', () => {
   test.beforeAll(async () => {
@@ -21,15 +25,15 @@ test.describe('Authentication API', () => {
 
   test('should login with valid credentials', async () => {
     const response = await api.post('/auth/login', {
-      email: 'admin@qadash.io',
-      password: 'Admin@123',
+      email: adminEmail,
+      password: adminPass,
     });
 
     assertions.statusEquals(response, 200);
     assertions.hasProperty(response, 'accessToken');
     assertions.hasProperty(response, 'refreshToken');
     assertions.hasProperty(response, 'user');
-    assertions.propertyEquals(response, 'user.email', 'admin@qadash.io');
+    assertions.propertyEquals(response, 'user.email', adminEmail);
   });
 
   test('should fail login with invalid credentials', async () => {
@@ -53,7 +57,7 @@ test.describe('Authentication API', () => {
   test('should register new user', async () => {
     const timestamp = Date.now();
     const response = await api.post('/auth/register', {
-      email: `test${timestamp}@qadash.io`,
+      email: `test${timestamp}@generated.local`,
       password: 'Test@123456',
       name: 'Test User',
     });
@@ -64,8 +68,8 @@ test.describe('Authentication API', () => {
 
   test('should refresh token', async () => {
     const loginResponse = await api.post('/auth/login', {
-      email: 'admin@qadash.io',
-      password: 'Admin@123',
+      email: adminEmail,
+      password: adminPass,
     });
 
     const refreshToken = (loginResponse.body as any).refreshToken;
@@ -80,8 +84,8 @@ test.describe('Authentication API', () => {
 
   test('should logout', async () => {
     const loginResponse = await api.post('/auth/login', {
-      email: 'admin@qadash.io',
-      password: 'Admin@123',
+      email: adminEmail,
+      password: adminPass,
     });
 
     const token = (loginResponse.body as any).accessToken;
@@ -99,8 +103,8 @@ test.describe('User API', () => {
   test.beforeAll(async () => {
     await api.init();
     const loginResponse = await api.post('/auth/login', {
-      email: 'admin@qadash.io',
-      password: 'Admin@123',
+      email: adminEmail,
+      password: adminPass,
     });
     authToken = (loginResponse.body as any).accessToken;
     await api.setAuthToken(authToken);
@@ -138,7 +142,7 @@ test.describe('User API', () => {
 
   test('should change password', async () => {
     const response = await api.post('/auth/change-password', {
-      currentPassword: 'Admin@123',
+      currentPassword: adminPass,
       newPassword: 'NewPass@123',
     });
 
@@ -152,8 +156,8 @@ test.describe('Projects API', () => {
   test.beforeAll(async () => {
     await api.init();
     const loginResponse = await api.post('/auth/login', {
-      email: 'admin@qadash.io',
-      password: 'Admin@123',
+      email: adminEmail,
+      password: adminPass,
     });
     authToken = (loginResponse.body as any).accessToken;
     await api.setAuthToken(authToken);

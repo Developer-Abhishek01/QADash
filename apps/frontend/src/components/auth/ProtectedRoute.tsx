@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
 import { Box, CircularProgress } from '@mui/material';
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState, ReactNode } from 'react';
+
 import { useAuth, UserRole } from '@/lib/auth/AuthContext';
 
 interface ProtectedRouteProps {

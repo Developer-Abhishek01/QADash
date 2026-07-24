@@ -1,6 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  Search,
+  CheckCircle,
+  Lightbulb,
+  OpenInNew,
+} from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -26,22 +31,12 @@ import {
   DialogActions,
   Grid,
 } from '@mui/material';
-import {
-  Search,
-  CheckCircle,
-  Lightbulb,
-  OpenInNew,
-} from '@mui/icons-material';
-import { useAccessibilityIssues, useResolveAccessibilityIssue } from '@/lib/accessibility/hooks';
+import { useState } from 'react';
+
+import { ImpactChip } from '@/components/accessibility';
 import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
-
-const IMPACT_COLORS: Record<string, string> = {
-  CRITICAL: '#dc2626',
-  SERIOUS: '#ea580c',
-  MODERATE: '#ca8a04',
-  MINOR: '#65a30d',
-};
+import { useAccessibilityIssues, useResolveAccessibilityIssue } from '@/lib/accessibility/hooks';
 
 const REMEDIATION_TIPS: Record<string, { fix: string; code: string; wcag: string[] }> = {
   'image-alt': { fix: 'Add alt attribute to images', code: '<img src="image.jpg" alt="Description">', wcag: ['1.1.1'] },
@@ -163,14 +158,7 @@ export default function AccessibilityIssuesPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      label={issue.impact}
-                      size="small"
-                      sx={{
-                        bgcolor: IMPACT_COLORS[issue.impact] || '#6b7280',
-                        color: 'white',
-                      }}
-                    />
+                    <ImpactChip impact={issue.impact} />
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">{issue.category}</Typography>

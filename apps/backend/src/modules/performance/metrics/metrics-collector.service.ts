@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../common/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+
+import { PrismaService } from '../../../common/prisma.service';
 
 interface MetricData {
   metricType: string;

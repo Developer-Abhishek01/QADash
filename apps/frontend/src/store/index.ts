@@ -1,9 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit';
+
 import authSlice from './slices/authSlice';
-import uiSlice from './slices/uiSlice';
+import executionSlice from './slices/executionSlice';
 import notificationSlice from './slices/notificationSlice';
 import projectSlice from './slices/projectSlice';
-import executionSlice from './slices/executionSlice';
+import uiSlice from './slices/uiSlice';
 
 export const store = configureStore({
   reducer: {

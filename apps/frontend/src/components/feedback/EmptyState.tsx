@@ -1,7 +1,7 @@
 'use client';
 
-import { Box, Typography, Button, Card, CardContent } from '@mui/material';
 import { FolderOpen, Search, Add, Error as ErrorIcon, Warning, Info } from '@mui/icons-material';
+import { Box, Typography, Button, Card, CardContent } from '@mui/material';
 import { ReactNode } from 'react';
 
 interface EmptyStateProps {

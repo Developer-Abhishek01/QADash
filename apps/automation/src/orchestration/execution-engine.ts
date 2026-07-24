@@ -200,11 +200,41 @@ export class ExecutionEngine {
   }
 
   private async runRealTest(testId: string): Promise<void> {
-    const testFile = `./src/tests/${testId}.spec.ts`;
+    const { execSync } = await import('child_process');
     const fs = await import('fs');
+    const path = await import('path');
+
+    const testFile = path.resolve(__dirname, '..', 'tests', `${testId}.spec.ts`);
     if (!fs.existsSync(testFile)) {
-      throw new Error(`Test file not found: ${testFile}`);
+      const specDir = path.resolve(__dirname, '..', 'tests');
+      if (!fs.existsSync(specDir)) {
+        throw new Error(`No tests directory found at ${specDir}`);
+      }
+      const specFiles = fs.readdirSync(specDir).filter((f: string) =>
+        f.endsWith('.spec.ts') || f.endsWith('.spec.js')
+      );
+      const match = specFiles.find((f: string) =>
+        f.includes(testId) || testId.includes(path.basename(f).replace(/\.spec\.[tj]s$/, ''))
+      );
+      if (!match) {
+        throw new Error(`No spec file found matching test ${testId}`);
+      }
+      const resolvedFile = path.resolve(specDir, match);
+      this.logger.info(`Running matched spec: ${match} for test ${testId}`);
+      execSync(`npx playwright test "${resolvedFile}" --reporter=json --workers=1 --retries=0`, {
+        cwd: path.resolve(__dirname, '..', '..'),
+        timeout: 120000,
+        stdio: 'pipe',
+      });
+      return;
     }
+
+    this.logger.info(`Running test spec: ${testFile}`);
+    execSync(`npx playwright test "${testFile}" --reporter=json --workers=1 --retries=0`, {
+      cwd: path.resolve(__dirname, '..', '..'),
+      timeout: 120000,
+      stdio: 'pipe',
+    });
   }
 
   private chunkTests(tests: string[], chunks: number): string[][] {

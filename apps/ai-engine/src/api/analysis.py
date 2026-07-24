@@ -1,6 +1,8 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+logger = logging.getLogger("ai-engine.api.analysis")
 router = APIRouter()
 
 
@@ -34,6 +36,8 @@ async def analyze_test_results(request: AnalysisRequest):
         if analysis['pass_rate'] < 80:
             recommendations.append("Consider adding more test coverage")
 
+        logger.info(f"Analysis completed: {analysis['total']} tests, {analysis['pass_rate']:.1f}% pass rate")
         return AnalysisResponse(success=True, analysis=analysis, recommendations=recommendations)
     except Exception as e:
+        logger.error(f"Analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

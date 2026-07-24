@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { ValidationRule, ValidationResult } from '../validation.service';
 
 export interface FormField {
@@ -134,7 +135,7 @@ export class FormValidator {
           }
           break;
 
-        case 'date':
+        case 'date': {
           const date = new Date(String(value));
           if (isNaN(date.getTime())) {
             errors.push({
@@ -145,6 +146,7 @@ export class FormValidator {
             });
           }
           break;
+        }
 
         case 'url':
           try {
@@ -198,7 +200,7 @@ export class FormValidator {
     const ruleParam = parts[1];
 
     switch (ruleName) {
-      case 'strongPassword':
+      case 'strongPassword': {
         const hasUpper = /[A-Z]/.test(String(value));
         const hasLower = /[a-z]/.test(String(value));
         const hasNumber = /[0-9]/.test(String(value));
@@ -207,6 +209,7 @@ export class FormValidator {
           return { valid: false, message: 'Password must contain uppercase, lowercase, number, and special character' };
         }
         return { valid: true, message: '' };
+      }
 
       case 'unique':
         return { valid: true, message: 'Unique check requires database lookup' };

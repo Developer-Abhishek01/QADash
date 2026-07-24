@@ -1,5 +1,5 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, IsArray } from 'class-validator';
 
 export class CreateTestDto {
   @ApiProperty({ example: 'Login with valid credentials', description: 'Test case name' })
@@ -15,6 +15,11 @@ export class CreateTestDto {
   @IsString()
   @IsOptional()
   projectId?: string;
+
+  @ApiPropertyOptional({ example: 'My Project', description: 'Project name (used to find or auto-create project)' })
+  @IsString()
+  @IsOptional()
+  projectName?: string;
 
   @ApiPropertyOptional({ example: { url: 'https://example.com/login', steps: [{ type: 'navigate', url: 'https://example.com' }] }, description: 'Test configuration (URL, steps, etc.)' })
   @IsOptional()

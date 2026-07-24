@@ -1,6 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Email as EmailIcon,
+  Lock as LockIcon,
+  Person as PersonIcon,
+  Visibility,
+  VisibilityOff,
+} from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -14,16 +21,10 @@ import {
   InputAdornment,
   IconButton,
 } from '@mui/material';
-import {
-  Email as EmailIcon,
-  Lock as LockIcon,
-  Person as PersonIcon,
-  Visibility,
-  VisibilityOff,
-} from '@mui/icons-material';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { useAuth, UserRole } from '@/lib/auth/AuthContext';
 
 const registerSchema = z.object({

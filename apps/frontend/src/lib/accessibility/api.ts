@@ -1,5 +1,5 @@
-import { client } from '../api/client';
 import type { AccessibilityTest, AccessibilityIssue, AccessibilityBaseline, DashboardStats, CreateTestDto } from './types';
+import { client } from '../api/client';
 
 export const accessibilityApi = {
   createTest: (data: CreateTestDto) =>

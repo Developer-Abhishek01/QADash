@@ -1,5 +1,5 @@
-import { IsString, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsEnum, IsOptional } from 'class-validator';
 
 export enum MobilePlatform {
   ANDROID = 'android',

@@ -1,5 +1,5 @@
-import { Logger } from '../utils/logger';
 import { ExecutionResult, TestExecution } from '../orchestration/execution-engine';
+import { Logger } from '../utils/logger';
 
 export interface ReportConfig {
   title: string;

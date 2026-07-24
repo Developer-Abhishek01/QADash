@@ -8,7 +8,7 @@ describe('HttpExceptionFilter', () => {
     filter = new HttpExceptionFilter();
   });
 
-  const mockArgumentsHost = (): any => {
+  const mockArgumentsHost = () => {
     const json = jest.fn();
     const status = jest.fn().mockReturnValue({ json });
     return {

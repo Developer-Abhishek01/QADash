@@ -4,11 +4,14 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+
 import { PrismaService } from '../../common/prisma.service';
 import { UserRole, ROLE_PERMISSIONS, Permission } from '../rbac/rbac.service';
 import {
@@ -138,6 +141,26 @@ export class AuthService {
       { sub: user.id, type: 'password-reset' },
       { secret: this.configService.get('JWT_RESET_SECRET'), expiresIn: '15m' }
     );
+
+    const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+
+    this.logger.log(`Password reset requested for ${forgotPasswordDto.email}: ${resetUrl}`);
+
+    if (process.env.NODE_ENV === 'production' && process.env.SMTP_HOST) {
+      try {
+        // TODO: Integrate nodemailer or email service to send actual email
+        // await this.emailService.send({
+        //   to: user.email,
+        //   subject: 'Password Reset Request',
+        //   template: 'password-reset',
+        //   context: { name: user.name, resetUrl },
+        // });
+        this.logger.warn('Email service not yet configured - reset email not sent');
+      } catch (err) {
+        this.logger.error(`Failed to send password reset email: ${err.message}`);
+        throw new HttpException('Failed to send reset email', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
 
     return { message: 'If the email exists, a reset link will be sent' };
   }

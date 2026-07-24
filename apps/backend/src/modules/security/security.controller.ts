@@ -11,7 +11,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { SecurityService } from './security.service';
+
 import {
   CreateScanDto,
   UpdateScanDto,
@@ -21,8 +21,9 @@ import {
   RunDependencyScanDto,
   GenerateReportDto,
 } from './dto/security.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ReportService } from './reports/report.service';
+import { SecurityService } from './security.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Security')
 @ApiBearerAuth()

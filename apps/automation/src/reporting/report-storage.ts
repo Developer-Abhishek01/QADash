@@ -1,7 +1,8 @@
-import { Logger } from '../utils/logger';
-import { ExportResult, ExportFormat } from './export-service';
 import * as fs from 'fs';
 import * as path from 'path';
+
+import { ExportResult, ExportFormat } from './export-service';
+import { Logger } from '../utils/logger';
 
 export interface StoredReport {
   id: string;

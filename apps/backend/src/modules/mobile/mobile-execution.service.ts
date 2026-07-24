@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { LoggerService } from '../../common/logging';
-import { DeviceManagementService, Device } from './device-management.service';
+
 import { AppiumService, AppiumCapabilities } from './appium.service';
+import { DeviceManagementService, Device } from './device-management.service';
 import { MobileReportService } from './mobile-report.service';
+import { LoggerService } from '../../common/logging';
+import { PrismaService } from '../../common/prisma.service';
 import { MetricsService } from '../monitoring/metrics.service';
 
 export interface MobileTestSuite {
@@ -76,6 +78,7 @@ export class MobileExecutionService {
     private readonly deviceManager: DeviceManagementService,
     private readonly appium: AppiumService,
     private readonly reportService: MobileReportService,
+    private readonly prisma: PrismaService,
     private readonly metricsService?: MetricsService,
   ) {}
 
@@ -135,14 +138,7 @@ export class MobileExecutionService {
     execution.status = 'running';
     this.executions.set(executionId, execution);
 
-    const mockTestSuite: MobileTestSuite = {
-      id: config.testSuiteId,
-      name: 'Test Suite',
-      tests: [
-        { id: 'test-001', name: 'Login Test', testId: 'test-login', steps: [{ id: 's1', action: 'click', locator: 'id', value: 'login_btn' }, { id: 's2', action: 'type', locator: 'id', value: 'username', expected: 'admin' }, { id: 's3', action: 'screenshot' }] },
-        { id: 'test-002', name: 'Dashboard Test', testId: 'test-dashboard', steps: [{ id: 's1', action: 'assert', value: 'dashboard', expected: 'visible' }] },
-      ],
-    };
+    const testSuite = await this.fetchTestSuite(config.projectId, config.testSuiteId);
 
     const results: MobileExecutionResult[] = [];
 
@@ -150,7 +146,7 @@ export class MobileExecutionService {
       const device = await this.deviceManager.getDeviceById(deviceId);
       if (!device) continue;
 
-      const result = await this.runTestsOnDevice(executionId, device, mockTestSuite, config);
+      const result = await this.runTestsOnDevice(executionId, device, testSuite, config);
       results.push(result);
 
       this.metricsService?.incrementExecution(device.projectId || 'default', 'production');
@@ -176,6 +172,26 @@ export class MobileExecutionService {
         failed: results.reduce((sum, r) => sum + r.testsFailed, 0),
       },
     });
+  }
+
+  private async fetchTestSuite(projectId: string, testSuiteId: string): Promise<MobileTestSuite> {
+    const testCases = await this.prisma.test.findMany({
+      where: { projectId, status: 'ACTIVE' },
+      select: { id: true, name: true, config: true },
+    });
+
+    const tests = testCases.map((tc) => ({
+      id: tc.id,
+      name: tc.name,
+      testId: tc.id,
+      steps: (tc.config as any)?.steps || [{ id: 's1', action: 'screenshot' as const }],
+    }));
+
+    return {
+      id: testSuiteId,
+      name: `Suite-${testSuiteId}`,
+      tests,
+    };
   }
 
   private async runTestsOnDevice(

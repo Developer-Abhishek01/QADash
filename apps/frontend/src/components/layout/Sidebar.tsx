@@ -1,23 +1,5 @@
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
-import { useAppDispatch, useAppSelector } from '@/lib/hooks/useRedux';
-import { toggleSidebarCollapsed } from '@/store/slices/uiSlice';
-import { useAuth } from '@/lib/auth/AuthContext';
-import {
-  Box,
-  Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  IconButton,
-  Typography,
-  Divider,
-  Tooltip,
-  ListSubheader,
-} from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   PlayArrow as ExecutionsIcon,
@@ -39,7 +21,27 @@ import {
   ChevronLeft,
   ChevronRight,
   AutoFixHigh as AIIcon,
+  Description as RequirementsIcon,
 } from '@mui/icons-material';
+import {
+  Box,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  IconButton,
+  Typography,
+  Divider,
+  Tooltip,
+  ListSubheader,
+} from '@mui/material';
+import { useRouter, usePathname } from 'next/navigation';
+
+import { useAuth } from '@/lib/auth/AuthContext';
+import { useAppDispatch, useAppSelector } from '@/lib/hooks/useRedux';
+import { toggleSidebarCollapsed } from '@/store/slices/uiSlice';
 
 const menuItems = [
   { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['*'] },
@@ -53,6 +55,7 @@ const menuItems = [
   { label: 'Security', icon: <SecurityIcon />, path: '/security', roles: ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'] },
   { label: 'Performance', icon: <PerformanceIcon />, path: '/performance', roles: ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'] },
   { label: 'Accessibility', icon: <AccessibilityIcon />, path: '/accessibility', roles: ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'] },
+  { label: 'Requirements', icon: <RequirementsIcon />, path: '/requirements', roles: ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'] },
 ];
 
 const adminMenuItems = [

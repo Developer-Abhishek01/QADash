@@ -1,4 +1,3 @@
-import { client } from '../api/client';
 import type {
   SecurityScan,
   Vulnerability,
@@ -7,6 +6,7 @@ import type {
   DashboardStats,
   CreateScanDto,
 } from './types';
+import { client } from '../api/client';
 
 export const securityApi = {
   createScan: (data: CreateScanDto) =>

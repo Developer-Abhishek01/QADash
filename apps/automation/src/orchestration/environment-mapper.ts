@@ -1,5 +1,5 @@
-import { Logger } from '../utils/logger';
 import { EnvironmentConfig } from './execution-engine';
+import { Logger } from '../utils/logger';
 
 export interface BrowserConfig {
   type: 'chromium' | 'firefox' | 'webkit' | 'mobile';

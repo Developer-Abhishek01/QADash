@@ -40,7 +40,28 @@ export function getConfig(): EnvConfig {
   return config;
 }
 
-export const appConfig = {
+const appConfigSchema = z.object({
+  cors: z.object({
+    origin: z.string().default('*'),
+    credentials: z.boolean().default(true),
+  }),
+  rateLimit: z.object({
+    windowMs: z.number().positive().default(900000),
+    max: z.number().positive().default(100),
+  }),
+  pagination: z.object({
+    defaultLimit: z.number().positive().default(20),
+    maxLimit: z.number().positive().default(100),
+  }),
+  test: z.object({
+    defaultTimeout: z.number().positive().default(30000),
+    maxRetries: z.number().min(0).default(3),
+  }),
+});
+
+export type AppConfig = z.infer<typeof appConfigSchema>;
+
+export const appConfig: AppConfig = appConfigSchema.parse({
   cors: {
     origin: process.env.CORS_ORIGIN || '*',
     credentials: true,
@@ -57,4 +78,4 @@ export const appConfig = {
     defaultTimeout: 30000,
     maxRetries: 3,
   },
-};
+});

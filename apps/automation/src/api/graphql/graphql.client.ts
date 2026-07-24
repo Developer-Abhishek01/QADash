@@ -1,5 +1,5 @@
-import { ApiClient, ApiResponse, RequestOptions } from '../api-client';
 import { Logger } from '../../utils/logger';
+import { ApiClient, ApiResponse, RequestOptions } from '../api-client';
 
 export interface GraphQLRequest {
   query: string;

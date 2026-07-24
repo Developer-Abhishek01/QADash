@@ -1,16 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-  Chip,
-  Button,
-  LinearProgress,
-} from '@mui/material';
 import {
   Speed,
   TrendingUp,
@@ -18,6 +7,15 @@ import {
   Timer,
   Assessment,
 } from '@mui/icons-material';
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  LinearProgress,
+} from '@mui/material';
 import {
   XAxis,
   YAxis,
@@ -29,32 +27,15 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { usePerformanceDashboard, usePerformanceTests } from '@/lib/performance/hooks';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { Loading } from '@/components/feedback/Loading';
-
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: '#6b7280',
-  PENDING: '#6b7280',
-  QUEUED: '#3b82f6',
-  RUNNING: '#8b5cf6',
-  COMPLETED: '#10b981',
-  FAILED: '#dc2626',
-  CANCELLED: '#6b7280',
-};
-
-const TEST_TYPE_LABELS: Record<string, string> = {
-  LOAD: 'Load Test',
-  STRESS: 'Stress Test',
-  SPIKE: 'Spike Test',
-  SOAK: 'Soak Test',
-  SMOKE: 'Smoke Test',
-};
+import { PerformanceStatusChip, TestTypeChip, MetricCard, AlertsPanel } from '@/components/performance';
+import { usePerformanceDashboard } from '@/lib/performance/hooks';
 
 export default function PerformanceDashboard() {
-  const [projectId] = useState<string>('');
+  const projectId = '';
   const { data: statsFromApi, isLoading: statsLoading } = usePerformanceDashboard(projectId || undefined);
-  const { data: _testsData, isLoading: testsLoading } = usePerformanceTests({ limit: 5 });
 
   const stats = statsFromApi || {
     totalTests: 0,
@@ -65,7 +46,7 @@ export default function PerformanceDashboard() {
     recentTests: []
   };
 
-  if (statsLoading || testsLoading) return <Loading />;
+  if (statsLoading) return <Loading />;
 
   const activeTests = stats?.activeTests || [];
   const recentTests = stats?.recentTests || [];
@@ -111,76 +92,17 @@ export default function PerformanceDashboard() {
       />
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ bgcolor: '#eff6ff' }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <Speed sx={{ fontSize: 40, color: '#2563eb' }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold">
-                    {stats?.totalTests || 0}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Tests
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<Speed sx={{ fontSize: 36 }} />} value={stats?.totalTests || 0} label="Total Tests" color="#2563eb" bgcolor="#eff6ff" />
         </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <Timer sx={{ fontSize: 40, color: '#3b82f6' }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold">
-                    {stats?.overallStats?.avgResponseTime?.toFixed(0) || 0}ms
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Avg Response Time
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<Timer sx={{ fontSize: 36 }} />} value={stats?.overallStats?.avgResponseTime?.toFixed(0) || '0'} label="Avg Response Time" subtitle="ms" color="#3b82f6" />
         </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <TrendingUp sx={{ fontSize: 40, color: '#10b981' }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold">
-                    {stats?.overallStats?.avgErrorRate?.toFixed(2) || 0}%
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Avg Error Rate
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<TrendingUp sx={{ fontSize: 36 }} />} value={`${stats?.overallStats?.avgErrorRate?.toFixed(2) || '0'}%`} label="Avg Error Rate" color="#10b981" />
         </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <Assessment sx={{ fontSize: 40, color: '#8b5cf6' }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold">
-                    {activeTests.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Running Tests
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<Assessment sx={{ fontSize: 36 }} />} value={activeTests.length} label="Running Tests" color="#8b5cf6" />
         </Grid>
 
         {activeTests.length > 0 && (
@@ -205,7 +127,7 @@ export default function PerformanceDashboard() {
                           <Typography variant="subtitle2" fontWeight="bold" noWrap>
                             {test.name}
                           </Typography>
-                          <Chip label="Running" size="small" color="primary" />
+                          <PerformanceStatusChip status={test.status} />
                         </Box>
                         <Typography variant="caption" color="text.secondary" display="block">
                           {test.project?.name}
@@ -284,7 +206,11 @@ export default function PerformanceDashboard() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
+          <AlertsPanel projectId={projectId || undefined} />
+        </Grid>
+
+        <Grid item xs={12} md={8}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -312,19 +238,8 @@ export default function PerformanceDashboard() {
                         </Typography>
                       </Box>
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Chip
-                          label={TEST_TYPE_LABELS[test.testType] || test.testType}
-                          size="small"
-                          variant="outlined"
-                        />
-                        <Chip
-                          label={test.status}
-                          size="small"
-                          sx={{
-                            bgcolor: (STATUS_COLORS[test.status] || '#6b7280') + '20',
-                            color: STATUS_COLORS[test.status] || '#6b7280',
-                          }}
-                        />
+                        <TestTypeChip type={test.testType} />
+                        <PerformanceStatusChip status={test.status} />
                       </Box>
                     </Box>
                   ))}

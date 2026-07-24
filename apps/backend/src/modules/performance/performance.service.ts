@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
-import { K6ExecutionService } from './engine/k6-execution.service';
-import { MetricsCollectorService } from './metrics/metrics-collector.service';
+import * as cronParser from 'cron-parser';
+
 import { AlertService } from './alerts/alert.service';
 import { CreatePerformanceTestDto, UpdatePerformanceTestDto, TestFilterDto, CreateAlertDto, UpdateAlertDto } from './dto/performance.dto';
+import { K6ExecutionService } from './engine/k6-execution.service';
+import { MetricsCollectorService } from './metrics/metrics-collector.service';
+import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()
 export class PerformanceService implements OnModuleInit {
@@ -282,8 +284,7 @@ export class PerformanceService implements OnModuleInit {
       if (schedule.nextRunAt && schedule.nextRunAt <= new Date()) {
         await this.runTest(schedule.testId);
 
-        const cron = require('cron-parser');
-        const next = cron.parseExpression(schedule.cronExpr).next().toDate();
+        const next = cronParser.parseExpression(schedule.cronExpr).next().toDate();
         await this.prisma.performanceSchedule.update({
           where: { id: schedule.id },
           data: { lastRunAt: new Date(), nextRunAt: next },

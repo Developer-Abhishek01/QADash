@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import {
   Reporter,
   FullConfig,
@@ -6,8 +9,6 @@ import {
   TestCase,
   TestResult,
 } from '@playwright/test/reporter';
-import * as fs from 'fs';
-import * as path from 'path';
 
 interface TestReport {
   timestamp: string;

@@ -1,5 +1,5 @@
-import { IsString, IsOptional, IsEnum, IsArray, IsNumber, IsBoolean, IsObject, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, IsEnum, IsArray, IsNumber, IsBoolean, IsObject, Min, Max } from 'class-validator';
 
 export enum AccessibilityTestStatusDto {
   PENDING = 'PENDING',

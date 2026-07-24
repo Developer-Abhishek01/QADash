@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
-import { MobileService } from './mobile.service';
-import { MobileController } from './mobile.controller';
-import { DeviceManagementService } from './device-management.service';
+
 import { AppiumService } from './appium.service';
+import { DeviceManagementService } from './device-management.service';
 import { MobileExecutionService } from './mobile-execution.service';
 import { MobileReportService } from './mobile-report.service';
-import { PrismaModule } from '../../common/prisma.module';
+import { MobileController } from './mobile.controller';
+import { MobileService } from './mobile.service';
 import { LoggerModule } from '../../common/logging';
+import { PrismaModule } from '../../common/prisma.module';
 import { MonitoringModule } from '../monitoring/monitoring.module';
 
 @Module({

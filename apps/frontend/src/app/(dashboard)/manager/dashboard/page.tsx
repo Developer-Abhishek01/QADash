@@ -1,6 +1,14 @@
 'use client';
 
 import {
+  TrendingUp as TrendUpIcon,
+  GetApp as DownloadIcon,
+  CheckCircle as SuccessIcon,
+  BugReport as BugIcon,
+  Timer as TimeIcon,
+  AutoFixHigh as AIIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Grid,
   Card,
@@ -10,17 +18,9 @@ import {
   Button,
   LinearProgress,
 } from '@mui/material';
-import {
-  TrendingUp as TrendUpIcon,
-  GetApp as DownloadIcon,
-  CheckCircle as SuccessIcon,
-  BugReport as BugIcon,
-  Timer as TimeIcon,
-  AutoFixHigh as AIIcon,
-} from '@mui/icons-material';
-import { PageHeader } from '@/components/common/PageHeader';
-
 import { useState, useEffect } from 'react';
+
+import { PageHeader } from '@/components/common/PageHeader';
 import { executionsApi } from '@/lib/api/client';
 
 export default function ManagerDashboardPage() {

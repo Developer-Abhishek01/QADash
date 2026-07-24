@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+
 import { authApi } from '@/lib/api/client';
 
 export enum UserRole {
@@ -21,6 +22,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   permissions: string[];
+  lastLoginAt?: string;
   createdAt: string;
 }
 
@@ -32,7 +34,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string, mockRole?: UserRole) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   register: (data: { email: string; password: string; name: string; role?: UserRole }) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
@@ -95,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
-  const login = async (email: string, password: string, mockRole?: UserRole) => {
+  const login = async (email: string, password: string) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
       const response = await authApi.login(email, password);
@@ -106,8 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const user: User = {
         ...response.user,
-        role: mockRole || response.user.role,
-        permissions: ROLE_PERMISSIONS[(mockRole || response.user.role) as UserRole] || [],
+        permissions: ROLE_PERMISSIONS[response.user.role as UserRole] || [],
       };
 
       localStorage.setItem('user', JSON.stringify(user));

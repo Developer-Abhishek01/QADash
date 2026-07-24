@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Email as EmailIcon, ArrowBack } from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -13,10 +13,11 @@ import {
   Alert,
   InputAdornment,
 } from '@mui/material';
-import { Email as EmailIcon, ArrowBack } from '@mui/icons-material';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { apiClient } from '@/lib/api/client';
 
 const forgotSchema = z.object({

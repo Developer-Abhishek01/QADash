@@ -18,7 +18,12 @@ services:
     environment:
       - NODE_ENV=development
       - DEBUG=*
-    command: ["pnpm", "dev"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["npm", "run", "dev"]
 
   # ========================================
   # Frontend - Development Mode with Hot-Reload
@@ -34,7 +39,7 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_TELEMETRY_DISABLED=1
-    command: ["pnpm", "dev"]
+    command: ["npm", "run", "dev"]
 
   # ========================================
   # AI Engine - Development Mode with Hot-Reload
@@ -44,6 +49,11 @@ services:
       - ./apps/ai-engine:/app
     environment:
       - DEBUG=*
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
+      - CORS_ORIGIN=http://localhost:3000,http://frontend:3000
+    depends_on:
+      redis:
+        condition: service_healthy
     command: ["uvicorn", "src.main:app", "--reload", "--host", "0.0.0.0", "--port", "3002"]
 
   # ========================================

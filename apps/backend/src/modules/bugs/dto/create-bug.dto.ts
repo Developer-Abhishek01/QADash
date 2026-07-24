@@ -1,5 +1,5 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, IsArray } from 'class-validator';
 
 export class CreateBugDto {
   @ApiProperty({ example: 'Login page crashes on invalid input', description: 'Bug title' })

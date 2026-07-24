@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { BugsService } from './bugs.service';
-import { BugsController } from './bugs.controller';
-import { PrismaService } from '../../common/prisma.service';
-import { ExcelIntegration } from './integrations/excel.integration';
 import { ConfigService } from '@nestjs/config';
+
+import { BugsController } from './bugs.controller';
+import { BugsService } from './bugs.service';
+import { ExcelIntegration } from './integrations/excel.integration';
 import { JiraIntegration } from './integrations/jira.integration';
+import { PrismaService } from '../../common/prisma.service';
 
 @Module({
   controllers: [BugsController],

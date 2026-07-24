@@ -1,6 +1,18 @@
 'use client';
 
 import {
+  TrendingUp,
+  Warning,
+  CheckCircle,
+  Lightbulb,
+  BugReport,
+  ExpandMore,
+  AutoFixHigh,
+  Insights,
+  Speed,
+  Refresh,
+} from '@mui/icons-material';
+import {
   Box,
   Card,
   CardContent,
@@ -19,18 +31,7 @@ import {
   Alert,
   Button,
 } from '@mui/material';
-import {
-  TrendingUp,
-  Warning,
-  CheckCircle,
-  Lightbulb,
-  BugReport,
-  ExpandMore,
-  AutoFixHigh,
-  Insights,
-  Speed,
-  Refresh,
-} from '@mui/icons-material';
+
 import { GaugeChart } from '../charts';
 
 interface AIInsight {

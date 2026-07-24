@@ -1,9 +1,11 @@
-import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Job, Queue } from 'bullmq';
+
 import { PrismaService } from '../../../common/prisma.service';
 import { SecurityScannerService } from '../scanners/scanner.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+
 
 export interface SecurityScanJob {
   scanId: string;

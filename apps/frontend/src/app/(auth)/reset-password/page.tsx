@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Lock as LockIcon, Visibility, VisibilityOff } from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -13,10 +13,11 @@ import {
   InputAdornment,
   IconButton,
 } from '@mui/material';
-import { Lock as LockIcon, Visibility, VisibilityOff } from '@mui/icons-material';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { apiClient } from '@/lib/api/client';
 
 const resetSchema = z.object({

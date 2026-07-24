@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../common/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import axios from 'axios';
+
+import { PrismaService } from '../../../common/prisma.service';
 
 interface AccessibilityTest {
   id: string;

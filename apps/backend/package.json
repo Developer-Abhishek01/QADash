@@ -51,6 +51,8 @@
     "date-fns": "^3.3.0",
     "dotenv": "^16.6.1",
     "helmet": "^7.1.0",
+    "mammoth": "^1.6.0",
+    "pdf-parse": "^1.1.1",
     "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
@@ -63,7 +65,7 @@
     "playwright": "^1.60.0",
     "prom-client": "^15.1.0",
     "socket.io": "^4.7.4",
-    "uuid": "^9.0.0",
+    "uuid": "^11.1.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "xlsx": "^0.18.5"

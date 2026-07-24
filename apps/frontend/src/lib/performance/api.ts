@@ -1,4 +1,3 @@
-import { client } from '../api/client';
 import type {
   PerformanceTest,
   PerformanceMetric,
@@ -7,6 +6,7 @@ import type {
   DashboardStats,
   CreateTestDto,
 } from './types';
+import { client } from '../api/client';
 
 export const performanceApi = {
   createTest: (data: CreateTestDto) =>

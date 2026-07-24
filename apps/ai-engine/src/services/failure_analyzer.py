@@ -2,7 +2,7 @@ import logging
 import hashlib
 import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class FailureAnalyzer:
             'root_cause': root_cause,
             'suggested_fix': suggested_fix,
             'confidence': self._calculate_confidence(pattern, root_cause),
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
         
         if self.redis:
@@ -58,15 +58,11 @@ class FailureAnalyzer:
             if pattern_key in error_lower:
                 return pattern_key
         
-        if 'timeout' in error_lower:
-            return 'timeout'
-        elif 'not found' in error_lower or 'cannot find' in error_lower:
+        if 'not found' in error_lower or 'cannot find' in error_lower:
             return 'not_found'
-        elif 'stale' in error_lower:
-            return 'stale'
         elif 'assert' in error_lower:
             return 'assertion'
-        elif 'permission' in error_lower or 'unauthorized' in error_lower:
+        elif 'unauthorized' in error_lower:
             return 'permission'
         
         return 'unknown'
@@ -175,7 +171,7 @@ class FailureAnalyzer:
         return {
             'trends': [],
             'total_failures': 0,
-            'generated_at': datetime.utcnow().isoformat(),
+            'generated_at': datetime.now(timezone.utc).isoformat(),
         }
 
     async def correlate_failures(self, failures: List[Dict]) -> Dict:
@@ -208,4 +204,9 @@ class FailureAnalyzer:
                 for (err, _), (loc, count) in zip(top_errors, sorted(correlation['common_locations'].items(), key=lambda x: x[1], reverse=True)[:3])
             ]
         
-        return correlation
+        return {
+            'common_errors': dict(correlation['common_errors']),
+            'common_locations': dict(correlation['common_locations']),
+            'likely_root_causes': correlation['likely_root_causes'],
+            'recommended_actions': correlation['recommended_actions'],
+        }

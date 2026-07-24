@@ -1,5 +1,5 @@
-import { IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString } from 'class-validator';
 
 export class AssignBugDto {
   @ApiProperty({ example: 'user-uuid-here', description: 'Assignee user ID' })

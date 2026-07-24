@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Delete, Param, UseGuards, UseInterceptors, UploadedFile, Request } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+
 import { UploadsService } from './uploads.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -12,23 +12,22 @@ export class UploadsController {
   constructor(private readonly uploadsService: UploadsService) {}
 
   @Get()
-  findAll(@Request() req: any) { return this.uploadsService.findAll(req.user.id); }
+  findAll(@Query('userId') userId?: string) {
+    return this.uploadsService.findAll(userId);
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string) { return this.uploadsService.findById(id); }
+  findOne(@Param('id') id: string) {
+    return this.uploadsService.findById(id);
+  }
 
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
-  create(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
-    return this.uploadsService.create({
-      filename: file.filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
-      path: file.path,
-      userId: req.user.id,
-    });
+  create(@Body() data: { filename: string; originalName: string; mimeType: string; size: number; path: string; userId: string }) {
+    return this.uploadsService.create(data);
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string) { return this.uploadsService.delete(id); }
+  delete(@Param('id') id: string) {
+    return this.uploadsService.delete(id);
+  }
 }

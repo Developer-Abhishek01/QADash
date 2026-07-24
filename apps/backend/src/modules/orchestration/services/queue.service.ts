@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { Injectable, Logger } from '@nestjs/common';
 import { Queue, Job } from 'bullmq';
 import { v4 as uuidv4 } from 'uuid';
+
 import { OrchestrationJob } from '../orchestration.service';
 
 @Injectable()

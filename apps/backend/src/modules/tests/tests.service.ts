@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
+
+import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()
 export class TestsService {
@@ -12,13 +13,16 @@ export class TestsService {
     const where = projectId ? { projectId } : {};
     return this.prisma.test.findMany({
       where,
-      include: { project: true, user: { select: { id: true, name: true, email: true } } },
+      include: { project: true, user: { select: { id: true, name: true, email: true } }, versions: { orderBy: { version: 'desc' }, take: 1 } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findById(id: string) {
-    const test = await this.prisma.test.findUnique({ where: { id } });
+    const test = await this.prisma.test.findUnique({
+      where: { id },
+      include: { versions: { orderBy: { version: 'desc' }, take: 10 } },
+    });
     if (!test) throw new NotFoundException('Test not found');
     return test;
   }
@@ -45,7 +49,7 @@ export class TestsService {
 
   async create(data: { name: string; description?: string; projectId?: string; projectName?: string; userId: string; config?: object; code?: string; specFile?: string; tags?: string[]; status?: string }) {
     const resolvedProjectId = await this.resolveProjectId(data.projectId, data.projectName, data.name);
-    return this.prisma.test.create({
+    const test = await this.prisma.test.create({
       data: {
         name: data.name,
         description: data.description,
@@ -58,20 +62,82 @@ export class TestsService {
         status: data.status as any,
       },
     });
+
+    if (data.code) {
+      await this.createVersion(test.id, data.code, data.config || {}, 'Initial version', data.userId);
+    }
+
+    return test;
   }
 
-  async update(id: string, data: Partial<{ name: string; description: string; status: string; config: object; code: string; specFile: string; tags: string[] }>) {
-    return this.prisma.test.update({
+  async update(id: string, data: Partial<{ name: string; description: string; status: string; config: object; code: string; specFile: string; tags: string[] }>, userId?: string) {
+    const existing = await this.prisma.test.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Test not found');
+
+    const wasCodeChanged = data.code && data.code !== existing.code;
+    const wasConfigChanged = data.config && JSON.stringify(data.config) !== JSON.stringify(existing.config);
+
+    const test = await this.prisma.test.update({
       where: { id },
-      data: { 
-        ...data, 
+      data: {
+        ...data,
         status: data.status as any,
-        config: data.config as any 
+        config: data.config as any,
+      },
+    });
+
+    if (wasCodeChanged || wasConfigChanged) {
+      await this.createVersion(id, data.code || existing.code || '', data.config || (existing.config as object) || {}, wasCodeChanged ? 'Code updated' : 'Config updated', userId || existing.userId);
+    }
+
+    return test;
+  }
+
+  async saveCode(id: string, code: string, userId: string): Promise<any> {
+    const existing = await this.prisma.test.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Test not found');
+
+    const test = await this.prisma.test.update({
+      where: { id },
+      data: { code },
+    });
+
+    await this.createVersion(id, code, existing.config as object, 'Code auto-saved from AI generation', userId);
+    return test;
+  }
+
+  private async createVersion(testId: string, code: string, config: object, changes: string, createdBy: string) {
+    const lastVersion = await (this.prisma as any).testVersion.findFirst({
+      where: { testId },
+      orderBy: { version: 'desc' },
+    });
+    await (this.prisma as any).testVersion.create({
+      data: {
+        testId,
+        version: (lastVersion?.version || 0) + 1,
+        code,
+        config: config as any,
+        changes,
+        createdBy,
       },
     });
   }
 
+  async getVersions(testId: string) {
+    return (this.prisma as any).testVersion.findMany({
+      where: { testId },
+      orderBy: { version: 'desc' },
+    });
+  }
+
   async delete(id: string) {
-    await this.prisma.test.deleteMany({ where: { id } });
+    try {
+      await this.prisma.test.delete({ where: { id } });
+    } catch (error) {
+      if ((error as any)?.code === 'P2025') {
+        throw new NotFoundException('Test not found');
+      }
+      throw error;
+    }
   }
 }

@@ -1,6 +1,6 @@
-import { Logger } from '../utils/logger';
 import { AnalyticsService } from './analytics-service';
 import { ChartGenerator } from './chart-components';
+import { Logger } from '../utils/logger';
 
 export interface DashboardConfig {
   widgets: WidgetConfig[];

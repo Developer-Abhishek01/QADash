@@ -1,7 +1,8 @@
 import * as fs from 'fs';
-import { Logger } from '../utils/logger';
-import { StoredReport, ReportStorage } from './report-storage';
+
 import { ExportFormat } from './export-service';
+import { StoredReport, ReportStorage } from './report-storage';
+import { Logger } from '../utils/logger';
 
 export interface DashboardMetrics {
   totalExecutions: number;
@@ -68,7 +69,7 @@ export class DashboardIntegration {
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
             totalTests += data.statistics?.totalTests || data.tests?.length || 0;
             totalPassed += data.statistics?.passed || 0;
-            totalDuration += data.statistics?.duration || 0;
+            totalDuration += data.statistics?.totalDuration || 0;
             return;
           }
         } catch {}

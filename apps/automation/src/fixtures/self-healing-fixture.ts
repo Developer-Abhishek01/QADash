@@ -1,4 +1,5 @@
 import { test as base, Page } from '@playwright/test';
+
 import { LocatorHealer, type HealingResult } from '../self-healing';
 
 interface SelfHealingOptions {

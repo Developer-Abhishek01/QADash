@@ -277,46 +277,80 @@ export class AIFailureAnalyzer {
     return { severity, confidence };
   }
 
-  private determineRootCause(_failure: FailureInput, categoryResult: { category: FailureCategory; reason: string }): string {
-    const reasons: Record<FailureCategory, string[]> = {
-      product_bug: [
-        'Application code threw unhandled exception',
-        'UI component failed to render correctly',
-        'State management issue in application',
-        'API returned unexpected error',
-      ],
-      automation_bug: [
-        'Element locator is unstable or has changed',
-        'Test timing assumptions are incorrect',
-        'Test data is no longer valid',
-        'Assertion expects incorrect value',
-      ],
-      network_issue: [
-        'Network connectivity is unstable',
-        'API server is not responding',
-        'Request payload is malformed',
-        'SSL/TLS handshake failed',
-      ],
-      environment_issue: [
-        'Test environment configuration is incorrect',
-        'Required resources are not available',
-        'Browser or runtime issue',
-        'Insufficient system resources',
-      ],
-      data_issue: [
-        'Test data is missing or invalid',
-        'API response format has changed',
-        'Data validation failed',
-        'Database connection issue',
-      ],
-      unknown: [
-        'Unable to determine root cause',
-        'Additional investigation required',
-      ],
-    };
+  private determineRootCause(failure: FailureInput, categoryResult: { category: FailureCategory; reason: string }): string {
+    const errorText = (failure.error || failure.message || '').toLowerCase();
+    const stackText = (failure.stackTrace || '').toLowerCase();
+    const combined = `${errorText} ${stackText}`;
 
-    const categoryReasons = reasons[categoryResult.category] || reasons.unknown;
-    return categoryReasons[Math.floor(Math.random() * categoryReasons.length)];
+    if (categoryResult.category === 'product_bug') {
+      if (/cannot read|null|undefined/.test(combined)) {
+        return 'Application code threw a null/undefined reference error — likely a missing null check';
+      }
+      if (/crash|fatal|unhandled/.test(combined)) {
+        return 'Application crashed with an unhandled exception — check error boundaries and try-catch blocks';
+      }
+      if (/api.*error|server.*error|500/.test(combined)) {
+        return 'Backend API returned a server error — investigate the API endpoint and its dependencies';
+      }
+      return 'Application code threw an unhandled exception — inspect the stack trace for the failing component';
+    }
+
+    if (categoryResult.category === 'automation_bug') {
+      if (/element.*not.*found|unable.*locate/.test(combined)) {
+        return 'Element locator is stale or the DOM structure has changed — update the selector or use data-testid';
+      }
+      if (/timeout.*waiting/.test(combined)) {
+        return 'Test timed out waiting for an element to appear — increase wait duration or add an explicit wait condition';
+      }
+      if (/assertion.*failed|expected.*actual/.test(combined)) {
+        return 'Assertion expects a value that does not match the actual result — verify the expected data or update the assertion';
+      }
+      return 'Test automation issue detected — review test logs for the exact failure point';
+    }
+
+    if (categoryResult.category === 'network_issue') {
+      if (/timeout|connection.*refused/.test(combined)) {
+        return 'Network request timed out or connection was refused — check if the target service is running and reachable';
+      }
+      if (/certificate|ssl|tls/.test(combined)) {
+        return 'SSL/TLS certificate validation failed — check certificate expiry and hostname match';
+      }
+      if (/dns|resolve/.test(combined)) {
+        return 'DNS resolution failed — verify the URL and network DNS configuration';
+      }
+      return 'Network connectivity issue detected — verify network stability and firewall rules';
+    }
+
+    if (categoryResult.category === 'environment_issue') {
+      if (/memory|heap/.test(combined)) {
+        return 'Memory limit exceeded — increase available memory or optimize test resource usage';
+      }
+      if (/permission.*denied|access.*denied/.test(combined)) {
+        return 'Permission denied — check file/process permissions and user roles';
+      }
+      if (/database.*connection/.test(combined)) {
+        return 'Database connection failed — verify database server is running and credentials are correct';
+      }
+      if (failure.environment?.memory && failure.environment.memory > 90) {
+        return `System memory at ${failure.environment.memory}% — insufficient resources for test execution`;
+      }
+      return 'Test environment configuration is incorrect — verify environment variables and dependencies';
+    }
+
+    if (categoryResult.category === 'data_issue') {
+      if (/invalid.*json|parse.*error/.test(combined)) {
+        return 'Response or file contains malformed data that cannot be parsed';
+      }
+      if (/empty.*response|null.*response/.test(combined)) {
+        return 'API returned an empty or null response — expected data was missing';
+      }
+      if (/validation.*failed/.test(combined)) {
+        return 'Input data failed validation — check test data format and constraints';
+      }
+      return 'Test data is missing, invalid, or has changed — refresh test data or update data fixtures';
+    }
+
+    return 'Unable to determine root cause from available evidence — enable detailed logging and re-run the test';
   }
 
   private generateRecommendations(_failure: FailureInput, categoryResult: { category: FailureCategory }, _rootCause: string): Recommendation[] {

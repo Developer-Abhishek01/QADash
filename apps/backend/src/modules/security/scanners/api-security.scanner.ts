@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import { VulnerabilityResult, TargetResult } from './scanner.service';
 
 const SENSITIVE_PARAMS = [

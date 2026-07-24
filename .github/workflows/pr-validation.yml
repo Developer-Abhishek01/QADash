@@ -84,15 +84,12 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
-        continue-on-error: true
 
       - name: Run TypeScript type check
         run: npm run typecheck
-        continue-on-error: true
 
       - name: Run Backend lint
         run: npm run lint -w @qadash/backend
-        continue-on-error: true
 
       - name: Upload lint reports
         if: failure()
@@ -127,13 +124,11 @@ jobs:
 
       - name: Run npm audit
         run: npm audit --audit-level=high
-        continue-on-error: true
 
       - name: Run Snyk security scan
         if: env.SNYK_TOKEN != ''
         run: |
           npx snyk test --all-projects --severity-threshold=high
-        continue-on-error: true
 
       - name: Upload security report
         if: always()
@@ -346,11 +341,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Download build artifacts
+      - name: Download backend build artifacts
         uses: actions/download-artifact@v4
         with:
           name: backend-build
           path: apps/backend/
+
+      - name: Download frontend build artifacts
         uses: actions/download-artifact@v4
         with:
           name: frontend-build

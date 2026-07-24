@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Request, HTTPException
+import json
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
@@ -216,3 +217,63 @@ async def optimize_test(test_code: str, request: Request):
     if not service:
         raise HTTPException(status_code=503, detail="Service not available")
     return await service.optimize_test(test_code)
+
+
+class FRDBRDParseRequest(BaseModel):
+    document: str
+    metadata: Optional[Dict] = None
+
+
+class FRDBRDTestGenRequest(BaseModel):
+    requirements: List[Dict]
+    framework: Optional[str] = 'playwright'
+
+
+@router.post("/requirements/parse-frd")
+async def parse_frd(req: FRDBRDParseRequest, request: Request):
+    service = request.app.state.services.get('frd_brd_parser')
+    if not service:
+        raise HTTPException(status_code=503, detail="Service not available")
+    return await service.parse_frd(req.document, req.metadata)
+
+
+@router.post("/requirements/parse-brd")
+async def parse_brd(req: FRDBRDParseRequest, request: Request):
+    service = request.app.state.services.get('frd_brd_parser')
+    if not service:
+        raise HTTPException(status_code=503, detail="Service not available")
+    return await service.parse_brd(req.document, req.metadata)
+
+
+@router.post("/requirements/generate-tests")
+async def generate_tests(req: FRDBRDTestGenRequest, request: Request):
+    service = request.app.state.services.get('frd_brd_parser')
+    if not service:
+        raise HTTPException(status_code=503, detail="Service not available")
+    return await service.generate_test_cases_from_requirements(req.requirements, req.framework)
+
+
+@router.post("/requirements/upload-file")
+async def upload_requirements_file(
+    file: UploadFile = File(...),
+    file_type: str = Form(...),
+    metadata: Optional[str] = Form(None),
+    request: Request = None,
+):
+    service = request.app.state.services.get('frd_brd_parser')
+    if not service:
+        raise HTTPException(status_code=503, detail="Service not available")
+
+    content = await file.read()
+    text = await service.extract_text_from_file(file.filename or 'document.txt', content)
+
+    metadata_dict = json.loads(metadata) if metadata else {}
+    doc_type = file_type.upper()
+
+    if doc_type == 'BRD':
+        result = await service.parse_brd(text, metadata_dict)
+    else:
+        result = await service.parse_frd(text, metadata_dict)
+
+    result['extracted_from'] = file.filename
+    return result

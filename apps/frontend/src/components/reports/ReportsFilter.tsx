@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X,
   RotateCcw,
@@ -17,7 +16,10 @@ import {
   Flame,
   Target,
 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+
 import { cn } from '@/lib/utils';
+
 import type { ReportsFilters } from './types';
 import { DEFAULT_FILTERS, STATUS_OPTIONS, DATE_OPTIONS, REPORT_TYPE_OPTIONS } from './types';
 
@@ -135,6 +137,9 @@ export function ReportsFilter({
         <div
           className="absolute inset-0 bg-gradient-to-br from-surface-900/40 via-surface-900/30 to-surface-900/20 backdrop-blur-sm"
           onClick={handleClose}
+          onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') handleClose(); }}
+          role="button"
+          tabIndex={0}
         />
       </div>
 
@@ -349,11 +354,12 @@ export function ReportsFilter({
                     <div className="space-y-3 p-4">
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
-                          <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+                          <label htmlFor="filter-date-from" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-500">
                             <Calendar className="h-3 w-3" />
                             From
                           </label>
                           <input
+                            id="filter-date-from"
                             type="date"
                             value={draft.customDateFrom || ''}
                             onChange={(e) =>
@@ -371,11 +377,12 @@ export function ReportsFilter({
                           </div>
                         </div>
                         <div className="flex-1">
-                          <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+                          <label htmlFor="filter-date-to" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-500">
                             <Calendar className="h-3 w-3" />
                             To
                           </label>
                           <input
+                            id="filter-date-to"
                             type="date"
                             value={draft.customDateTo || ''}
                             onChange={(e) =>

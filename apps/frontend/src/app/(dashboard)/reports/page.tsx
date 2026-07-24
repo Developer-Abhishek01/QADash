@@ -1,6 +1,23 @@
 'use client';
 
 import {
+  GetApp as DownloadIcon,
+  Visibility as ViewIcon,
+  Description as ReportIcon,
+  Delete as DeleteIcon,
+  Close as CloseIcon,
+  Share as ShareIcon,
+  Link as LinkIcon,
+  DeleteSweep as BulkDeleteIcon,
+  Assessment as AssessmentIcon,
+  Storage as StorageIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
+  Search as SearchIcon,
+  FilterList as FilterListIcon,
+  Refresh as RefreshIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Card,
   CardContent,
@@ -28,32 +45,17 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import {
-  GetApp as DownloadIcon,
-  Visibility as ViewIcon,
-  Description as ReportIcon,
-  Delete as DeleteIcon,
-  Close as CloseIcon,
-  Share as ShareIcon,
-  Link as LinkIcon,
-  DeleteSweep as BulkDeleteIcon,
-  Assessment as AssessmentIcon,
-  Storage as StorageIcon,
-  CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
-  Search as SearchIcon,
-  FilterList as FilterListIcon,
-  Refresh as RefreshIcon,
-} from '@mui/icons-material';
-import { reportsApi } from '@/lib/api/client';
-import { copyToClipboard, cn } from '@/lib/utils';
+import { X } from 'lucide-react';
+import { useSnackbar } from 'notistack';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { ReportsFilter } from '@/components/reports/ReportsFilter';
 import type { ReportsFilters } from '@/components/reports/types';
 import { DEFAULT_FILTERS, STATUS_OPTIONS, DATE_OPTIONS, REPORT_TYPE_OPTIONS } from '@/components/reports/types';
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSnackbar } from 'notistack';
-import { X } from 'lucide-react';
+import { reportsApi } from '@/lib/api/client';
+import { copyToClipboard, cn } from '@/lib/utils';
+
 
 interface TestResult {
   id: string;
@@ -205,6 +207,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchReports();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleView = (report: Report) => {

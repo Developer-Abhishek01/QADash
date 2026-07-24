@@ -1,7 +1,8 @@
 import { Page, Locator, FrameLocator } from '@playwright/test';
-import { WaitHelper } from '../helpers/wait.helper';
+
 import { ActionHelper } from '../helpers/action.helper';
 import { AssertHelper } from '../helpers/assert.helper';
+import { WaitHelper } from '../helpers/wait.helper';
 import { Logger } from '../utils/logger';
 
 export abstract class BasePage {

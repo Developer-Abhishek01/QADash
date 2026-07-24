@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Box, Card, CardContent, Typography, Button, TextField, MenuItem, Select, FormControl, InputLabel, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Grid, Avatar, Tooltip, LinearProgress } from '@mui/material';
+import { useState, useEffect } from 'react';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { useProjects } from '@/hooks/useProjects';
+import { bugsApi } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthContext';
 
 interface Bug {
@@ -30,7 +32,6 @@ const priorityIcons: Record<string, string> = { P1: '🔴', P2: '🟠', P3: '�
 
 interface BugStats { total: number; open: number; inProgress: number; resolved: number; closed: number; byStatus: Record<string, number>; bySeverity: Record<string, number> }
 
-import { bugsApi } from '@/lib/api/client';
 
 export default function BugsPage() {
   const { user: _user } = useAuth();
@@ -62,6 +63,7 @@ export default function BugsPage() {
   useEffect(() => {
     setIsMounted(true);
     fetchBugs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
   const updateStats = (currentBugs: Bug[]) => {
@@ -316,7 +318,10 @@ export default function BugsPage() {
                 </Grid>
               )}
               {selectedBug.screenshots.length > 0 && (
-                <Grid item xs={12}><Typography variant="subtitle2">Screenshots ({selectedBug.screenshots.length})</Typography><Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>{selectedBug.screenshots.map((s, i) => <img key={i} src={s} alt={`screenshot-${i}`} style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 4 }} />)}</Box></Grid>
+                <Grid item xs={12}><Typography variant="subtitle2">Screenshots ({selectedBug.screenshots.length})</Typography><Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>{selectedBug.screenshots.map((s, i) => <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img key={i} src={s} alt={`screenshot-${i}`} style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 4 }} />
+            </>)}</Box></Grid>
               )}
               {selectedBug.logs && <Grid item xs={12}><Typography variant="subtitle2">Logs</Typography><pre style={{ background: '#f5f5f5', padding: 8, borderRadius: 4, overflow: 'auto', maxHeight: 200 }}>{selectedBug.logs}</pre></Grid>}
             </Grid>

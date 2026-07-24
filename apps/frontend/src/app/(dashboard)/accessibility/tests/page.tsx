@@ -1,6 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  Add,
+  MoreVert,
+  PlayArrow,
+  Stop,
+  Visibility,
+  Delete,
+  Search,
+} from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -23,28 +31,14 @@ import {
   InputLabel,
   Select,
 } from '@mui/material';
-import {
-  Add,
-  MoreVert,
-  PlayArrow,
-  Stop,
-  Visibility,
-  Delete,
-  Search,
-} from '@mui/icons-material';
+import Tooltip from '@mui/material/Tooltip';
 import { useRouter } from 'next/navigation';
-import { useAccessibilityTests, useRunAccessibilityTest, useCancelAccessibilityTest } from '@/lib/accessibility/hooks';
+import { useState } from 'react';
+
+import { AccessibilityStatusChip, WcagLevelChip } from '@/components/accessibility';
 import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#6b7280',
-  QUEUED: '#3b82f6',
-  RUNNING: '#8b5cf6',
-  COMPLETED: '#10b981',
-  FAILED: '#dc2626',
-  CANCELLED: '#6b7280',
-};
+import { useAccessibilityTests, useRunAccessibilityTest, useCancelAccessibilityTest } from '@/lib/accessibility/hooks';
 
 export default function AccessibilityTestsPage() {
   const router = useRouter();
@@ -153,17 +147,10 @@ export default function AccessibilityTestsPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={`WCAG ${test.wcagLevel}`} size="small" variant="outlined" />
+                    <WcagLevelChip level={test.wcagLevel} />
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      label={test.status}
-                      size="small"
-                      sx={{
-                        bgcolor: (STATUS_COLORS[test.status] || '#6b7280') + '20',
-                        color: STATUS_COLORS[test.status] || '#6b7280',
-                      }}
-                    />
+                    <AccessibilityStatusChip status={test.status} />
                   </TableCell>
                   <TableCell>
                     <Typography
@@ -255,14 +242,6 @@ export default function AccessibilityTestsPage() {
           <Delete sx={{ mr: 1 }} /> Delete
         </MenuItem>
       </Menu>
-    </Box>
-  );
-}
-
-function Tooltip({ children, title }: { children: React.ReactNode; title: string }) {
-  return (
-    <Box component="span" title={title} sx={{ display: 'inline-flex' }}>
-      {children}
     </Box>
   );
 }

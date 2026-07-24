@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { PlayArrow, ArrowBack, Save } from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -23,10 +22,12 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
-import { PlayArrow, ArrowBack, Save } from '@mui/icons-material';
-import { useCreatePerformanceTest, useRunPerformanceTest } from '@/lib/performance/hooks';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
 import PageHeader from '@/components/common/PageHeader';
-import _Loading from '@/components/feedback/Loading';
+import { projectsApi } from '@/lib/api/client';
+import { useCreatePerformanceTest, useRunPerformanceTest } from '@/lib/performance/hooks';
 
 const TEST_TYPES = [
   { value: 'LOAD', label: 'Load Test', description: 'Normal expected load' },
@@ -88,7 +89,12 @@ export default function NewPerformanceTest() {
     http_req_failed: 'rate<0.01',
     http_reqs: 'rate>10',
   });
+  const [projects, setProjects] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    projectsApi.list().then(data => setProjects(Array.isArray(data) ? data : [])).catch(() => {});
+  }, []);
 
   const createTest = useCreatePerformanceTest();
   const runTest = useRunPerformanceTest();
@@ -177,7 +183,9 @@ export default function NewPerformanceTest() {
                       onChange={(e) => handleChange('projectId', e.target.value)}
                       label="Project"
                     >
-                      <MenuItem value="demo">Demo Project</MenuItem>
+                      {projects.map((p: any) => (
+                        <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>

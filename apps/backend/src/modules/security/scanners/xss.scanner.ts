@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import { VulnerabilityResult, TargetResult } from './scanner.service';
 
 const XSS_PAYLOADS = [
@@ -39,7 +40,7 @@ export class XssScanner {
     const targets: TargetResult[] = [];
 
     const testParams = ['q', 'search', 'query', 'id', 'name', 'email', 'msg', 'comment', 's', 'term'];
-    const testValues = ['test', '1', 'admin', 'admin@example.com', 'hello world'];
+    const testValues = ['test', '1', 'admin', 'hello world'];
 
     for (const param of testParams) {
       for (const value of testValues) {

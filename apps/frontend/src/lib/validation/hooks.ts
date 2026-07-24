@@ -1,7 +1,8 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, UseFormProps, UseFormReturn } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { validationApi } from './api';
 import type { ValidationRule, ValidationResponse, FieldValidation, ValidationError, SchemaValidation } from './types';
 
@@ -124,7 +125,7 @@ function fieldValidationToZod(field: FieldValidation): z.ZodTypeAny {
     if (field.type === 'string') {
       schema = (schema as z.ZodString).min(1);
     } else if (field.type === 'number') {
-      schema = schema;
+      // number type uses base schema without additional wrappers
     }
   }
 

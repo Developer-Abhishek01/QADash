@@ -2,7 +2,7 @@ import logging
 import hashlib
 import json
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class SmartAssertions:
             import re
             try:
                 passed = bool(re.search(str(expected), str(actual)))
-            except:
+            except Exception:
                 passed = False
         elif assertion_type == 'fuzzy':
             passed = self._fuzzy_match(str(expected), str(actual))
@@ -158,7 +158,7 @@ class SmartAssertions:
         return {
             'passed': passed,
             'results': results,
-            'summary': f"{sum(1 for r in results if r.get('passed'))}/{len(results)} checks passed',
+            'summary': f"{sum(1 for r in results if r.get('passed'))}/{len(results)} checks passed",
         }
 
     async def _check_visibility(self, element: Dict, expected: bool) -> Dict:
@@ -203,7 +203,7 @@ class SmartAssertions:
         patterns = json.loads(existing) if existing else []
         
         patterns.append({
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'passed': passed,
             'expected': assertion.get('expected'),
             'actual': assertion.get('actual'),

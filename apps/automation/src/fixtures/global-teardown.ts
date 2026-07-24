@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+
 import { Logger } from '../utils/logger';
 
 const logger = new Logger('GlobalTeardown');

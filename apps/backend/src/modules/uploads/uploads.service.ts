@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+
 import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()
@@ -21,5 +22,8 @@ export class UploadsService {
     return this.prisma.upload.create({ data });
   }
 
-  async delete(id: string) { return this.prisma.upload.delete({ where: { id } }); }
+  async delete(id: string) {
+    await this.findById(id);
+    return this.prisma.upload.delete({ where: { id } });
+  }
 }

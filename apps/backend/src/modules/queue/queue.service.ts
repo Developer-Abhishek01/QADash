@@ -1,7 +1,8 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue, JobsOptions } from 'bullmq';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Queue, JobsOptions } from 'bullmq';
+
 import { QUEUES } from './queue.constants';
 
 export interface ExecutionJobData {
@@ -23,7 +24,7 @@ export interface ReportJobData {
 
 export interface AiJobData {
   jobId: string;
-  type: 'ANALYZE_TEST' | 'GENERATE_TESTS' | 'ANALYZE_EXECUTION' | 'SUGGEST_FIXES' | 'GET_INSIGHTS';
+  type: 'ANALYZE_TEST' | 'GENERATE_TESTS' | 'ANALYZE_EXECUTION' | 'SUGGEST_FIXES' | 'GET_INSIGHTS' | 'PIPELINE_NLP_TO_TEST' | 'PIPELINE_EXCEL_TO_TESTS' | 'VALIDATE_TEST_CASE' | 'GENERATE_CODE';
   projectId: string;
   payload: Record<string, unknown>;
   userId: string;

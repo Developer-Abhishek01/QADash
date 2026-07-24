@@ -1,14 +1,21 @@
 module.exports = {
   root: true,
-  extends: ['@qadash/eslint-config/base'],
   overrides: [
+    {
+      files: ['packages/**/*.ts', 'packages/**/*.tsx'],
+      extends: ['@qadash/eslint-config/base'],
+    },
     {
       files: ['apps/frontend/**/*.ts', 'apps/frontend/**/*.tsx'],
       extends: ['@qadash/eslint-config/nextjs'],
     },
     {
       files: ['apps/backend/**/*.ts'],
+      excludedFiles: ['*.spec.ts', '*.test.ts'],
       extends: ['@qadash/eslint-config/nestjs'],
+      parserOptions: {
+        project: './tsconfig.json',
+      },
     },
     {
       files: ['apps/automation/**/*.ts'],
@@ -17,9 +24,6 @@ module.exports = {
     {
       files: ['*.ts', '*.tsx'],
       parser: '@typescript-eslint/parser',
-      parserOptions: {
-        project: './tsconfig.json'
-      }
     },
     {
       files: ['*.js', '*.jsx'],

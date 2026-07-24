@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
-import { SecurityQueueService } from './queues/security-queue.service';
+import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
+import { parseExpression } from 'cron-parser';
+
 import { CreateScanDto, UpdateScanDto, VulnerabilityFilterDto, ScanFilterDto } from './dto/security.dto';
+import { SecurityQueueService } from './queues/security-queue.service';
+import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()
 export class SecurityService implements OnModuleInit {
@@ -293,8 +295,7 @@ export class SecurityService implements OnModuleInit {
       if (schedule.nextRunAt && schedule.nextRunAt <= new Date()) {
         await this.startScan(schedule.scanId);
 
-        const cron = require('cron-parser');
-        const next = cron.parseExpression(schedule.cronExpr).next().toDate();
+        const next = parseExpression(schedule.cronExpr).next().toDate();
         await this.prisma.scanSchedule.update({
           where: { id: schedule.id },
           data: { lastRunAt: new Date(), nextRunAt: next },

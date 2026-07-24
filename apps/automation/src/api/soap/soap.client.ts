@@ -1,5 +1,5 @@
-import { ApiClient, ApiResponse } from '../api-client';
 import { Logger } from '../../utils/logger';
+import { ApiClient, ApiResponse } from '../api-client';
 
 export interface SoapRequest {
   envelope: string;

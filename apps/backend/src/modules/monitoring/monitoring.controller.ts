@@ -1,8 +1,9 @@
 import { Controller, Get, Post, Body, Param, Query, Res, Headers } from '@nestjs/common';
 import { Response } from 'express';
-import { MetricsService } from './metrics.service';
-import { HealthService } from './health.service';
+
 import { CustomMetricDto } from './dto/custom-metric.dto';
+import { HealthService } from './health.service';
+import { MetricsService } from './metrics.service';
 
 @Controller('monitoring')
 export class MonitoringController {

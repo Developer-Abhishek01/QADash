@@ -1,20 +1,21 @@
+import { join } from 'path';
+
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { initConfig } from '@qadash/config';
+import { logger } from '@qadash/logger';
 import * as dotenv from 'dotenv';
-import { join } from 'path';
+import * as express from 'express';
+import helmet from 'helmet';
 
 // Load environment variables early
 dotenv.config();
 
 import { AppModule } from './app.module';
-import { logger } from '@qadash/logger';
-import { initConfig } from '@qadash/config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import helmet from 'helmet';
-import * as express from 'express';
 
 async function bootstrap() {
   initConfig();
@@ -108,12 +109,43 @@ async function bootstrap() {
     },
   });
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port, '0.0.0.0');
+  const preferredPort = parseInt(process.env.PORT || '3001', 10);
+  const maxPortAttempts = 10;
+  let port = preferredPort;
+
+  for (let attempt = 0; attempt < maxPortAttempts; attempt++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const server = app.getHttpServer();
+        server.once('error', (err: any) => {
+          reject(err);
+        });
+        app.listen(port, '0.0.0.0').then(() => resolve()).catch(reject);
+      });
+      break;
+    } catch (err: any) {
+      if (err.code === 'EADDRINUSE' && attempt < maxPortAttempts - 1) {
+        logger.warn(`Port ${port} in use, trying ${port + 1}`);
+        port++;
+      } else {
+        throw err;
+      }
+    }
+  }
 
   logger.info(`🚀 QA Dashboard API running on: http://127.0.0.1:${port}`);
   logger.info(`📚 Swagger docs available at: http://127.0.0.1:${port}/api/docs`);
   logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
 }
+
+// Prevent crash from unhandled promise rejections & exceptions
+process.on('unhandledRejection', (reason) => {
+  logger.error(`Unhandled Rejection: ${reason instanceof Error ? reason.message : reason}`);
+  process.exit(1);
+});
+process.on('uncaughtException', (err) => {
+  logger.error(`Uncaught Exception: ${err.message}`, err.stack);
+  process.exit(1);
+});
 
 bootstrap();

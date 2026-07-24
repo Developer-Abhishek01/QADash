@@ -1,8 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { QueueService } from './services/queue.service';
+
 import { EventHubService } from './services/event-hub.service';
 import { JobCoordinatorService } from './services/job-coordinator.service';
+import { QueueService } from './services/queue.service';
 import { ServiceRegistryService } from './services/service-registry.service';
 
 export interface OrchestrationJob {

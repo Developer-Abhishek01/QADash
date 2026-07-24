@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
-import { Logger } from '../utils/logger';
+
 import { websocketGateway, RealtimeEvent, EventType } from './websocket-gateway';
+import { Logger } from '../utils/logger';
 
 export interface EventHandler {
   (event: RealtimeEvent): Promise<void> | void;

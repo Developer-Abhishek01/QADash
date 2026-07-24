@@ -1,6 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  Accessibility,
+  Warning,
+  CheckCircle,
+  PlayArrow,
+  Monitor,
+} from '@mui/icons-material';
 import {
   Box,
   Grid,
@@ -11,13 +17,6 @@ import {
   Button,
   LinearProgress,
 } from '@mui/material';
-import {
-  Accessibility,
-  Warning,
-  CheckCircle,
-  PlayArrow,
-  Monitor,
-} from '@mui/icons-material';
 import {
   PieChart,
   Pie,
@@ -30,30 +29,22 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
 } from 'recharts';
-import { useAccessibilityDashboard, useAccessibilityTests } from '@/lib/accessibility/hooks';
+
+import { AccessibilityStatusChip, MetricCard } from '@/components/accessibility';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Loading } from '@/components/feedback/Loading';
+import { useAccessibilityDashboard } from '@/lib/accessibility/hooks';
 
-const SEVERITY_COLORS = {
-  critical: '#dc2626',
-  serious: '#ea580c',
-  moderate: '#ca8a04',
-  minor: '#65a30d',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#6b7280',
-  QUEUED: '#3b82f6',
-  RUNNING: '#8b5cf6',
-  COMPLETED: '#10b981',
-  FAILED: '#dc2626',
-  CANCELLED: '#6b7280',
+const SEVERITY_COLORS: Record<string, string> = {
+  CRITICAL: '#dc2626',
+  SERIOUS: '#ea580c',
+  MODERATE: '#ca8a04',
+  MINOR: '#65a30d',
 };
 
 export default function AccessibilityDashboard() {
-  const [projectId] = useState<string>('');
+  const projectId = '';
   const { data: statsFromApi, isLoading: statsLoading } = useAccessibilityDashboard(projectId || undefined);
-  const { data: _testsData, isLoading: testsLoading } = useAccessibilityTests({ limit: 5 });
 
   const stats = statsFromApi || {
     totalTests: 0,
@@ -64,17 +55,17 @@ export default function AccessibilityDashboard() {
     recentTests: []
   };
 
-  if (statsLoading || testsLoading) return <Loading />;
+  if (statsLoading) return <Loading />;
 
   const activeTests = stats?.activeTests || [];
   const recentTests = stats?.recentTests || [];
 
   const severityData = stats?.issuesByImpact
     ? [
-        { name: 'Critical', value: stats.issuesByImpact.critical, color: SEVERITY_COLORS.critical },
-        { name: 'Serious', value: stats.issuesByImpact.serious, color: SEVERITY_COLORS.serious },
-        { name: 'Moderate', value: stats.issuesByImpact.moderate, color: SEVERITY_COLORS.moderate },
-        { name: 'Minor', value: stats.issuesByImpact.minor, color: SEVERITY_COLORS.minor },
+        { name: 'Critical', value: stats.issuesByImpact.critical, color: SEVERITY_COLORS.CRITICAL },
+        { name: 'Serious', value: stats.issuesByImpact.serious, color: SEVERITY_COLORS.SERIOUS },
+        { name: 'Moderate', value: stats.issuesByImpact.moderate, color: SEVERITY_COLORS.MODERATE },
+        { name: 'Minor', value: stats.issuesByImpact.minor, color: SEVERITY_COLORS.MINOR },
       ].filter((d) => d.value > 0)
     : [];
 
@@ -108,76 +99,17 @@ export default function AccessibilityDashboard() {
       />
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ bgcolor: '#eff6ff' }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <Accessibility sx={{ fontSize: 40, color: '#2563eb' }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold">
-                    {stats?.totalTests || 0}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Tests
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<Accessibility sx={{ fontSize: 36 }} />} value={stats?.totalTests || 0} label="Total Tests" color="#2563eb" bgcolor="#eff6ff" />
         </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <CheckCircle sx={{ fontSize: 40, color: getScoreColor(stats?.avgScore || 0) }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold" color={getScoreColor(stats?.avgScore || 0)}>
-                    {stats?.avgScore?.toFixed(0) || 0}%
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Avg Score
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<CheckCircle sx={{ fontSize: 36 }} />} value={`${stats?.avgScore?.toFixed(0) || '0'}%`} label="Avg Score" color={getScoreColor(stats?.avgScore || 0)} />
         </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card sx={{ bgcolor: '#fef2f2' }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <Warning sx={{ fontSize: 40, color: '#dc2626' }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold" color="#dc2626">
-                    {stats?.issuesByImpact?.critical || 0}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Critical Issues
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<Warning sx={{ fontSize: 36 }} />} value={stats?.issuesByImpact?.critical || 0} label="Critical Issues" color="#dc2626" bgcolor="#fef2f2" />
         </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <Monitor sx={{ fontSize: 40, color: '#10b981' }} />
-                <Box>
-                  <Typography variant="h4" fontWeight="bold">
-                    {activeTests.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Running Tests
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <MetricCard icon={<Monitor sx={{ fontSize: 36 }} />} value={activeTests.length} label="Running Tests" color="#10b981" />
         </Grid>
 
         {activeTests.length > 0 && (
@@ -308,14 +240,7 @@ export default function AccessibilityDashboard() {
                             {test.totalPages} pages
                           </Typography>
                         </Box>
-                        <Chip
-                          label={test.status}
-                          size="small"
-                          sx={{
-                            bgcolor: (STATUS_COLORS[test.status] || '#6b7280') + '20',
-                            color: STATUS_COLORS[test.status] || '#6b7280',
-                          }}
-                        />
+                        <AccessibilityStatusChip status={test.status} />
                       </Box>
                     </Box>
                   ))}

@@ -45,13 +45,17 @@
     "turbo": "^2.0.0",
     "typescript": "^5.4.0"
   },
+
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
   },
   "packageManager": "npm@10.0.0",
   "dependencies": {
+    "form-data": "^4.0.6",
     "lucide-react": "^1.21.0",
+    "mammoth": "^1.12.0",
+    "pdf-parse": "^1.1.4",
     "reflect-metadata": "^0.2.2",
     "tailwind-merge": "^3.6.0"
   }

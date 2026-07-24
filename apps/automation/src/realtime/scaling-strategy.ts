@@ -1,5 +1,5 @@
-import { Logger } from '../utils/logger';
 import { websocketGateway } from './websocket-gateway';
+import { Logger } from '../utils/logger';
 
 export interface ScalingConfig {
   minWorkers: number;

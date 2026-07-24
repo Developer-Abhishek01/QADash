@@ -1,20 +1,21 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
+
 import { BugsService } from './bugs.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { AddAttachmentDto } from './dto/add-attachment.dto';
+import { AssignBugDto } from './dto/assign-bug.dto';
+import { CheckDuplicateDto } from './dto/check-duplicate.dto';
+import { CreateBugDto } from './dto/create-bug.dto';
+import { ImportBugsExcelDto, ImportBugsCsvDto } from './dto/import-bugs.dto';
+import { UpdateBugDto } from './dto/update-bug.dto';
+import { UpdateBugStatusDto } from './dto/update-status.dto';
 import { ExcelIntegration } from './integrations/excel.integration';
 import { JiraIntegration } from './integrations/jira.integration';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../rbac/rbac.service';
-import { Response } from 'express';
-import { CreateBugDto } from './dto/create-bug.dto';
-import { UpdateBugDto } from './dto/update-bug.dto';
-import { AddAttachmentDto } from './dto/add-attachment.dto';
-import { CheckDuplicateDto } from './dto/check-duplicate.dto';
-import { AssignBugDto } from './dto/assign-bug.dto';
-import { UpdateBugStatusDto } from './dto/update-status.dto';
-import { ImportBugsExcelDto, ImportBugsCsvDto } from './dto/import-bugs.dto';
 
 @ApiTags('bugs')
 @ApiBearerAuth()

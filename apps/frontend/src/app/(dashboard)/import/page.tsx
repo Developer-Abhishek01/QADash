@@ -1,6 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import {
+  CloudUpload,
+  Description,
+  Delete,
+  Visibility,
+  PlayArrow,
+  CheckCircle,
+  Error as ErrorIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Grid,
@@ -22,23 +30,16 @@ import {
   DialogActions,
   Alert,
 } from '@mui/material';
-import {
-  CloudUpload,
-  Description,
-  Delete,
-  Visibility,
-  PlayArrow,
-  CheckCircle,
-  Error as ErrorIcon,
-} from '@mui/icons-material';
-import { importApi } from '@/lib/api/client';
 import { useSnackbar } from 'notistack';
+import { useState, useRef, useEffect } from 'react';
+
 import { PageHeader } from '@/components/common/PageHeader';
+import { importApi } from '@/lib/api/client';
 
 export default function ImportPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [projectId] = useState('demo-project');
+  const [projectId] = useState('');
   const [imports, setImports] = useState<any[]>([]);
   const [_total, setTotal] = useState(0);
   const [_isLoading, setIsLoading] = useState(true);
@@ -63,6 +64,7 @@ export default function ImportPage() {
 
   useEffect(() => {
     fetchImports();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const handleFileSelect = async () => {

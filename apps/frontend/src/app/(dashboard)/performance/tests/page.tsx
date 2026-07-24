@@ -1,6 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  Add,
+  MoreVert,
+  PlayArrow,
+  Stop,
+  Visibility,
+  Delete,
+  Search,
+} from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -13,7 +21,6 @@ import {
   Typography,
   Button,
   IconButton,
-  Chip,
   Menu,
   MenuItem,
   Pagination,
@@ -25,37 +32,13 @@ import {
   LinearProgress,
   Tooltip,
 } from '@mui/material';
-import {
-  Add,
-  MoreVert,
-  PlayArrow,
-  Stop,
-  Visibility,
-  Delete,
-  Search,
-} from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
-import { usePerformanceTests, useRunPerformanceTest, useCancelPerformanceTest } from '@/lib/performance/hooks';
+import { useState } from 'react';
+
 import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
-
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: '#6b7280',
-  PENDING: '#6b7280',
-  QUEUED: '#3b82f6',
-  RUNNING: '#8b5cf6',
-  COMPLETED: '#10b981',
-  FAILED: '#dc2626',
-  CANCELLED: '#6b7280',
-};
-
-const TEST_TYPE_LABELS: Record<string, string> = {
-  LOAD: 'Load',
-  STRESS: 'Stress',
-  SPIKE: 'Spike',
-  SOAK: 'Soak',
-  SMOKE: 'Smoke',
-};
+import { PerformanceStatusChip, TestTypeChip } from '@/components/performance';
+import { usePerformanceTests, useRunPerformanceTest, useCancelPerformanceTest } from '@/lib/performance/hooks';
 
 export default function PerformanceTestsPage() {
   const router = useRouter();
@@ -195,17 +178,10 @@ export default function PerformanceTestsPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={TEST_TYPE_LABELS[test.testType] || test.testType} size="small" />
+                    <TestTypeChip type={test.testType} />
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      label={test.status}
-                      size="small"
-                      sx={{
-                        bgcolor: (STATUS_COLORS[test.status] || '#6b7280') + '20',
-                        color: STATUS_COLORS[test.status] || '#6b7280',
-                      }}
-                    />
+                    <PerformanceStatusChip status={test.status} />
                     {test.status === 'RUNNING' && (
                       <LinearProgress sx={{ mt: 0.5, width: '80px' }} />
                     )}

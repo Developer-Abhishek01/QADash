@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import { performanceApi } from './api';
 import type { CreateTestDto } from './types';
 
@@ -122,6 +123,17 @@ export function useCreateAlert() {
   return useMutation({
     mutationFn: (data: Parameters<typeof performanceApi.createAlert>[0]) =>
       performanceApi.createAlert(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: performanceKeys.alerts.all });
+    },
+  });
+}
+
+export function useMarkAlertRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => performanceApi.markAlertRead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: performanceKeys.alerts.all });
     },

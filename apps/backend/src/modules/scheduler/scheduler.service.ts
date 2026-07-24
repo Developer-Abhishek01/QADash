@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
+
 import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()

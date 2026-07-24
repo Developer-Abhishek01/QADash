@@ -1,6 +1,18 @@
 'use client';
 
 import {
+  CloudUpload as UploadIcon,
+  AutoFixHigh as AIIcon,
+  PlayArrow as RunIcon,
+  CheckCircle as SuccessIcon,
+  Delete as DeleteIcon,
+  Visibility as ViewIcon,
+  Edit as EditIcon,
+  Speed as SmokeIcon,
+  Replay as RegressionIcon,
+  ListAlt as TestCasesIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Button,
   Card,
@@ -32,24 +44,13 @@ import {
   FormLabel,
   Tooltip,
 } from '@mui/material';
-import {
-  CloudUpload as UploadIcon,
-  AutoFixHigh as AIIcon,
-  PlayArrow as RunIcon,
-  CheckCircle as SuccessIcon,
-  Delete as DeleteIcon,
-  Visibility as ViewIcon,
-  Edit as EditIcon,
-  Speed as SmokeIcon,
-  Replay as RegressionIcon,
-  ListAlt as TestCasesIcon,
-} from '@mui/icons-material';
-import { PageHeader } from '@/components/common/PageHeader';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSnackbar } from 'notistack';
-import { testsApi, executionsApi, projectsApi, environmentsApi } from '@/lib/api/client';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
+
+import { PageHeader } from '@/components/common/PageHeader';
+import { testsApi, executionsApi, projectsApi, environmentsApi } from '@/lib/api/client';
 
 const wizardSteps = ['Upload Test Cases', 'AI Mapping', 'Execution Trigger'];
 
@@ -113,6 +114,7 @@ export default function TestCasesPage() {
       setProjects(projectsList);
       if (projectsList.length > 0 && !projectId) setProjectId(projectsList[0].id);
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchTestCases]);
 
   useEffect(() => {
@@ -128,6 +130,7 @@ export default function TestCasesPage() {
         setTargetUrl(envList[0].baseUrl);
       }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const toggleSelect = (id: string) => {
@@ -185,7 +188,7 @@ export default function TestCasesPage() {
       if (!stepKey) return null;
       const stepVal = row[stepKey] || '';
       // Multi-line or numbered "steps" column → let caller handle via parseStepsText
-      if (stepVal.includes('\n') || /^\d+[\.\)]\s/.test(stepVal.trim())) return null;
+      if (stepVal.includes('\n') || /^\d+[.)]\s/.test(stepVal.trim())) return null;
       action = stepVal;
     }
     if (!action) return null;
@@ -241,7 +244,7 @@ export default function TestCasesPage() {
     if (!text) return [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     return lines.map((line) => {
-      const cleaned = line.replace(/^\d+[\.\)]\s*/, '').trim();
+      const cleaned = line.replace(/^\d+[.)]\s*/, '').trim();
       const lower = cleaned.toLowerCase();
 
       // navigate / goto / open
@@ -608,6 +611,14 @@ export default function TestCasesPage() {
         alert('No test cases found in the file. Check file format.');
         return;
       }
+      if (!projectId || !projectId.trim()) {
+        enqueueSnackbar('Please enter a Project Name before uploading', { variant: 'warning' });
+        return;
+      }
+      if (!targetUrl || !targetUrl.trim()) {
+        enqueueSnackbar('Please enter a Target URL before uploading', { variant: 'warning' });
+        return;
+      }
       setIsMapping(true);
 
       try {
@@ -653,7 +664,7 @@ export default function TestCasesPage() {
 
         // Create a parent group test (single card) that references all children
         const allSteps = selectedCases.flatMap(tc =>
-          tc.steps.length > 0 ? tc.steps : [{ type: 'navigate', url: tc.url || targetUrl || 'https://example.com', description: 'Navigate to application' }]
+          tc.steps.length > 0 ? tc.steps : [{ type: 'navigate', url: tc.url || targetUrl || '', description: 'Navigate to application' }]
         );
         const allSourceData = parsedTestCases.map(p => p.sourceData).filter(sd => sd && Object.keys(sd).length > 0);
 
@@ -694,9 +705,11 @@ export default function TestCasesPage() {
 
         // Refresh test list to show parent card
         fetchTestCases();
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to create test cases:', err);
-        enqueueSnackbar('Failed to create test cases from file', { variant: 'error' });
+        const apiMsg = err?.response?.data?.message;
+        const detail = Array.isArray(apiMsg) ? apiMsg.join(', ') : (apiMsg || err?.message || 'Unknown error');
+        enqueueSnackbar(`Upload failed: ${detail}`, { variant: 'error', autoHideDuration: 6000 });
         setIsMapping(false);
       }
     } else if (activeStep === 1) {
@@ -721,7 +734,7 @@ export default function TestCasesPage() {
       }
 
       if (!aiSteps || aiSteps.length === 0) {
-        aiSteps = [{ type: 'navigate', url: configUrl || 'https://example.com', description: 'Navigate to application' }];
+        aiSteps = [{ type: 'navigate', url: configUrl || '', description: 'Navigate to application' }];
       }
 
       await testsApi.update(tc.id, {
@@ -1096,7 +1109,7 @@ export default function TestCasesPage() {
                   <TextField
                     fullWidth
                     label="Target URL"
-                    placeholder="https://example.com"
+placeholder="https://"
                     value={targetUrl}
                     onChange={(e) => setTargetUrl(e.target.value)}
                     size="small"
@@ -1190,7 +1203,7 @@ export default function TestCasesPage() {
           {activeStep === 1 && !isMapping && (
             <Box>
               <Alert icon={<SuccessIcon />} severity="success" sx={{ mb: 2 }}>
-                Uploaded "{selectedFileName}" — {parsedTestCases?.length || 0} test case(s) combined into one test
+                Uploaded &quot;{selectedFileName}&quot; — {parsedTestCases?.length || 0} test case(s) combined into one test
               </Alert>
               {parsedTestCases && parsedTestCases.length > 0 && (
                 <TableContainer component={Paper} variant="outlined">
@@ -1422,7 +1435,7 @@ export default function TestCasesPage() {
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField label="Name" value={editName} onChange={e => setEditName(e.target.value)} fullWidth size="small" />
-            <TextField label="URL" value={editUrl} onChange={e => setEditUrl(e.target.value)} fullWidth size="small" placeholder="https://example.com" />
+            <TextField label="URL" value={editUrl} onChange={e => setEditUrl(e.target.value)} fullWidth size="small" placeholder="https://" />
             {editTc && (() => {
               const srcData = sourceDataCache.current.has(editTc.id)
                 ? sourceDataCache.current.get(editTc.id)

@@ -5,6 +5,7 @@ from .failure_analyzer import FailureAnalyzer
 from .smart_assertions import SmartAssertions
 from .nlp_parser import NLPParser
 from .test_generator import TestGenerator
+from .llm_service import LLMService
 
 __all__ = [
     'SelfHealingService',
@@ -14,4 +15,5 @@ __all__ = [
     'SmartAssertions',
     'NLPParser',
     'TestGenerator',
+    'LLMService',
 ]

@@ -1,5 +1,5 @@
-import { IsString, IsArray } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsArray } from 'class-validator';
 
 export class CreateExecutionDto {
   @ApiProperty({ example: 'Regression Suite - June 2026', description: 'Execution name' })

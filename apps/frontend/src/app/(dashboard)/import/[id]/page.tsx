@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import {
+  ArrowBack,
+  PlayArrow,
+} from '@mui/icons-material';
 import {
   Box,
   Grid,
@@ -23,14 +25,14 @@ import {
   Step,
   StepLabel,
 } from '@mui/material';
-import {
-  ArrowBack,
-  PlayArrow,
-} from '@mui/icons-material';
-import { importApi } from '@/lib/api/client';
+import { useParams, useRouter } from 'next/navigation';
+import { useSnackbar } from 'notistack';
+import { useState, useEffect } from 'react';
+
 import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
-import { useSnackbar } from 'notistack';
+import { importApi } from '@/lib/api/client';
+
 
 const FIELD_TYPES = [
   { value: 'string', label: 'Text' },
@@ -91,6 +93,7 @@ export default function ImportMappingPage() {
 
   useEffect(() => {
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importId]);
 
   if (isLoading) return <Loading />;

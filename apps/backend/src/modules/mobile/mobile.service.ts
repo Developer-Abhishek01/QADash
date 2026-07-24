@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
-import { LoggerService } from '../../common/logging';
-import { DeviceManagementService } from './device-management.service';
+
 import { AppiumService } from './appium.service';
+import { DeviceManagementService } from './device-management.service';
 import { MobileExecutionService } from './mobile-execution.service';
 import { MobileReportService } from './mobile-report.service';
+import { LoggerService } from '../../common/logging';
+import { PrismaService } from '../../common/prisma.service';
 
 export interface MobileTestConfig {
   projectId: string;

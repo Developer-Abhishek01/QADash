@@ -14,7 +14,11 @@ export const Alert: React.FC<AlertProps> = ({ variant = 'info', title, children 
     info: 'bg-blue-50 border-blue-200 text-blue-800',
   };
   return (
-    <div className={`border-l-4 p-4 ${variants[variant]}`}>
+    <div
+      className={`border-l-4 p-4 ${variants[variant]}`}
+      role="alert"
+      aria-live={variant === 'danger' || variant === 'warning' ? 'assertive' : 'polite'}
+    >
       {title && <p className="font-medium mb-1">{title}</p>}
       <div>{children}</div>
     </div>

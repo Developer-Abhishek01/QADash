@@ -64,7 +64,7 @@ class OCRProcessor:
             }
             
             if self.redis:
-                cache_key = f"ocr:{hashlib.md5(image_data[:1000].encode()).hexdigest()}"
+                cache_key = f"ocr:{hashlib.md5(image_data.encode()).hexdigest()}"
                 await self.redis.setex(cache_key, self.cache_ttl, json.dumps(result))
             
             return result

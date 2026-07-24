@@ -1,11 +1,11 @@
-import { Worker, Job, WorkerOptions } from 'bullmq';
-import { chromium, Browser, BrowserContext } from '@playwright/test';
-import { logger } from '@qadash/logger';
-import { PrismaClient } from '@prisma/client';
-import * as path from 'path';
-import * as fs from 'fs';
 import { execSync } from 'child_process';
-import * as vm from 'vm';
+import * as fs from 'fs';
+import * as path from 'path';
+
+import { chromium, Browser, BrowserContext } from '@playwright/test';
+import { PrismaClient } from '@prisma/client';
+import { logger } from '@qadash/logger';
+import { Worker, Job, WorkerOptions } from 'bullmq';
 
 interface TestJobData {
   executionId: string;
@@ -19,7 +19,8 @@ export class TestWorker extends Worker<TestJobData> {
   private prisma: PrismaClient;
 
   constructor(options: WorkerOptions) {
-    super('execution', async (job: Job<TestJobData>) => {
+    const queueName = process.env.AUTOMATION_QUEUE_NAME || 'automation-execution';
+    super(queueName, async (job: Job<TestJobData>) => {
       return this.processExecution(job);
     }, options);
     this.prisma = new PrismaClient();
@@ -147,8 +148,8 @@ export class TestWorker extends Worker<TestJobData> {
       const testConfig = test.config as any;
       const targetUrl = testConfig?.url;
 
-      // Setup paths for static uploads inside the backend
-      const uploadsDir = path.resolve(__dirname, '../../../../backend/uploads');
+      // Setup paths for static uploads — use env var, fall back to backend uploads
+      const uploadsDir = process.env.UPLOADS_DIR || path.resolve(__dirname, '..', '..', '..', 'backend', 'uploads');
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
@@ -180,18 +181,63 @@ export class TestWorker extends Worker<TestJobData> {
       
       logger.info(`Running test ${test.name} against ${targetUrl || '(no URL set, using step navigation)'}`);
       
-      const steps = testConfig?.steps || (test as any).steps;
+      const steps = (testConfig?.steps || (test as any).steps || []).map((s: any) => ({
+        ...s,
+        type: s.type || s.action,
+      }));
       let title = '';
 
       if (test.code) {
         logger.info(`Executing custom code for test ${test.name}`);
+        const allowedApiNames = new Set([
+          'goto', 'click', 'fill', 'type', 'waitForSelector',
+          'title', 'url', 'screenshot', 'content', 'textContent',
+          'isVisible', '$', '$$', 'evaluate',
+        ]);
+        const sanitizedCode = test.code
+          .replace(/require\s*\(/gi, 'null/')
+          .replace(/import\s*\(/gi, 'null/')
+          .replace(/process\s*\./gi, 'null.')
+          .replace(/global\s*\./gi, 'null.')
+          .replace(/__dirname/gi, '"."')
+          .replace(/__filename/gi, '"test"');
+        if (sanitizedCode.length > 5000) {
+          throw new Error('Test code exceeds maximum length of 5000 characters');
+        }
+
         const sandbox = {
-          page, browser, context,
-          console: { log: (...args: any[]) => logger.info(`[test.code] ${args.join(' ')}`) },
+         page: new Proxy({} as Record<string, (...args: unknown[]) => unknown>, {
+            get: (_target, prop: string) => {
+              if (!allowedApiNames.has(prop)) {
+                throw new Error(`API "${prop}" is not allowed in test code`);
+              }
+             return (...args: unknown[]) => {
+                for (const arg of args) {
+                  if (arg !== null && arg !== undefined && typeof arg === 'object' && !Array.isArray(arg)) {
+                    const proto = Object.getPrototypeOf(arg);
+                    if (proto !== Object.prototype) {
+                      throw new Error('Complex objects are not allowed as arguments');
+                    }
+                  }
+                }
+                return (page as unknown as Record<string, (...args: unknown[]) => unknown>)[prop](...args);
+              };
+            },
+          }),
+          console: { log: (...args: unknown[]) => logger.info(`[test.code] ${args.join(' ')}`) },
+          setTimeout: undefined,
+          setInterval: undefined,
+          setImmediate: undefined,
+          fetch: undefined,
+          WebSocket: undefined,
+          Worker: undefined,
         };
+        const vm = await import('vm');
         vm.createContext(sandbox);
-        const script = new vm.Script(`(async () => { ${test.code} })()`);
-        await script.runInContext(sandbox, { timeout: 30000 });
+        const script = new vm.Script(`(async () => { ${sanitizedCode} })()`, {
+          filename: `test-${testId}.js`,
+        });
+        await script.runInContext(sandbox, { timeout: 30000, breakOnSigint: true });
         title = await page.title();
       } else if (steps && Array.isArray(steps) && steps.length > 0) {
         logger.info(`Executing ${steps.length} steps for test ${test.name}`);
@@ -254,12 +300,12 @@ export class TestWorker extends Worker<TestJobData> {
       // Attempt to take a failure screenshot
       let failureScreenshotUrl = '';
       try {
-        if (context) {
+          if (context) {
           const pages = context.pages();
           if (pages.length > 0) {
             const page = pages[0];
             const screenshotFilename = `fail-${testId}-${Date.now()}.png`;
-            const uploadsDir = path.resolve(__dirname, '../../../../backend/uploads');
+            const uploadsDir = process.env.UPLOADS_DIR || path.resolve(__dirname, '..', '..', '..', 'backend', 'uploads');
             const screenshotDir = path.join(uploadsDir, 'screenshots');
             if (!fs.existsSync(screenshotDir)) {
               fs.mkdirSync(screenshotDir, { recursive: true });
@@ -345,7 +391,7 @@ export class TestWorker extends Worker<TestJobData> {
       logger.warn(`Playwright spec exit code non-zero: ${(e.stderr?.toString() || '').substring(0, 200)}`);
     }
 
-    const uploadsDir = path.resolve(automationDir, '..', 'backend', 'uploads');
+    const uploadsDir = process.env.UPLOADS_DIR || path.resolve(automationDir, '..', 'backend', 'uploads');
     const screenshotDir = path.join(uploadsDir, 'screenshots');
     const videoDir = path.join(uploadsDir, 'videos');
     fs.mkdirSync(screenshotDir, { recursive: true });

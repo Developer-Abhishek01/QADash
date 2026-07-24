@@ -1,6 +1,18 @@
 'use client';
 
 import {
+  PlayArrow,
+  CheckCircle,
+  Error as ErrorIcon,
+  Cancel,
+  SkipNext,
+  RestartAlt,
+  Stop,
+  ContentCopy,
+  Download,
+  FilterAlt,
+} from '@mui/icons-material';
+import {
   Box,
   Card,
   CardContent,
@@ -13,18 +25,6 @@ import {
   StepLabel,
   StepContent,
 } from '@mui/material';
-import {
-  PlayArrow,
-  CheckCircle,
-  Error as ErrorIcon,
-  Cancel,
-  SkipNext,
-  RestartAlt,
-  Stop,
-  ContentCopy,
-  Download,
-  FilterAlt,
-} from '@mui/icons-material';
 import { useState, useEffect, useRef } from 'react';
 
 interface ExecutionStep {

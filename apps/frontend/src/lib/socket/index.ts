@@ -22,15 +22,21 @@ class SocketClient {
     });
 
     this.socket.on('connect', () => {
-      console.log('Socket connected');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[WS] Socket connected');
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[WS] Socket disconnected:', reason);
+      }
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[WS] Socket connection error:', error);
+      }
     });
 
     return this.socket;

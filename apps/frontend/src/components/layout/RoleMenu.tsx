@@ -1,6 +1,5 @@
 'use client';
 
-import { List, ListItem, ListItemButton, ListItemIcon, ListItemText, Tooltip, Box, Divider } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   PlayArrow as ExecutionsIcon,
@@ -15,7 +14,9 @@ import {
   People as UsersIcon,
   Security as SecurityIcon,
 } from '@mui/icons-material';
+import { List, ListItem, ListItemButton, ListItemIcon, ListItemText, Tooltip, Box, Divider } from '@mui/material';
 import { useRouter, usePathname } from 'next/navigation';
+
 import { useAuth, UserRole } from '@/lib/auth/AuthContext';
 
 type Permission = string;

@@ -1,6 +1,8 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import * as XLSX from 'xlsx';
 
 export interface ParseResult {
   data: Record<string, unknown>[];
@@ -43,7 +45,6 @@ export class FileParserService {
 
   private async parseExcel(content: Buffer): Promise<Record<string, unknown>[]> {
     try {
-      const XLSX = require('xlsx');
       const workbook = XLSX.read(content, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
@@ -155,7 +156,7 @@ export class FileParserService {
 
   private async parseYaml(content: string): Promise<Record<string, unknown>[]> {
     try {
-      const yaml = require('yaml');
+      const yaml = await import('yaml');
       const parsed = yaml.parse(content);
 
       if (Array.isArray(parsed)) {

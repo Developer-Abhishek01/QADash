@@ -363,12 +363,13 @@ jobs:
           path: reports/
           retention-days: 90
 
-      - name: Publish performance report
-        uses: dorny/paths-filter@v1
+      - name: Upload performance report
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: performance-report
           path: reports/
+          retention-days: 30
 
   # ============================================
   # Test Coverage Analysis

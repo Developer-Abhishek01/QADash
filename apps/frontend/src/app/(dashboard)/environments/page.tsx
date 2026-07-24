@@ -1,12 +1,17 @@
 'use client';
 
 import {
+  Add as AddIcon,
+  Language as LanguageIcon,
+  CheckCircle as ActiveIcon,
+  Error as DownIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Typography,
   Button,
   Grid,
   Chip,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -19,54 +24,38 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Snackbar,
+  Alert,
+  MenuItem,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Language as LanguageIcon,
-  CheckCircle as ActiveIcon,
-  Error as DownIcon,
-} from '@mui/icons-material';
-import { PageHeader } from '@/components/common/PageHeader';
 import { useState } from 'react';
 
-interface Environment {
-  id: string;
-  name: string;
-  url: string;
-  type: 'STAGING' | 'PRODUCTION' | 'DEVELOPMENT';
-  status: 'UP' | 'DOWN';
-  lastChecked: string;
-}
-
-const initialEnvironments: Environment[] = [
-  { id: '1', name: 'Main Website', url: 'https://example.com', type: 'PRODUCTION', status: 'UP', lastChecked: new Date().toLocaleString() },
-  { id: '2', name: 'Staging App', url: 'https://staging.example.com', type: 'STAGING', status: 'UP', lastChecked: new Date().toLocaleString() },
-];
+import { PageHeader } from '@/components/common/PageHeader';
+import { Loading } from '@/components/feedback/Loading';
+import { useEnvironments, useCreateEnvironment } from '@/lib/environments/hooks';
+import type { Environment } from '@/lib/environments/types';
 
 export default function EnvironmentsPage() {
-  const [environments, setEnvironments] = useState<Environment[]>(initialEnvironments);
+  const { data: environments, isLoading } = useEnvironments();
+  const createEnv = useCreateEnvironment();
   const [open, setOpen] = useState(false);
-  const [newEnv, setNewEnv] = useState({ name: '', url: '', type: 'DEVELOPMENT' });
+  const [form, setForm] = useState({ name: '', url: '', type: 'DEVELOPMENT' as Environment['type'] });
+  const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
-  const handleAdd = () => {
-    const env: Environment = {
-      id: Date.now().toString(),
-      name: newEnv.name,
-      url: newEnv.url,
-      type: newEnv.type as any,
-      status: 'UP',
-      lastChecked: new Date().toLocaleString(),
-    };
-    setEnvironments([...environments, env]);
-    setOpen(false);
-    setNewEnv({ name: '', url: '', type: 'DEVELOPMENT' });
+  if (isLoading) return <Loading />;
+
+  const handleSave = async () => {
+    try {
+      await createEnv.mutateAsync(form);
+      setSnackbar({ message: 'Environment created', severity: 'success' });
+      setOpen(false);
+      setForm({ name: '', url: '', type: 'DEVELOPMENT' });
+    } catch {
+      setSnackbar({ message: 'Failed to create environment', severity: 'error' });
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setEnvironments(environments.filter(e => e.id !== id));
-  };
+  const envs = environments ?? [];
 
   return (
     <Box>
@@ -91,11 +80,10 @@ export default function EnvironmentsPage() {
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Last Checked</TableCell>
-                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {environments.map((env) => (
+                {envs.map((env: Environment) => (
                   <TableRow key={env.id}>
                     <TableCell sx={{ fontWeight: 600 }}>{env.name}</TableCell>
                     <TableCell>
@@ -104,28 +92,21 @@ export default function EnvironmentsPage() {
                         <Typography variant="body2">{env.url}</Typography>
                       </Box>
                     </TableCell>
-                    <TableCell>
-                      <Chip label={env.type} size="small" variant="outlined" />
-                    </TableCell>
+                    <TableCell><Chip label={env.type} size="small" variant="outlined" /></TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         {env.status === 'UP' ? <ActiveIcon color="success" fontSize="small" /> : <DownIcon color="error" fontSize="small" />}
-                        <Typography variant="body2" color={env.status === 'UP' ? 'success.main' : 'error.main'}>
-                          {env.status}
-                        </Typography>
+                        <Typography variant="body2" color={env.status === 'UP' ? 'success.main' : 'error.main'}>{env.status}</Typography>
                       </Box>
                     </TableCell>
                     <TableCell>{env.lastChecked}</TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" color="primary">
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(env.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
                   </TableRow>
                 ))}
+                {envs.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center"><Typography py={2} color="text.secondary">No environments found</Typography></TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -136,39 +117,24 @@ export default function EnvironmentsPage() {
         <DialogTitle>Add New Environment</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField
-              label="Environment Name"
-              fullWidth
-              value={newEnv.name}
-              onChange={(e) => setNewEnv({ ...newEnv, name: e.target.value })}
-              placeholder="e.g. My Website"
-            />
-            <TextField
-              label="URL"
-              fullWidth
-              value={newEnv.url}
-              onChange={(e) => setNewEnv({ ...newEnv, url: e.target.value })}
-              placeholder="https://your-website.com"
-            />
-            <TextField
-              select
-              label="Type"
-              fullWidth
-              value={newEnv.type}
-              onChange={(e) => setNewEnv({ ...newEnv, type: e.target.value })}
-              SelectProps={{ native: true }}
-            >
-              <option value="DEVELOPMENT">Development</option>
-              <option value="STAGING">Staging</option>
-              <option value="PRODUCTION">Production</option>
+            <TextField label="Environment Name" fullWidth value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. My Website" />
+            <TextField label="URL" fullWidth value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://your-website.com" />
+            <TextField select label="Type" fullWidth value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as Environment['type'] })}>
+              <MenuItem value="DEVELOPMENT">Development</MenuItem>
+              <MenuItem value="STAGING">Staging</MenuItem>
+              <MenuItem value="PRODUCTION">Production</MenuItem>
             </TextField>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleAdd}>Add Environment</Button>
+          <Button variant="contained" onClick={handleSave} disabled={createEnv.isPending}>Add</Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar open={!!snackbar} autoHideDuration={3000} onClose={() => setSnackbar(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        {snackbar ? <Alert severity={snackbar.severity}>{snackbar.message}</Alert> : undefined}
+      </Snackbar>
     </Box>
   );
 }

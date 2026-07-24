@@ -122,12 +122,13 @@ export class SchemaValidator {
           errors.push({ path, message: 'Expected object', type: 'INVALID_TYPE' });
         }
         break;
-      case 'date':
+      case 'date': {
         const date = new Date(String(value));
         if (isNaN(date.getTime())) {
           errors.push({ path, message: 'Invalid date format', type: 'INVALID_DATE' });
         }
         break;
+      }
       case 'email':
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
           errors.push({ path, message: 'Invalid email format', type: 'INVALID_EMAIL' });

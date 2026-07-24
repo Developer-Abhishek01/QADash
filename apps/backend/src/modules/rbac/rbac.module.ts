@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { RbacService } from './rbac.service';
+
 import { RbacController } from './rbac.controller';
+import { RbacService } from './rbac.service';
 
 @Module({
   controllers: [RbacController],

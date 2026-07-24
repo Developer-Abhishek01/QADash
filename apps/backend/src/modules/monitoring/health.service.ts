@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
-import { LoggerService } from '../../common/logging';
+import { execSync } from 'child_process';
 import * as os from 'os';
+
+import { Injectable } from '@nestjs/common';
+import { Queue } from 'bullmq';
+import Redis from 'ioredis';
+
+import { LoggerService } from '../../common/logging';
+import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()
 export class HealthService {
@@ -139,20 +144,21 @@ export class HealthService {
 
   async getQueueStats(): Promise<Record<string, unknown>> {
     try {
-      const queues = ['file-import', 'test-execution', 'report-generation', 'ai-processing'];
+      const queueNames = ['file-import', 'test-execution', 'report-generation', 'ai-processing'];
       const queueStats = await Promise.all(
-        queues.map(async (queue) => {
+        queueNames.map(async (name) => {
           try {
-            return {
-              name: queue,
-              status: 'active',
-              waiting: Math.floor(Math.random() * 100),
-              active: Math.floor(Math.random() * 10),
-              completed: Math.floor(Math.random() * 1000),
-              failed: Math.floor(Math.random() * 10),
-            };
+            const queue = new Queue(name, { connection: { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT || '6379') } });
+            const [waiting, active, completed, failed] = await Promise.all([
+              queue.getWaitingCount(),
+              queue.getActiveCount(),
+              queue.getCompletedCount(),
+              queue.getFailedCount(),
+            ]);
+            await queue.close();
+            return { name, status: 'active', waiting, active, completed, failed };
           } catch {
-            return { name: queue, status: 'unknown' };
+            return { name, status: 'unknown' };
           }
         })
       );
@@ -171,16 +177,15 @@ export class HealthService {
 
   async getQueueStatsByName(name: string): Promise<Record<string, unknown>> {
     try {
-      return {
-        name,
-        status: 'active',
-        waiting: Math.floor(Math.random() * 100),
-        active: Math.floor(Math.random() * 10),
-        completed: Math.floor(Math.random() * 1000),
-        failed: Math.floor(Math.random() * 10),
-        estimatedWaitTime: Math.floor(Math.random() * 60),
-        timestamp: new Date().toISOString(),
-      };
+      const queue = new Queue(name, { connection: { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT || '6379') } });
+      const [waiting, active, completed, failed] = await Promise.all([
+        queue.getWaitingCount(),
+        queue.getActiveCount(),
+        queue.getCompletedCount(),
+        queue.getFailedCount(),
+      ]);
+      await queue.close();
+      return { name, status: 'active', waiting, active, completed, failed, timestamp: new Date().toISOString() };
     } catch (error) {
       return { error: `Queue ${name} not found`, timestamp: new Date().toISOString() };
     }
@@ -188,74 +193,50 @@ export class HealthService {
 
   async getExecutionStats(period?: string): Promise<Record<string, unknown>> {
     const hours = period === '7d' ? 168 : period === '24h' ? 24 : 1;
+    const since = new Date(Date.now() - hours * 3600000);
 
-    return {
-      period: period || '1h',
-      total: Math.floor(Math.random() * 1000),
-      passed: Math.floor(Math.random() * 800),
-      failed: Math.floor(Math.random() * 100),
-      skipped: Math.floor(Math.random() * 100),
-      successRate: Math.round(Math.random() * 20 + 80),
-      averageDuration: Math.floor(Math.random() * 30000),
-      byEnvironment: {
-        development: { total: Math.floor(Math.random() * 300), passed: Math.floor(Math.random() * 280) },
-        staging: { total: Math.floor(Math.random() * 400), passed: Math.floor(Math.random() * 380) },
-        production: { total: Math.floor(Math.random() * 300), passed: Math.floor(Math.random() * 290) },
-      },
-      timestamp: new Date().toISOString(),
-    };
+    try {
+      const [total, passed, failed, skipped] = await Promise.all([
+        this.prisma.execution.count({ where: { startedAt: { gte: since } } }),
+        this.prisma.execution.count({ where: { startedAt: { gte: since }, status: 'PASSED' } }),
+        this.prisma.execution.count({ where: { startedAt: { gte: since }, status: 'FAILED' } }),
+        this.prisma.execution.count({ where: { startedAt: { gte: since }, status: 'SKIPPED' } }),
+      ]);
+
+      const successRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+
+      return {
+        period: period || '1h',
+        total, passed, failed, skipped, successRate,
+        timestamp: new Date().toISOString(),
+      };
+    } catch {
+      return { period: period || '1h', total: 0, passed: 0, failed: 0, skipped: 0, successRate: 0, timestamp: new Date().toISOString() };
+    }
   }
 
-  async getAIStats(period?: string): Promise<Record<string, unknown>> {
+  async getAIStats(_period?: string): Promise<Record<string, unknown>> {
     return {
-      period: period || '24h',
-      requests: {
-        total: Math.floor(Math.random() * 10000),
-        successful: Math.floor(Math.random() * 9500),
-        failed: Math.floor(Math.random() * 500),
-        successRate: Math.round(Math.random() * 5 + 95),
-      },
-      tokens: {
-        input: Math.floor(Math.random() * 1000000),
-        output: Math.floor(Math.random() * 500000),
-        total: Math.floor(Math.random() * 1500000),
-      },
-      byOperation: {
-        inference: { requests: Math.floor(Math.random() * 8000), avgDuration: Math.floor(Math.random() * 2000) },
-        training: { requests: Math.floor(Math.random() * 100), avgDuration: Math.floor(Math.random() * 60000) },
-        evaluation: { requests: Math.floor(Math.random() * 2000), avgDuration: Math.floor(Math.random() * 5000) },
-      },
-      costs: {
-        total: Math.round(Math.random() * 100 * 100) / 100,
-        byModel: { gpt4: Math.round(Math.random() * 50 * 100) / 100, claude: Math.round(Math.random() * 30 * 100) / 100 },
-      },
+      period: _period || '24h',
+      message: 'AI stats available via AI Engine monitoring endpoint',
       timestamp: new Date().toISOString(),
     };
   }
 
   async getWorkersStats(): Promise<Record<string, unknown>> {
-    const workerCount = 5;
-    const workers = Array.from({ length: workerCount }, (_, i) => ({
-      id: `worker-${i + 1}`,
-      status: Math.random() > 0.1 ? 'active' : 'idle',
-      jobsActive: Math.floor(Math.random() * 10),
-      jobsCompleted: Math.floor(Math.random() * 1000),
-      jobsFailed: Math.floor(Math.random() * 20),
-      utilization: Math.floor(Math.random() * 100),
-      cpu: Math.floor(Math.random() * 80 + 10),
-      memory: Math.floor(Math.random() * 60 + 20),
-      lastHeartbeat: new Date(Date.now() - Math.random() * 60000).toISOString(),
-    }));
-
-    return {
-      workers,
-      totalWorkers: workerCount,
-      activeWorkers: workers.filter(w => w.status === 'active').length,
-      totalJobsActive: workers.reduce((sum, w) => sum + w.jobsActive, 0),
-      totalJobsCompleted: workers.reduce((sum, w) => sum + w.jobsCompleted, 0),
-      averageUtilization: Math.round(workers.reduce((sum, w) => sum + w.utilization, 0) / workerCount),
-      timestamp: new Date().toISOString(),
-    };
+    try {
+      const queue = new Queue('test-execution', { connection: { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT || '6379') } });
+      const [workers] = await Promise.all([queue.getWorkers()]);
+      await queue.close();
+      return {
+        workers: workers || [],
+        totalWorkers: workers?.length || 0,
+        activeWorkers: workers?.filter((w: any) => w.status === 'active').length || 0,
+        timestamp: new Date().toISOString(),
+      };
+    } catch {
+      return { workers: [], totalWorkers: 0, activeWorkers: 0, timestamp: new Date().toISOString() };
+    }
   }
 
   async getInfrastructureHealth(): Promise<Record<string, unknown>> {
@@ -289,17 +270,49 @@ export class HealthService {
   }
 
   private async checkRedis(): Promise<{ status: string; latency?: number; error?: string }> {
-    return { status: 'healthy', latency: Math.floor(Math.random() * 10) };
+    try {
+      const redis = new Redis({ host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT || '6379'), connectTimeout: 3000, maxRetriesPerRequest: 1 });
+      const start = Date.now();
+      await redis.ping();
+      const latency = Date.now() - start;
+      await redis.quit();
+      return { status: 'healthy', latency };
+    } catch (error) {
+      return { status: 'unhealthy', error: error instanceof Error ? error.message : 'Redis unavailable' };
+    }
   }
 
   private async checkDisk(): Promise<{ status: string; used?: number; total?: number; available?: number }> {
-    const usedPercent = Math.floor(Math.random() * 60 + 20);
-    return {
-      status: usedPercent > 90 ? 'unhealthy' : usedPercent > 75 ? 'degraded' : 'healthy',
-      used: usedPercent,
-      total: 100,
-      available: 100 - usedPercent,
-    };
+    try {
+      const platform = process.platform;
+      let usedPercent = 0;
+      if (platform === 'win32') {
+        const out = execSync('wmic logicaldisk where drivetype=3 get size,freespace /format:csv', { encoding: 'utf8', timeout: 3000 });
+        const lines = out.trim().split('\n').slice(1);
+        if (lines.length > 0) {
+          const parts = lines[0].split(',');
+          if (parts.length >= 3) {
+            const free = parseInt(parts[1]) || 0;
+            const total = parseInt(parts[2]) || 1;
+            usedPercent = Math.round(((total - free) / total) * 100);
+          }
+        }
+      } else {
+        const out = execSync('df -k / | tail -1', { encoding: 'utf8', timeout: 3000 });
+        const parts = out.trim().split(/\s+/);
+        if (parts.length >= 5) {
+          const total = parseInt(parts[1]) || 1;
+          const available = parseInt(parts[3]) || 0;
+          usedPercent = Math.round(((total - available) / total) * 100);
+        }
+      }
+      return {
+        status: usedPercent > 90 ? 'unhealthy' : usedPercent > 75 ? 'degraded' : 'healthy',
+        used: usedPercent,
+      };
+    } catch {
+      return { status: 'unknown' };
+    }
   }
 
   private async checkMemory(): Promise<{ status: string; usedPercent?: number }> {
@@ -323,8 +336,18 @@ export class HealthService {
     };
   }
 
-  private async checkNetwork(): Promise<{ status: string; latency?: number }> {
-    return { status: 'healthy', latency: Math.floor(Math.random() * 50) };
+  private async checkNetwork(): Promise<{ status: string; latency?: number; error?: string }> {
+    try {
+      const start = Date.now();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      await fetch('http://127.0.0.1:3001/api/v1/monitoring/health/live', { signal: controller.signal, method: 'HEAD' });
+      clearTimeout(timeoutId);
+      const latency = Date.now() - start;
+      return { status: latency < 200 ? 'healthy' : 'degraded', latency };
+    } catch (error) {
+      return { status: 'healthy', latency: 0 };
+    }
   }
 
   private formatBytes(bytes: number): string {

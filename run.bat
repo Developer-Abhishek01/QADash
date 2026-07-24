@@ -91,11 +91,12 @@ goto :DOCKER_END
 
 
 REM 2. Port Cleanup
-echo [1/4] Cleaning up ports 3000, 3001, 3002...
+echo [1/4] Cleaning up ports 3000, 3001, 3002, 3003...
 taskkill /FI "WINDOWTITLE eq QADash-*" /F >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING 2^>nul') do taskkill /PID %%a /F >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3001 ^| findstr LISTENING 2^>nul') do taskkill /PID %%a /F >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3002 ^| findstr LISTENING 2^>nul') do taskkill /PID %%a /F >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3003 ^| findstr LISTENING 2^>nul') do taskkill /PID %%a /F >nul 2>&1
 
 REM 3. Infrastructure
 if "%BYPASS_DOCKER%"=="1" (
@@ -115,6 +116,10 @@ start "QADash-Backend" cmd /k "cd apps\backend && echo Backend Log Window && npm
 REM Launch Frontend (fixed port 3000)
 echo Starting Frontend...
 start "QADash-Frontend" cmd /k "cd apps\frontend && echo Frontend Log Window && npx next dev --port 3000"
+
+REM Launch AI Engine
+echo Starting AI Engine...
+start "QADash-AIEngine" cmd /k "cd apps\ai-engine && echo AI Engine Log Window && echo Make sure Python venv is activated && uvicorn src.main:app --reload --port 3002"
 
 REM Launch Automation Worker
 echo Starting Automation Worker...
@@ -138,6 +143,22 @@ if %errorlevel% neq 0 (
 )
 echo [OK] Backend is Live.
 :SKIP_BACKEND_WAIT
+
+set "TIMEOUT_COUNT=0"
+
+:WAIT_AI
+set /a "TIMEOUT_COUNT+=1"
+if !TIMEOUT_COUNT! gtr 60 (
+    echo [WARNING] AI Engine did not start within 60s. Check the AI Engine Log Window.
+    goto :SKIP_AI_WAIT
+)
+ping 127.0.0.1 -n 2 >nul
+netstat -ano | findstr ":3002" | findstr "LISTENING" >nul
+if %errorlevel% neq 0 (
+    goto :WAIT_AI
+)
+echo [OK] AI Engine is Live.
+:SKIP_AI_WAIT
 
 set "TIMEOUT_COUNT=0"
 

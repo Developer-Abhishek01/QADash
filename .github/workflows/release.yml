@@ -141,8 +141,7 @@ jobs:
       - name: Check Docker Hub quota
         run: |
           echo "Checking Docker Hub rate limits..."
-          TOKEN=$(echo "${{ secrets.DOCKER_REGISTRY_TOKEN }}" | head -c 50)
-          if [ -z "$TOKEN" ]; then
+          if [ -z "${{ secrets.DOCKER_REGISTRY_TOKEN }}" ]; then
             echo "Docker registry token not configured"
           fi
 

@@ -1,6 +1,30 @@
 'use client';
 
 import {
+  Add as AddIcon,
+  PlayArrow as RunIcon,
+  PhotoCamera as ScreenshotIcon,
+  Videocam as VideoIcon,
+  History as LogsIcon,
+  Delete as DeleteIcon,
+  CheckCircle as PassIcon,
+  Cancel as FailIcon,
+  ExpandMore,
+  ExpandLess,
+  Search as SearchIcon,
+  DateRange as DateRangeIcon,
+  Download as DownloadIcon,
+  FilterList as FilterListIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  TrendingFlat as TrendingFlatIcon,
+  PlayCircleOutline as PlayCircleIcon,
+  CheckCircleOutline as CheckCircleOutlineIcon,
+  HighlightOff as HighlightOffIcon,
+  HourglassEmpty as HourglassIcon,
+  Visibility as VisibilityIcon,
+} from '@mui/icons-material';
+import {
   Box,
   Button,
   Card,
@@ -35,35 +59,13 @@ import {
   SelectChangeEvent,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import {
-  Add as AddIcon,
-  PlayArrow as RunIcon,
-  PhotoCamera as ScreenshotIcon,
-  Videocam as VideoIcon,
-  History as LogsIcon,
-  Delete as DeleteIcon,
-  CheckCircle as PassIcon,
-  Cancel as FailIcon,
-  ExpandMore,
-  ExpandLess,
-  Search as SearchIcon,
-  DateRange as DateRangeIcon,
-  Download as DownloadIcon,
-  FilterList as FilterListIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  TrendingFlat as TrendingFlatIcon,
-  PlayCircleOutline as PlayCircleIcon,
-  CheckCircleOutline as CheckCircleOutlineIcon,
-  HighlightOff as HighlightOffIcon,
-  HourglassEmpty as HourglassIcon,
-  Visibility as VisibilityIcon,
-} from '@mui/icons-material';
-import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSnackbar } from 'notistack';
+import { useState, useEffect, useRef, useMemo } from 'react';
+
 import { executionsApi, testsApi, projectsApi } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthContext';
 import socketClient from '@/lib/socket';
+
 import LivePreviewPanel from './LivePreviewPanel';
 
 interface KpiCard {
@@ -97,6 +99,9 @@ export default function ExecutionsPage() {
   const [actionLogs, setActionLogs] = useState<any[]>([]);
   const [consoleLogs, setConsoleLogs] = useState<any[]>([]);
   const [elementHighlights, setElementHighlights] = useState<any[]>([]);
+  const lastFrameRef = useRef<string>('');
+  const framePendingRef = useRef(false);
+  const frameTimestamps = useRef<number[]>([]);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [availableTests, setAvailableTests] = useState<any[]>([]);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
@@ -141,6 +146,7 @@ export default function ExecutionsPage() {
     }).catch(() => {});
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => { clearInterval(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -261,6 +267,7 @@ export default function ExecutionsPage() {
       }
     }
     return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [executions, searchTerm, statusFilter, dateFilter]);
 
   const formatDuration = (ms: number) => {
@@ -332,12 +339,30 @@ export default function ExecutionsPage() {
 
   useEffect(() => {
     if (!detailOpen || !selectedExecution) { setLivePreview(null); setActionLogs([]); setConsoleLogs([]); setElementHighlights([]); return; }
-    if (selectedExecution.status !== 'RUNNING') return;
+    if (selectedExecution.status !== 'RUNNING') { console.log('[LIVEPREVIEW] Skipping live preview setup — execution status is', selectedExecution.status); return; }
     const socket = socketClient.connect();
+    let frameCount = 0;
     const onFrame = (data: any) => {
-      if (data.executionId === selectedExecution.id && data.screenshot) {
-        setLivePreview({ screenshot: data.screenshot, step: data.step, timestamp: data.timestamp });
+      if (data.executionId !== selectedExecution.id || !data.screenshot) return;
+      frameCount++;
+      if (frameCount % 30 === 1) {
+        const now = performance.now();
+        const recent = frameTimestamps.current.filter(t => now - t < 2000);
+        const fps = recent.length > 0 ? (recent.length / ((now - recent[0]) / 1000)).toFixed(1) : 'N/A';
+        frameTimestamps.current = recent;
+        frameTimestamps.current.push(now);
+        if (frameTimestamps.current.length > 120) frameTimestamps.current = frameTimestamps.current.slice(-60);
+        console.log(`[PERF] Frame #${frameCount}, FPS: ${fps}, latency: ${now - data.timestamp}ms, size: ${(data.screenshot.length * 0.75 / 1024).toFixed(1)}KB`);
       }
+      if (data.screenshot === lastFrameRef.current) return;
+      if (framePendingRef.current) {
+        lastFrameRef.current = data.screenshot;
+        return;
+      }
+      framePendingRef.current = true;
+      lastFrameRef.current = data.screenshot;
+      setLivePreview({ screenshot: data.screenshot, step: data.step, timestamp: data.timestamp });
+      requestAnimationFrame(() => { framePendingRef.current = false; });
     };
     socket.on('live-preview', onFrame);
     const onActionLog = (data: any) => {
@@ -361,10 +386,13 @@ export default function ExecutionsPage() {
     const fetchLivePreview = async () => {
       try {
         const data = await executionsApi.livePreview(selectedExecution.id);
-        if (data && data.screenshot) setLivePreview(data);
-        else if (data && data.step && data.step !== 'Waiting for execution...') setLivePreview(data);
-        else if (data) setLivePreview(prev => prev ? { ...prev, step: data.step || prev.step } : null);
-      } catch {}
+        console.log('[LIVEPREVIEW] REST polling — got data:', !!data, 'hasScreenshot:', !!data?.screenshot, 'dataLen:', data?.screenshot?.length, 'step:', data?.step);
+        if (data && data.screenshot) {
+          setLivePreview(data);
+        } else if (data) {
+          setLivePreview(prev => prev ? { ...prev, step: data.step || prev.step, timestamp: data.timestamp || prev.timestamp } : null);
+        }
+      } catch (e) { console.log('[LIVEPREVIEW] REST polling failed:', e); }
     };
     fetchLivePreview();
     const interval = setInterval(fetchLivePreview, 1000);
@@ -375,6 +403,7 @@ export default function ExecutionsPage() {
       socket.off('console-log', onConsoleLog);
       socket.off('element-highlight', onElementHighlight);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailOpen, selectedExecution?.id, selectedExecution?.status]);
 
   const handleDelete = async () => {
@@ -1106,6 +1135,7 @@ export default function ExecutionsPage() {
                   {selectedExecution?.status === 'RUNNING' ? (
                     <><CircularProgress color="inherit" size={32} sx={{ mb: 2 }} /><Typography variant="body2">Recording in progress...</Typography></>
                   ) : videoUrl ? (
+                    // eslint-disable-next-line jsx-a11y/media-has-caption
                     <video src={videoUrl} controls style={{ width: '100%', height: '100%', borderRadius: '4px', objectFit: 'contain' }} />
                   ) : isPlaying ? (
                     <><Box component="img" src="https://placehold.co/600x400/000000/FFFFFF?text=Simulating+Playback..." sx={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />

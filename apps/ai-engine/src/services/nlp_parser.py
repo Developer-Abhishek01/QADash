@@ -2,6 +2,7 @@ import logging
 import hashlib
 import json
 import re
+import uuid
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -20,7 +21,7 @@ try:
     try:
         nlp = spacy.load("en_core_web_sm")
         SPACY_AVAILABLE = True
-    except:
+    except OSError:
         SPACY_AVAILABLE = False
         nlp = None
 except ImportError:
@@ -256,7 +257,7 @@ class NLPParser:
         test_data = {}
         
         if 'email' in schema or 'user' in schema.get('type', '').lower():
-            test_data['email'] = entities['emails'][0] if entities['emails'] else 'test@example.com'
+            test_data['email'] = entities['emails'][0] if entities['emails'] else f'test_{uuid.uuid4().hex[:8]}@generated.local'
         
         if 'name' in schema or 'user' in schema.get('type', '').lower():
             test_data['name'] = 'Test User'

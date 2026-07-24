@@ -16,6 +16,7 @@ on:
 env:
   NODE_VERSION: ${{ inputs.node_version }}
   CACHE_VERSION: ${{ inputs.cache_version }}
+  DOCKER_REGISTRY: ghcr.io
 
 jobs:
   build:

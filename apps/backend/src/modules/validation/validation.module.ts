@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { ValidationService } from './validation.service';
+
 import { ValidationController } from './validation.controller';
-import { FormValidator } from './validators/form.validator';
+import { ValidationService } from './validation.service';
 import { ApiValidator } from './validators/api.validator';
-import { SchemaValidator } from './validators/schema.validator';
 import { BusinessValidator } from './validators/business.validator';
 import { DynamicValidator } from './validators/dynamic.validator';
+import { FormValidator } from './validators/form.validator';
+import { SchemaValidator } from './validators/schema.validator';
 import { PrismaModule } from '../../common/prisma.module';
 
 @Module({

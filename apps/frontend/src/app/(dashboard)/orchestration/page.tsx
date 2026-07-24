@@ -1,284 +1,319 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import {
+  Add as AddIcon,
+  PlaylistAdd as BatchIcon,
+  PlayCircle as ExecuteIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Grid,
-  Card,
-  CardContent,
-  Typography,
   Button,
+  Typography,
   Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  LinearProgress,
+  Stack,
 } from '@mui/material';
-import {
-  Cancel as CancelIcon,
-  Refresh as RefreshIcon,
-  Add as AddIcon,
-} from '@mui/icons-material';
+import { useState, useEffect, useCallback } from 'react';
+
 import { PageHeader } from '@/components/common/PageHeader';
-import { StatusBadge } from '@/components/common/StatusBadge';
-
-interface Job {
-  id: string;
-  type: string;
-  priority: string;
-  status: string;
-  createdAt: string;
-  progress: number;
-}
-
-interface ServiceHealth {
-  service: string;
-  status: 'healthy' | 'degraded' | 'down';
-  latency: number;
-}
-
-const mockServicesData: ServiceHealth[] = [
-  { service: 'Frontend', status: 'healthy', latency: 12 },
-  { service: 'Backend API', status: 'healthy', latency: 15 },
-  { service: 'AI Engine', status: 'healthy', latency: 82 },
-  { service: 'Playwright Workers', status: 'healthy', latency: 45 },
-  { service: 'Redis Queue', status: 'healthy', latency: 2 },
-  { service: 'PostgreSQL', status: 'healthy', latency: 4 },
-];
+import { BatchJobDialog } from '@/components/orchestration/BatchJobDialog';
+import { EventHistoryTimeline } from '@/components/orchestration/EventHistoryTimeline';
+import { ExecutionOrchestrationDialog } from '@/components/orchestration/ExecutionOrchestrationDialog';
+import { JobCreateDialog } from '@/components/orchestration/JobCreateDialog';
+import { JobFilterBar } from '@/components/orchestration/JobFilterBar';
+import { JobQueueTable } from '@/components/orchestration/JobQueueTable';
+import { QueueStatsPanel } from '@/components/orchestration/QueueStatsPanel';
+import { ServiceHealthGrid } from '@/components/orchestration/ServiceHealthGrid';
+import { ServiceScaleDialog } from '@/components/orchestration/ServiceScaleDialog';
+import { JobFilters } from '@/components/orchestration/types';
+import { OrchestrationJob, ServiceHealth, QueueStats, EventMessage } from '@/components/orchestration/types';
+import { useSocket } from '@/hooks/useSocket';
+import { orchestrationApi } from '@/lib/api/client';
 
 export default function OrchestrationPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobs, setJobs] = useState<OrchestrationJob[]>([]);
   const [services, setServices] = useState<ServiceHealth[]>([]);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [newJob, setNewJob] = useState({ type: 'test', priority: 'medium', data: {} });
+  const [stats, setStats] = useState<QueueStats | null>(null);
+  const [events, setEvents] = useState<EventMessage[]>([]);
+  const [filters, setFilters] = useState<JobFilters>({});
+  const [loading, setLoading] = useState({ jobs: false, services: false, stats: false, events: false });
 
-  useEffect(() => {
-    const saved = localStorage.getItem('qadash_jobs');
-    if (saved) {
-      setJobs(JSON.parse(saved));
+  const [createOpen, setCreateOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [executeOpen, setExecuteOpen] = useState(false);
+  const [scaleOpen, setScaleOpen] = useState(false);
+  const [scaleService, setScaleService] = useState('');
+
+  const { isConnected } = useSocket({
+    onExecutionUpdate: useCallback((data: any) => {
+      setJobs((prev) => prev.map((j) =>
+        j.id === data.executionId ? { ...j, status: data.status, progress: data.progress ?? j.progress } : j
+      ));
+    }, []),
+    onJobUpdate: useCallback((data: any) => {
+      setJobs((prev) => prev.map((j) =>
+        j.id === data.jobId ? { ...j, status: data.status, progress: data.progress ?? j.progress } : j
+      ));
+    }, []),
+    onAlert: useCallback((data: any) => {
+      setEvents((prev) => [{
+        id: `evt-${Date.now()}`,
+        channel: 'alerts',
+        payload: data,
+        timestamp: new Date().toISOString(),
+      }, ...prev].slice(0, 100));
+    }, []),
+  });
+
+  const fetchServices = useCallback(async () => {
+    setLoading((l) => ({ ...l, services: true }));
+    try {
+      const data = await orchestrationApi.getServiceHealth();
+      setServices(data || []);
+    } catch {
+      console.warn('Service health not available');
+    } finally {
+      setLoading((l) => ({ ...l, services: false }));
     }
-    
-    setServices(mockServicesData);
   }, []);
 
+  const fetchQueueStats = useCallback(async () => {
+    setLoading((l) => ({ ...l, stats: true }));
+    try {
+      const data = await orchestrationApi.getQueueStats();
+      setStats(data);
+    } catch {
+      console.warn('Queue stats not available');
+    } finally {
+      setLoading((l) => ({ ...l, stats: false }));
+    }
+  }, []);
+
+  const fetchEvents = useCallback(async () => {
+    setLoading((l) => ({ ...l, events: true }));
+    try {
+      const data = await orchestrationApi.getEvents(50);
+      setEvents(data || []);
+    } catch {
+      console.warn('Events not available');
+    } finally {
+      setLoading((l) => ({ ...l, events: false }));
+    }
+  }, []);
+
+  const fetchJobs = useCallback(async () => {
+    setLoading((l) => ({ ...l, jobs: true }));
+    try {
+      const params: Record<string, string> = {};
+      if (filters.type) params.type = filters.type;
+      if (filters.priority) params.priority = filters.priority;
+      if (filters.status) params.status = filters.status;
+
+      const data = await orchestrationApi.listJobs?.(params);
+      if (data) {
+        setJobs(Array.isArray(data) ? data : data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch jobs:', err);
+    } finally {
+      setLoading((l) => ({ ...l, jobs: false }));
+    }
+  }, [filters]);
+
   useEffect(() => {
-    if (jobs.length > 0) {
-      localStorage.setItem('qadash_jobs', JSON.stringify(jobs));
-    }
-  }, [jobs]);
+    fetchServices();
+    fetchQueueStats();
+    fetchEvents();
+  }, [fetchServices, fetchQueueStats, fetchEvents]);
 
-  const handleSubmitJob = () => {
-    const job: Job = {
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  const handleSubmitJob = async (data: { type: string; priority: string; callback?: string }) => {
+    const newJob: OrchestrationJob = {
       id: `job-${Date.now()}`,
-      type: newJob.type,
-      priority: newJob.priority,
-      status: 'pending',
-      createdAt: new Date().toLocaleString(),
+      type: data.type as any,
+      priority: data.priority as any,
+      status: 'queued',
       progress: 0,
+      createdAt: new Date().toISOString(),
     };
-    setJobs([job, ...jobs]);
-    setCreateDialogOpen(false);
+
+    try {
+      const result = await orchestrationApi.submitJob({
+        type: data.type,
+        priority: data.priority,
+        payload: {},
+        callback: data.callback,
+      });
+      newJob.id = result.jobId || newJob.id;
+    } catch {
+      console.warn('Job submission to API failed — using local');
+    }
+
+    setJobs([newJob, ...jobs]);
   };
 
-  const handleCancelJob = (jobId: string) => {
-    setJobs(jobs.map(j => j.id === jobId ? { ...j, status: 'cancelled' } : j));
-  };
-
-  const handleRefreshServices = () => {
-    // Generate slight random updates to make the health dashboard feel alive!
-    const refreshed = services.map(s => ({
-      ...s,
-      latency: Math.floor(Math.random() * 80) + (s.service === 'AI Engine' ? 15 : 2), // realistic latencies
-      status: Math.random() > 0.05 ? 'healthy' as const : 'degraded' as const, // 5% chance of degraded status to show dynamic features
+  const handleSubmitBatch = async (batchJobs: { type: string; priority: string }[]) => {
+    const newJobs: OrchestrationJob[] = batchJobs.map((bj) => ({
+      id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: bj.type as any,
+      priority: bj.priority as any,
+      status: 'queued' as const,
+      progress: 0,
+      createdAt: new Date().toISOString(),
     }));
-    setServices(refreshed);
+
+    try {
+      await orchestrationApi.submitBatch(newJobs.map((j) => ({
+        id: j.id,
+        type: j.type,
+        priority: j.priority,
+        payload: {},
+      })));
+    } catch {
+      console.warn('Batch submission to API failed — using local');
+    }
+
+    setJobs([...newJobs, ...jobs]);
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return 'error';
-      case 'high': return 'warning';
-      case 'medium': return 'info';
-      case 'low': return 'default';
-      default: return 'default';
+  const handleOrchestrateExecution = async (data: any) => {
+    const executionId = `exec-${Date.now()}`;
+    try {
+      await orchestrationApi.orchestrateExecution(executionId, data);
+    } catch {
+      console.warn('Execution orchestration to API failed');
+    }
+
+    const typeLabels: string[] = [];
+    if (data.tests) typeLabels.push('test');
+    if (data.security) typeLabels.push('security');
+    if (data.performance) typeLabels.push('performance');
+    if (data.accessibility) typeLabels.push('accessibility');
+    if (data.aiAnalysis) typeLabels.push('ai-analysis');
+
+    const newJobs: OrchestrationJob[] = typeLabels.map((type, i) => ({
+      id: `${executionId}-${type}`,
+      type: type as any,
+      priority: data.priority as any,
+      status: 'queued',
+      progress: 0,
+      createdAt: new Date().toISOString(),
+      dependencies: i > 0 && !data.parallel ? [`${executionId}-${typeLabels[0]}`] : undefined,
+    }));
+
+    setJobs([...newJobs, ...jobs]);
+  };
+
+  const handleCancelJob = async (jobId: string) => {
+    try {
+      await orchestrationApi.cancelJob(jobId);
+    } catch {
+      console.warn('Cancel via API failed');
+    }
+    setJobs(jobs.map((j) => j.id === jobId ? { ...j, status: 'cancelled' as const } : j));
+  };
+
+  const handleRetryJob = async (jobId: string) => {
+    try {
+      await orchestrationApi.submitJob({ id: jobId, type: 'test', priority: 'medium', payload: {} });
+    } catch {
+      console.warn('Retry via API failed');
+    }
+    setJobs(jobs.map((j) => j.id === jobId ? { ...j, status: 'queued' as const, progress: 0, error: undefined } : j));
+  };
+
+  const handleScaleService = async (serviceName: string) => {
+    setScaleService(serviceName);
+    setScaleOpen(true);
+  };
+
+  const handleScaleSubmit = async (serviceName: string, replicas: number) => {
+    try {
+      await orchestrationApi.scaleService(serviceName, replicas);
+    } catch {
+      console.warn('Scale via API failed');
     }
   };
+
+  const filteredJobs = jobs.filter((job) => {
+    if (filters.type && job.type !== filters.type) return false;
+    if (filters.priority && job.priority !== filters.priority) return false;
+    if (filters.status && job.status !== filters.status) return false;
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      if (!job.id.toLowerCase().includes(q) && !job.type.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   return (
     <Box>
-      <PageHeader
-        title="Orchestration"
-        subtitle="Unified job coordination and service management"
-      >
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Submit Job
-        </Button>
+      <PageHeader title="Orchestration" subtitle="Unified job coordination and service management">
+        <Stack direction="row" spacing={1}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
+            Submit Job
+          </Button>
+          <Button variant="outlined" startIcon={<BatchIcon />} onClick={() => setBatchOpen(true)}>
+            Batch
+          </Button>
+          <Button variant="outlined" startIcon={<ExecuteIcon />} onClick={() => setExecuteOpen(true)}>
+            Orchestrate
+          </Button>
+        </Stack>
       </PageHeader>
 
-      {/* Service Health Overview */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Service Health</Typography>
-                <IconButton onClick={handleRefreshServices}>
-                  <RefreshIcon />
-                </IconButton>
-              </Box>
-              <Grid container spacing={2}>
-                {services.map((service) => (
-                  <Grid item xs={12} sm={6} md={3} key={service.service}>
-                    <Box
-                      sx={{
-                        p: 2,
-                        borderRadius: 1,
-                        bgcolor: service.status === 'healthy' ? 'success.light' : service.status === 'degraded' ? 'warning.light' : 'error.light',
-                        border: '1px solid',
-                        borderColor: service.status === 'healthy' ? 'success.main' : service.status === 'degraded' ? 'warning.main' : 'error.main',
-                      }}
-                    >
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        {service.service}
-                      </Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                        <Chip
-                          label={service.status}
-                          size="small"
-                          color={service.status === 'healthy' ? 'success' : service.status === 'degraded' ? 'warning' : 'error'}
-                        />
-                        <Typography variant="caption">
-                          {service.latency}ms
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} md={8}>
+          <ServiceHealthGrid
+            services={services}
+            loading={loading.services}
+            onRefresh={fetchServices}
+            onScale={handleScaleService}
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <QueueStatsPanel stats={stats} loading={loading.stats} />
         </Grid>
       </Grid>
 
-      {/* Jobs Queue */}
       <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Job Queue</Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Chip label={`Total: ${jobs.length}`} size="small" />
-                  <Chip label={`Running: ${jobs.filter(j => j.status === 'running').length}`} size="small" color="primary" />
-                  <Chip label={`Failed: ${jobs.filter(j => j.status === 'failed').length}`} size="small" color="error" />
-                </Box>
-              </Box>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Job ID</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Priority</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Progress</TableCell>
-                      <TableCell>Created</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {jobs.map((job) => (
-                      <TableRow key={job.id}>
-                        <TableCell>{job.id}</TableCell>
-                        <TableCell>
-                          <Chip label={job.type} size="small" variant="outlined" />
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={job.priority} size="small" color={getPriorityColor(job.priority) as any} />
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={job.status} />
-                        </TableCell>
-                        <TableCell sx={{ minWidth: 150 }}>
-                          {job.status === 'running' ? (
-                            <LinearProgress variant="determinate" value={job.progress} sx={{ height: 8, borderRadius: 4 }} />
-                          ) : (
-                            <Typography variant="caption">{job.progress}%</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>{job.createdAt}</TableCell>
-                        <TableCell>
-                          <IconButton size="small" onClick={() => handleCancelJob(job.id)} disabled={job.status === 'completed'}>
-                            <CancelIcon fontSize="small" />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} lg={8}>
+          <Box sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h6">Job Queue</Typography>
+              <Stack direction="row" spacing={1}>
+                <Chip label={`Total: ${filteredJobs.length}`} size="small" />
+                <Chip label={`Running: ${filteredJobs.filter((j) => j.status === 'running').length}`} size="small" color="primary" />
+                <Chip label={`Failed: ${filteredJobs.filter((j) => j.status === 'failed').length}`} size="small" color="error" />
+                {isConnected && <Chip label="Live" size="small" color="success" variant="outlined" />}
+              </Stack>
+            </Box>
+            <JobFilterBar filters={filters} onChange={setFilters} />
+          </Box>
+          <JobQueueTable
+            jobs={filteredJobs}
+            onCancel={handleCancelJob}
+            onRetry={handleRetryJob}
+            loading={loading.jobs}
+          />
+        </Grid>
+        <Grid item xs={12} lg={4}>
+          <EventHistoryTimeline events={events} loading={loading.events} onRefresh={fetchEvents} />
         </Grid>
       </Grid>
 
-      {/* Create Job Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Submit New Job</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Job Type</InputLabel>
-              <Select
-                value={newJob.type}
-                label="Job Type"
-                onChange={(e) => setNewJob({ ...newJob, type: e.target.value })}
-              >
-                <MenuItem value="test">Test Execution</MenuItem>
-                <MenuItem value="security">Security Scan</MenuItem>
-                <MenuItem value="performance">Performance Test</MenuItem>
-                <MenuItem value="accessibility">Accessibility Test</MenuItem>
-                <MenuItem value="ai-analysis">AI Analysis</MenuItem>
-                <MenuItem value="report">Report Generation</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl fullWidth>
-              <InputLabel>Priority</InputLabel>
-              <Select
-                value={newJob.priority}
-                label="Priority"
-                onChange={(e) => setNewJob({ ...newJob, priority: e.target.value })}
-              >
-                <MenuItem value="critical">Critical</MenuItem>
-                <MenuItem value="high">High</MenuItem>
-                <MenuItem value="medium">Medium</MenuItem>
-                <MenuItem value="low">Low</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSubmitJob}>Submit</Button>
-        </DialogActions>
-      </Dialog>
+      <JobCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onSubmit={handleSubmitJob} />
+      <BatchJobDialog open={batchOpen} onClose={() => setBatchOpen(false)} onSubmit={handleSubmitBatch} />
+      <ExecutionOrchestrationDialog open={executeOpen} onClose={() => setExecuteOpen(false)} onSubmit={handleOrchestrateExecution} />
+      <ServiceScaleDialog
+        open={scaleOpen}
+        serviceName={scaleService}
+        onClose={() => setScaleOpen(false)}
+        onSubmit={handleScaleSubmit}
+      />
     </Box>
   );
 }

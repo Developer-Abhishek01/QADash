@@ -1,5 +1,6 @@
 'use client';
 
+import { Close, Info } from '@mui/icons-material';
 import {
   Dialog,
   DialogTitle,
@@ -13,7 +14,6 @@ import {
   Slide,
   DialogProps,
 } from '@mui/material';
-import { Close, Info } from '@mui/icons-material';
 import { TransitionProps } from '@mui/material/transitions';
 import React, { ReactNode } from 'react';
 

@@ -1,7 +1,8 @@
 'use client';
 
-import { Box, Typography, Breadcrumbs, Link } from '@mui/material';
 import { Home as HomeIcon, NavigateNext } from '@mui/icons-material';
+import { Box, Typography, Breadcrumbs, Link } from '@mui/material';
+
 import { useAppSelector } from '@/lib/hooks/useRedux';
 
 interface BreadcrumbItem {

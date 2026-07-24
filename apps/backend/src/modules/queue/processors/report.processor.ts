@@ -1,8 +1,9 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { ReportJobData } from '../queue.service';
+import { Job } from 'bullmq';
+
 import { PrismaService } from '../../../common/prisma.service';
+import { ReportJobData } from '../queue.service';
 
 @Processor('report', {
   concurrency: 3,

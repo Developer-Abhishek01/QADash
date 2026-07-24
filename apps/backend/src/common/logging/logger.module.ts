@@ -1,6 +1,7 @@
 import { Module, Global } from '@nestjs/common';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
+
 import 'winston-daily-rotate-file';
 import { LoggerService } from './logger.service';
 

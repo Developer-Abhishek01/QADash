@@ -13,13 +13,15 @@ import {
   UploadedFile,
   Res,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ImportService } from './import.service';
-import { CreateImportDto, SaveMappingsDto, ProcessImportDto, ImportFilterDto } from './dto/import.dto';
-import { CreateTemplateDto } from './dto/create-template.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { Response } from 'express';
+
+import { CreateTemplateDto } from './dto/create-template.dto';
+import { CreateImportDto, SaveMappingsDto, ProcessImportDto, ImportFilterDto } from './dto/import.dto';
+import { ImportService } from './import.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+
 
 @ApiTags('Import')
 @ApiBearerAuth()
@@ -80,6 +82,12 @@ export class ImportController {
     return this.importService.processImport(id);
   }
 
+  @Post(':id/process-ai')
+  @ApiOperation({ summary: 'Process import with AI pipeline - auto generate test cases' })
+  async processImportWithAI(@Param('id') id: string, @Request() req: any) {
+    return this.importService.processImportWithAI(id, req.user.id);
+  }
+
   @Get(':id/preview')
   @ApiOperation({ summary: 'Get preview data' })
   async getPreviewData(
@@ -115,12 +123,12 @@ export class ImportController {
   @Get('templates')
   @ApiOperation({ summary: 'Get import templates' })
   async getTemplates(@Query('projectId') projectId: string) {
-    return { templates: [] };
+    return this.importService.getTemplates(projectId);
   }
 
   @Post('templates')
   @ApiOperation({ summary: 'Create import template' })
   async createTemplate(@Body() body: CreateTemplateDto) {
-    return { message: 'Template created', template: body };
+    return this.importService.createTemplate(body);
   }
 }

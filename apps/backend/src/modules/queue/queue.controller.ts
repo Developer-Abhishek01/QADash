@@ -1,10 +1,11 @@
 import { Controller, Get, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { QueueService } from './queue.service';
-import { QueueHealthService } from './queue-health.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { QUEUES } from './queue.constants';
+
 import { ScaleWorkersDto } from './dto/scale-workers.dto';
+import { QueueHealthService } from './queue-health.service';
+import { QUEUES } from './queue.constants';
+import { QueueService } from './queue.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('queue')
 @ApiBearerAuth()

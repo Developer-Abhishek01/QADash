@@ -1,6 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import {
+  Timeline as TimelineIcon,
+  PieChart as PieChartIcon,
+  Refresh as RefreshIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Grid,
@@ -10,28 +14,25 @@ import {
   Divider,
   Button,
 } from '@mui/material';
-import {
-  Timeline as TimelineIcon,
-  PieChart as PieChartIcon,
-  Refresh as RefreshIcon,
-} from '@mui/icons-material';
+
 import { PageHeader } from '@/components/common/PageHeader';
+import { Loading } from '@/components/feedback/Loading';
+import { useAnalyticsOverview, useAnalyticsCoverage, useAnalyticsFlaky } from '@/lib/analytics/hooks';
 
 export default function AnalyticsPage() {
-  const [_stats, _setStats] = useState<any>(null);
+  const { data: overview, isLoading, refetch } = useAnalyticsOverview();
+  const { data: coverage } = useAnalyticsCoverage();
+  const { data: flaky } = useAnalyticsFlaky();
 
-  useEffect(() => {
-    // In a real app, fetch from API
-    // setStats(apiResponse);
-  }, []);
+  if (isLoading) return <Loading />;
 
   return (
     <Box>
-      <PageHeader 
-        title="Analytics" 
+      <PageHeader
+        title="Analytics"
         subtitle="Historical trends and deep quality insights"
         actions={
-          <Button variant="outlined" startIcon={<RefreshIcon />}>Sync Data</Button>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => refetch()}>Refresh</Button>
         }
       />
 
@@ -43,9 +44,18 @@ export default function AnalyticsPage() {
                 <TimelineIcon color="primary" />
                 <Typography variant="h6">Execution Success Trend</Typography>
               </Box>
-              {/* Chart Placeholder */}
               <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f9f9f9', borderRadius: 1 }}>
-                <Typography color="text.secondary">No historical data available for the selected period.</Typography>
+                {overview ? (
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h3" fontWeight={700}>{(overview as any).successRate ?? '-'}%</Typography>
+                    <Typography variant="body2" color="text.secondary">Success Rate</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                      Total: {(overview as any).total ?? 0} | Passed: {(overview as any).passed ?? 0} | Failed: {(overview as any).failed ?? 0}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Typography color="text.secondary">No historical data available for the selected period.</Typography>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -60,14 +70,9 @@ export default function AnalyticsPage() {
               </Box>
               <Box sx={{ py: 4 }}>
                 <Box sx={{ position: 'relative', height: 200, width: 200, mx: 'auto' }}>
-                  <Box sx={{ 
-                    height: '100%', width: '100%', 
-                    borderRadius: '50%', 
-                    border: '20px solid', 
-                    borderColor: '#eee',
-                  }} />
-                  <Typography variant="h3" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#ccc' }}>
-                    0%
+                  <Box sx={{ height: '100%', width: '100%', borderRadius: '50%', border: '20px solid', borderColor: coverage ? '#4CAF50' : '#eee' }} />
+                  <Typography variant="h3" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: coverage ? '#4CAF50' : '#ccc' }}>
+                    {(coverage as any)?.coverage ?? 0}%
                   </Typography>
                 </Box>
               </Box>
@@ -75,11 +80,11 @@ export default function AnalyticsPage() {
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary">Automated</Typography>
-                  <Typography variant="body1" fontWeight={600}>0</Typography>
+                  <Typography variant="body1" fontWeight={600}>{(coverage as any)?.automated ?? 0}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary">Manual</Typography>
-                  <Typography variant="body1" fontWeight={600}>0</Typography>
+                  <Typography variant="body1" fontWeight={600}>{(coverage as any)?.manual ?? 0}</Typography>
                 </Grid>
               </Grid>
             </CardContent>
@@ -91,7 +96,18 @@ export default function AnalyticsPage() {
             <CardContent>
               <Typography variant="h6" gutterBottom>Defect Density by Module</Typography>
               <Box sx={{ p: 4, textAlign: 'center' }}>
-                <Typography color="text.secondary">Run more tests to see defect density analysis.</Typography>
+                {flaky ? (
+                  <Grid container spacing={2}>
+                    {(flaky as any[]).map((item: any, i: number) => (
+                      <Grid item xs={12} sm={6} md={3} key={i}>
+                        <Typography variant="h4" fontWeight={700}>{item.flaky ?? '-'}</Typography>
+                        <Typography variant="body2" color="text.secondary">{item.name ?? item.module ?? 'Module'}</Typography>
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Typography color="text.secondary">Run more tests to see defect density analysis.</Typography>
+                )}
               </Box>
             </CardContent>
           </Card>

@@ -1,12 +1,14 @@
-import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import { PrismaService } from '../../common/prisma.service';
-import { chromium, Browser, BrowserContext, CDPSession } from 'playwright';
-import * as path from 'path';
-import * as fs from 'fs';
 import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vm from 'vm';
+
+import { InjectQueue } from '@nestjs/bullmq';
+import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
+import { Queue } from 'bullmq';
+import { chromium, Browser, BrowserContext, CDPSession } from 'playwright';
+
+import { PrismaService } from '../../common/prisma.service';
 import { EventsGateway } from '../gateway/events.gateway';
 
 export interface LivePreviewData {
@@ -54,6 +56,26 @@ interface TestResult {
 export class ExecutionsService implements OnModuleInit {
   private livePreviews = new Map<string, LivePreviewData>();
   private readonly logger = new Logger(ExecutionsService.name);
+  private lastEmitTimestamps = new Map<string, number>();
+  private lastFrameHashes = new Map<string, string>();
+  private readonly FRAME_INTERVAL_MS = 67; // target ~15fps
+
+  private shouldEmitFrame(executionId: string, base64: string): boolean {
+    const now = Date.now();
+    const lastEmit = this.lastEmitTimestamps.get(executionId) || 0;
+    if (now - lastEmit < this.FRAME_INTERVAL_MS) return false;
+    const hash = base64.slice(0, 200); // quick prefix check for dedup
+    const lastHash = this.lastFrameHashes.get(executionId) || '';
+    if (hash === lastHash) return false;
+    this.lastEmitTimestamps.set(executionId, now);
+    this.lastFrameHashes.set(executionId, hash);
+    return true;
+  }
+
+  private cleanupThrottleState(executionId: string) {
+    this.lastEmitTimestamps.delete(executionId);
+    this.lastFrameHashes.delete(executionId);
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -135,9 +157,10 @@ export class ExecutionsService implements OnModuleInit {
       data: { status: 'PENDING', startedAt: new Date() },
     });
 
-    this.logger.log(`Queuing execution ${id} with ${execution.testIds?.length || 0} tests`);
+    this.logger.log(`[LIVEPREVIEW] Queuing execution ${id} with ${execution.testIds?.length || 0} tests`);
 
     if (this.executionQueue) {
+      this.logger.log(`[LIVEPREVIEW] BullMQ queue AVAILABLE, adding job to queue`);
       await this.executionQueue.add('execute', {
         executionId: id,
         projectId: execution.projectId,
@@ -148,11 +171,11 @@ export class ExecutionsService implements OnModuleInit {
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
       });
-      this.logger.log(`Execution ${id} added to BullMQ queue`);
+      this.logger.log(`[LIVEPREVIEW] Execution ${id} added to BullMQ queue — backend ExecutionProcessor OR automation TestWorker will pick it up`);
     } else {
-      this.logger.warn(`BullMQ queue not available, running execution ${id} inline`);
+      this.logger.warn(`[LIVEPREVIEW] BullMQ queue NOT available, running execution ${id} inline`);
       this.executeTests(execution.projectId, execution.testIds || [], execution.userId, id)
-        .catch(err => this.logger.error(`Execution ${id} failed: ${err.message}`));
+        .catch(err => this.logger.error(`[LIVEPREVIEW] Execution ${id} failed: ${err.message}`));
     }
 
     return updated;
@@ -243,11 +266,12 @@ export class ExecutionsService implements OnModuleInit {
   }
 
   async executeTests(projectId: string, testIds: string[], userId: string, executionId: string) {
+    this.logger.log(`[LIVEPREVIEW] executeTests() called — setting status to RUNNING`);
     await this.updateStatus(executionId, 'RUNNING');
     try {
       await this.executeTestsInline(projectId, testIds, userId, executionId);
     } catch (error) {
-      this.logger.error(`Execution ${executionId} failed: ${(error as Error).message}`);
+      this.logger.error(`[LIVEPREVIEW] Execution ${executionId} failed: ${(error as Error).message}`);
       await this.updateStatus(executionId, 'FAILED');
     }
   }
@@ -329,6 +353,7 @@ export class ExecutionsService implements OnModuleInit {
     executionId: string,
     testIndex: number,
   ): Promise<TestResult> {
+    this.logger.log(`[LIVEPREVIEW] ===== runTest() ENTERED for testId=${testId}, executionId=${executionId} =====`);
     const startTime = Date.now();
     let browser: Browser | null = null;
     let context: BrowserContext | null = null;
@@ -364,11 +389,13 @@ export class ExecutionsService implements OnModuleInit {
       emitLive('Launching browser...', '');
 
       const headless = process.env.HEADLESS !== 'false';
+      this.logger.log(`[LIVEPREVIEW] HEADLESS env = "${process.env.HEADLESS}", resolved headless=${headless}`);
       browser = await chromium.launch({
         headless,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
         timeout: 30000,
       });
+      this.logger.log(`[LIVEPREVIEW] Browser launched: ${browser !== null}`);
 
       context = await browser.newContext({
         recordVideo: {
@@ -432,47 +459,70 @@ export class ExecutionsService implements OnModuleInit {
 
       try {
         cdpSession = await context.newCDPSession(page);
+        this.logger.log(`[LIVEPREVIEW] CDP session created: ${cdpSession ? 'YES' : 'NULL'}`);
       } catch (cdpErr) {
-        this.logger.warn(`CDP session not available (non-Chromium?): ${cdpErr}`);
+        this.logger.warn(`[LIVEPREVIEW] CDP session not available: ${cdpErr}`);
       }
 
+      let screencastFrameCount = 0;
       // ─── CDP Screencast streaming (~10-15fps) instead of polled screenshots ──
       if (cdpSession) {
         streaming = true;
-        await cdpSession.send('Page.startScreencast', {
+        const screencastResult = await cdpSession.send('Page.startScreencast', {
           format: 'jpeg',
           quality: 80,
           maxWidth: 1280,
           maxHeight: 720,
           everyNthFrame: 1,
-        }).catch((e: any) => this.logger.warn(`startScreencast failed: ${e.message}`));
+        }).then(() => true).catch((e: any) => {
+          this.logger.warn(`[LIVEPREVIEW] startScreencast FAILED: ${e.message} — Chrome 85+ removed this API`);
+          return false;
+        });
 
-        cdpSession.on('Page.screencastFrame', (frame: any) => {
-          if (!streaming) return;
-          const b64 = frame?.data;
-          if (b64) {
+        if (screencastResult) {
+          cdpSession.on('Page.screencastFrame', (frame: any) => {
+            if (!streaming) return;
+            const b64 = frame?.data;
+            screencastFrameCount++;
+            if (!b64 || !this.shouldEmitFrame(executionId, b64)) {
+              if (frame?.sessionId && cdpSession) {
+                cdpSession.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => {});
+              }
+              return;
+            }
+            if (screencastFrameCount % 30 === 1) {
+              this.logger.log(`[PERF] CDP screencast frame #${screencastFrameCount}, size: ${b64 ? (b64.length * 0.75 / 1024).toFixed(1) : 0}KB`);
+            }
             this.setLivePreview(executionId, { screenshot: b64, step: '', timestamp: Date.now() });
             try { this.eventsGateway.emitToAll('live-preview', { executionId, screenshot: b64, step: '', timestamp: Date.now() }); } catch {}
-          }
-          // Acknowledge frame to continue receiving
-          if (frame?.sessionId && cdpSession) {
-            cdpSession.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => {});
-          }
-        });
-      } else {
-        // Fallback: polled screenshots for non-Chromium browsers
+            if (frame?.sessionId && cdpSession) {
+              cdpSession.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => {});
+            }
+          });
+        } else {
+          this.logger.log(`[LIVEPREVIEW] startScreencast failed — falling back to polled screenshots (will enter fallback path)`);
+          cdpSession = null;
+          streaming = false;
+        }
+      }
+
+      if (!cdpSession) {
         streaming = true;
         const fallbackLoop = async () => {
+          let frameCount = 0;
           while (streaming) {
             try {
-              const buf = await page.screenshot({ type: 'png', fullPage: false });
+              const buf = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false });
               const b64 = typeof buf === 'string' ? buf : Buffer.isBuffer(buf) ? buf.toString('base64') : Buffer.from(buf as Uint8Array).toString('base64');
-              if (b64 && streaming) {
+              frameCount++;
+              if (b64 && streaming && this.shouldEmitFrame(executionId, b64)) {
                 this.setLivePreview(executionId, { screenshot: b64, step: '', timestamp: Date.now() });
                 try { this.eventsGateway.emitToAll('live-preview', { executionId, screenshot: b64, step: '', timestamp: Date.now() }); } catch {}
               }
-            } catch {}
-            if (streaming) await new Promise(r => setTimeout(r, 200));
+            } catch (e) {
+              this.logger.warn(`[LIVEPREVIEW] Fallback screenshot failed: ${e}`);
+            }
+            if (streaming) await new Promise(r => setTimeout(r, 100));
           }
         };
         fallbackLoop();
@@ -483,6 +533,13 @@ export class ExecutionsService implements OnModuleInit {
       const testConfig = rawConfig || {};
       const targetUrl = testConfig?.url;
       const steps = testConfig?.steps || (test as any).steps;
+      if (steps && Array.isArray(steps)) {
+        for (const step of steps) {
+          if (step.action && !step.type) {
+            step.type = step.action;
+          }
+        }
+      }
       const logLine = [
         `Running test ${test.name}`,
         `Config keys: ${Object.keys(testConfig).join(', ')}`,
@@ -496,10 +553,18 @@ export class ExecutionsService implements OnModuleInit {
       // Resolve template variables from source file data
       const sourceDataRows = testConfig._sourceFileData;
       const templateVars: Record<string, string> = {};
-      if (sourceDataRows && Array.isArray(sourceDataRows) && sourceDataRows.length > 0) {
-        const row = sourceDataRows[0];
-        if (typeof row === 'object' && row !== null) {
-          for (const [k, v] of Object.entries(row)) {
+      if (sourceDataRows) {
+        if (Array.isArray(sourceDataRows)) {
+          if (sourceDataRows.length > 0) {
+            const row = sourceDataRows[0];
+            if (typeof row === 'object' && row !== null) {
+              for (const [k, v] of Object.entries(row)) {
+                templateVars[k] = String(v ?? '');
+              }
+            }
+          }
+        } else if (typeof sourceDataRows === 'object' && sourceDataRows !== null) {
+          for (const [k, v] of Object.entries(sourceDataRows)) {
             templateVars[k] = String(v ?? '');
           }
         }
@@ -641,6 +706,7 @@ export class ExecutionsService implements OnModuleInit {
       };
     } finally {
       streaming = false;
+      this.cleanupThrottleState(executionId);
     }
   }
 
@@ -799,15 +865,15 @@ export class ExecutionsService implements OnModuleInit {
     try {
       let screenshotBuffer: any;
       try {
-        screenshotBuffer = await page.screenshot({ type: 'png', fullPage: false });
-      } catch (innerErr: any) {
-        this.logger.warn(`captureAndEmit primary screenshot failed for "${step}": ${innerErr.message}`);
-        // Fallback: try to get page from context
+        screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false });
+      } catch {
         if (page && page.context) {
-          const pages = page.context().pages();
-          if (pages.length > 0) {
-            screenshotBuffer = await pages[0].screenshot({ type: 'png', fullPage: false });
-          }
+          try {
+            const pages = page.context().pages();
+            if (pages.length > 0) {
+              screenshotBuffer = await pages[0].screenshot({ type: 'jpeg', quality: 70, fullPage: false });
+            }
+          } catch {}
         }
         if (!screenshotBuffer) {
           emitLive(step, '');
@@ -821,14 +887,12 @@ export class ExecutionsService implements OnModuleInit {
           ? screenshotBuffer.toString('base64')
           : Buffer.from(screenshotBuffer as Uint8Array).toString('base64');
 
-      if (base64 && base64.length > 0) {
+      if (base64) {
         emitLive(step, base64);
       } else {
-        this.logger.warn(`captureAndEmit empty screenshot buffer for step: "${step}"`);
         emitLive(step, '');
       }
-    } catch (captureErr: any) {
-      this.logger.warn(`captureAndEmit failed for "${step}": ${captureErr.message}`);
+    } catch {
       emitLive(step, '');
     }
   }

@@ -1,5 +1,5 @@
-import { IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString } from 'class-validator';
 
 export class ImportBugsExcelDto {
   @ApiProperty({ example: 'base64-encoded-excel-content', description: 'Base64 encoded Excel buffer' })

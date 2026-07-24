@@ -1,6 +1,7 @@
 import { Page, Locator, expect } from '@playwright/test';
-import { Logger } from '../utils/logger';
+
 import { LoginPageLocators } from '../locators/common.locators';
+import { Logger } from '../utils/logger';
 
 export class AssertHelper {
   private page: Page;

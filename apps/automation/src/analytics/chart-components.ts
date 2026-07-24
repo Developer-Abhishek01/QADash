@@ -1,5 +1,5 @@
-import { Logger } from '../utils/logger';
 import { TrendData, TimeSeriesDataPoint, DefectData, HeatmapCell, AiInsight } from './analytics-client';
+import { Logger } from '../utils/logger';
 
 export interface ChartConfig {
   title: string;

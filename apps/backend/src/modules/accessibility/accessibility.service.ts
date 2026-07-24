@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
+import * as cronParser from 'cron-parser';
+
+import { CreateAccessibilityTestDto, UpdateAccessibilityTestDto, AccessibilityTestFilterDto, IssueFilterDto, ResolveIssueDto, CreateBaselineDto } from './dto/accessibility.dto';
 import { AxeExecutionService } from './engine/axe-execution.service';
 import { AccessibilityReportService } from './reports/accessibility-report.service';
-import { CreateAccessibilityTestDto, UpdateAccessibilityTestDto, AccessibilityTestFilterDto, IssueFilterDto, ResolveIssueDto, CreateBaselineDto } from './dto/accessibility.dto';
+import { PrismaService } from '../../common/prisma.service';
 
 @Injectable()
 export class AccessibilityService implements OnModuleInit {
@@ -277,8 +279,7 @@ export class AccessibilityService implements OnModuleInit {
       if (schedule.nextRunAt && schedule.nextRunAt <= new Date()) {
         await this.runTest(schedule.testId);
 
-        const cron = require('cron-parser');
-        const next = cron.parseExpression(schedule.cronExpr).next().toDate();
+        const next = cronParser.parseExpression(schedule.cronExpr).next().toDate();
         await this.prisma.accessibilitySchedule.update({
           where: { id: schedule.id },
           data: { lastRunAt: new Date(), nextRunAt: next },

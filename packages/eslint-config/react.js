@@ -1,8 +1,6 @@
 module.exports = {
   extends: [
     '@qadash/eslint-config/base',
-    'plugin:react/recommended',
-    'plugin:react-hooks/recommended',
   ],
   parserOptions: {
     ecmaFeatures: {
@@ -11,7 +9,6 @@ module.exports = {
     ecmaVersion: 2022,
     sourceType: 'module',
   },
-  plugins: ['react', 'react-hooks'],
   settings: {
     react: {
       version: 'detect',

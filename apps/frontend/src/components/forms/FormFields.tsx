@@ -1,21 +1,17 @@
 'use client';
 
 import { TextField, TextFieldProps } from '@mui/material';
-import { UseFormRegister, FieldError, UseFormWatch, UseFormSetValue } from 'react-hook-form';
+import { UseFormRegister, FieldError } from 'react-hook-form';
 
 interface FormTextFieldProps extends Omit<TextFieldProps, 'name'> {
   name: string;
   register: UseFormRegister<any>;
-  watch?: UseFormWatch<any>;
-  setValue?: UseFormSetValue<any>;
   error?: boolean;
 }
 
 export function FormTextField({
   name,
   register,
-  watch,
-  setValue,
   error,
   ...props
 }: FormTextFieldProps) {

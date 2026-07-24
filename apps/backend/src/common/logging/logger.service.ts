@@ -1,9 +1,11 @@
-import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-import { Logger } from 'winston';
-import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
+
+import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
+import { Inject, Optional } from '@nestjs/common';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { v4 as uuidv4 } from 'uuid';
+import * as winston from 'winston';
+import { Logger } from 'winston';
 
 export interface LogContext {
   correlationId?: string;
@@ -31,11 +33,24 @@ export interface MetricsData {
 export class LoggerService implements NestLoggerService {
   private correlationId: string;
   private context: Record<string, unknown> = {};
+  private readonly logger: Logger;
 
   constructor(
-    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    @Optional() @Inject(WINSTON_MODULE_PROVIDER) logger?: Logger,
   ) {
     this.correlationId = this.generateCorrelationId();
+    this.logger = (logger && typeof (logger as any).info === 'function') ? logger : this.createDefaultLogger();
+  }
+
+  private createDefaultLogger(): Logger {
+    return winston.createLogger({
+      level: 'info',
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json(),
+      ),
+      transports: [new winston.transports.Console()],
+    }) as Logger;
   }
 
   private generateCorrelationId(): string {

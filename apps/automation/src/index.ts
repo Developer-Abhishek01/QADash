@@ -1,12 +1,13 @@
-import * as dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables before any other imports that might use them
+import { getConfig } from '@qadash/config';
+import { logger } from '@qadash/logger';
+import { WorkerOptions } from 'bullmq';
+import * as dotenv from 'dotenv';
+
+// Load environment variables before starting the application
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-import { WorkerOptions } from 'bullmq';
-import { logger } from '@qadash/logger';
-import { getConfig } from '@qadash/config';
 import { TestWorker } from './workers/test.worker';
 
 async function bootstrap() {

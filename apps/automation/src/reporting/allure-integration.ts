@@ -1,7 +1,8 @@
-import { Logger } from '../utils/logger';
-import { ReportData } from './report-generator';
 import * as fs from 'fs';
 import * as path from 'path';
+
+import { ReportData } from './report-generator';
+import { Logger } from '../utils/logger';
 
 export interface AllureConfig {
   resultsDir: string;

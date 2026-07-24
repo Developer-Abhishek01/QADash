@@ -1,9 +1,11 @@
-import { Logger } from '../utils/logger';
-import { ReportData, ReportConfig } from './report-generator';
 import * as fs from 'fs';
 import * as path from 'path';
+
 import { chromium } from 'playwright';
 import * as XLSX from 'xlsx';
+
+import { ReportData, ReportConfig } from './report-generator';
+import { Logger } from '../utils/logger';
 
 export type ExportFormat = 'html' | 'pdf' | 'excel' | 'json' | 'allure';
 

@@ -1,8 +1,9 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { NotificationJobData } from '../queue.service';
+import { Job } from 'bullmq';
+
 import { PrismaService } from '../../../common/prisma.service';
+import { NotificationJobData } from '../queue.service';
 
 @Processor('notification', {
   concurrency: 10,

@@ -1,5 +1,5 @@
-import { IsOptional, IsBoolean, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsBoolean, IsString } from 'class-validator';
 
 export class ExecuteOptionsDto {
   @ApiPropertyOptional({ example: true, description: 'Run tests' })

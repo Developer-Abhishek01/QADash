@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+
+import { Logger } from '../../utils/logger';
 import { ConnectionManager, DatabaseConfig } from '../connection-manager';
 import { DataComparator, DataValidator } from '../data-comparator';
 import { QueryBuilder } from '../query-builder';
-import { Logger } from '../../utils/logger';
 
 const logger = new Logger('DatabaseTest');
 const connectionManager = new ConnectionManager(logger);
@@ -55,14 +56,15 @@ test.describe('PostgreSQL Database Tests', () => {
   });
 
   test('should insert and retrieve data', async () => {
+    const testEmail = `test_${Date.now()}@generated.local`;
     await db.execute(`CREATE TABLE IF NOT EXISTS test_users (id SERIAL PRIMARY KEY, name TEXT, email TEXT)`);
     
     await db.execute(
       `INSERT INTO test_users (name, email) VALUES ($1, $2) RETURNING id`,
-      ['Test User', 'test@example.com']
+      ['Test User', testEmail]
     );
     
-    const selectResult = await db.query('SELECT * FROM test_users WHERE email = $1', ['test@example.com']);
+    const selectResult = await db.query('SELECT * FROM test_users WHERE email = $1', [testEmail]);
     expect(selectResult.rows).toHaveLength(1);
     expect(selectResult.rows[0].name).toBe('Test User');
     

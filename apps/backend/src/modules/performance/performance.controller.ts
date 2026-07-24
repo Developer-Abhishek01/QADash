@@ -11,7 +11,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { PerformanceService } from './performance.service';
+
 import {
   CreatePerformanceTestDto,
   UpdatePerformanceTestDto,
@@ -20,6 +20,7 @@ import {
   UpdateAlertDto,
   MetricsQueryDto,
 } from './dto/performance.dto';
+import { PerformanceService } from './performance.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Performance')

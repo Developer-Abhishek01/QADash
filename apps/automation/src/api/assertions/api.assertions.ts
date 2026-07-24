@@ -1,5 +1,5 @@
-import { ApiResponse } from '../api-client';
 import { Logger } from '../../utils/logger';
+import { ApiResponse } from '../api-client';
 import { SchemaValidator } from '../validators/schema.validator';
 
 export class ApiAssertions {

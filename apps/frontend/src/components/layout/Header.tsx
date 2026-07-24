@@ -1,6 +1,16 @@
 'use client';
 
 import {
+  Menu as MenuIcon,
+  DarkMode,
+  LightMode,
+  Search as SearchIcon,
+  Notifications as NotificationsIcon,
+  Settings as SettingsIcon,
+  Logout as LogoutIcon,
+  Person as PersonIcon,
+} from '@mui/icons-material';
+import {
   AppBar,
   Toolbar,
   IconButton,
@@ -15,42 +25,22 @@ import {
   Badge,
   InputBase,
   Tooltip,
-  Button,
 } from '@mui/material';
-import {
-  Menu as MenuIcon,
-  DarkMode,
-  LightMode,
-  Search as SearchIcon,
-  Notifications as NotificationsIcon,
-  Settings as SettingsIcon,
-  Logout as LogoutIcon,
-  Person as PersonIcon,
-  AdminPanelSettings as AdminIcon,
-} from '@mui/icons-material';
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks/useRedux';
 import { toggleSidebar, setThemeMode } from '@/store/slices/uiSlice';
-import { useAuth, UserRole } from '@/lib/auth/AuthContext';
 
 export function Header() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { user, logout, login } = useAuth();
+  const { user, logout } = useAuth();
   const { themeMode, sidebarOpen } = useAppSelector((state) => state.ui);
   const { unreadCount } = useAppSelector((state) => state.notifications);
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [roleAnchorEl, setRoleAnchorEl] = useState<null | HTMLElement>(null);
-
-  const roles: UserRole[] = ['ADMIN' as UserRole, 'QA_LEAD' as UserRole, 'QA_ENGINEER' as UserRole, 'AUTOMATION_ENGINEER' as UserRole, 'DEVELOPER' as UserRole, 'MANAGER' as UserRole, 'VIEWER' as UserRole];
-
-  const handleRoleChange = (role: UserRole) => {
-    login('admin@example.com', process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'demo-password', role);
-    setRoleAnchorEl(null);
-  };
-
   const [notificationAnchor, setNotificationAnchor] = useState<null | HTMLElement>(null);
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -114,28 +104,6 @@ export function Header() {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Button
-            size="small"
-            variant="contained"
-            color="secondary"
-            onClick={(e) => setRoleAnchorEl(e.currentTarget)}
-            startIcon={<AdminIcon />}
-            sx={{ mr: 2, fontWeight: 'bold' }}
-          >
-            Switch Role: {user?.role}
-          </Button>
-          <Menu
-            anchorEl={roleAnchorEl}
-            open={Boolean(roleAnchorEl)}
-            onClose={() => setRoleAnchorEl(null)}
-          >
-            {roles.map((role) => (
-              <MenuItem key={role} onClick={() => handleRoleChange(role)} selected={user?.role === role}>
-                {role.replace('_', ' ')}
-              </MenuItem>
-            ))}
-          </Menu>
-
           <Tooltip title="Toggle theme">
             <IconButton color="inherit" onClick={toggleTheme}>
               {themeMode === 'dark' ? <LightMode /> : <DarkMode />}
@@ -175,7 +143,7 @@ export function Header() {
               {user?.name || 'User'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {user?.email || 'user@example.com'}
+              {user?.email || ''}
             </Typography>
           </Box>
           <Divider />

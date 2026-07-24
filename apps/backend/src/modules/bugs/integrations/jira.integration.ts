@@ -33,49 +33,41 @@ export class JiraIntegration {
 
   async createIssue(bug: any): Promise<JiraIssue> {
     if (!this.config.baseUrl) {
-      this.logger.warn('Jira not configured');
-      return this.mockCreateIssue(bug);
+      throw new Error('Jira not configured: Set JIRA_URL, JIRA_EMAIL, JIRA_TOKEN, and JIRA_PROJECT_KEY env vars');
     }
 
-    try {
-      const response = await fetch(`${this.config.baseUrl}/rest/api/3/issue`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${this.config.email}:${this.config.apiToken}`).toString('base64')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fields: {
-            project: { key: this.config.projectKey },
-            summary: bug.title,
-            description: {
-              type: 'doc',
-              version: 1,
-              content: [{
-                type: 'paragraph',
-                content: [{ type: 'text', text: bug.description || '' }],
-              }],
-            },
-            issuetype: { name: 'Bug' },
-            priority: { name: this.mapPriority(bug.priority) },
-            labels: bug.tags || [],
+    const response = await fetch(`${this.config.baseUrl}/rest/api/3/issue`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${this.config.email}:${this.config.apiToken}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fields: {
+          project: { key: this.config.projectKey },
+          summary: bug.title,
+          description: {
+            type: 'doc',
+            version: 1,
+            content: [{
+              type: 'paragraph',
+              content: [{ type: 'text', text: bug.description || '' }],
+            }],
           },
-        }),
-      });
+          issuetype: { name: 'Bug' },
+          priority: { name: this.mapPriority(bug.priority) },
+          labels: bug.tags || [],
+        },
+      }),
+    });
 
-      const data = await response.json() as any;
-      this.logger.log(`Jira issue created: ${data.key}`);
-      return { key: data.key, summary: bug.title, description: bug.description || '', priority: bug.priority, status: 'OPEN', labels: bug.tags || [] };
-    } catch (error) {
-      this.logger.error(`Jira creation failed: ${error}`);
-      return this.mockCreateIssue(bug);
+    if (!response.ok) {
+      throw new Error(`Jira API error: ${response.status} ${response.statusText}`);
     }
-  }
 
-  private mockCreateIssue(bug: any): JiraIssue {
-    const key = `QA-${Date.now()}`;
-    this.logger.log(`Mock Jira issue created: ${key}`);
-    return { key, summary: bug.title, description: bug.description || '', priority: bug.priority, status: 'OPEN', labels: bug.tags || [] };
+    const data = await response.json() as any;
+    this.logger.log(`Jira issue created: ${data.key}`);
+    return { key: data.key, summary: bug.title, description: bug.description || '', priority: bug.priority, status: 'OPEN', labels: bug.tags || [] };
   }
 
   private mapPriority(priority?: string): string {

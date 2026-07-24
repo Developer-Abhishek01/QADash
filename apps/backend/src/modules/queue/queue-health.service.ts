@@ -1,6 +1,7 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Queue, Job } from 'bullmq';
+
 import { QUEUES } from './queue.constants';
 
 export interface QueueMetrics {

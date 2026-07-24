@@ -5,13 +5,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export const Button: React.FC<ButtonProps> = ({
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
   variant = 'primary',
   size = 'md',
   className = '',
   children,
   ...props
-}) => {
+}, ref) => {
   const baseStyles = 'inline-flex items-center justify-center font-medium rounded-md transition-colors';
   const variants = {
     primary: 'bg-blue-600 text-white hover:bg-blue-700',
@@ -26,10 +26,14 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
+      ref={ref}
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      aria-disabled={props.disabled ? true : undefined}
       {...props}
     >
       {children}
     </button>
   );
-};
+});
+
+Button.displayName = 'Button';

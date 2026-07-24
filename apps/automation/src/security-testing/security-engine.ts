@@ -1,4 +1,5 @@
 import { Page } from '@playwright/test';
+
 import { Vulnerability, SecurityScanResult, ScanSummary, SecurityConfig } from './types';
 
 export class SecurityEngine {

@@ -1,5 +1,5 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, IsArray } from 'class-validator';
 
 export class UpdateBugDto {
   @ApiPropertyOptional({ example: 'Login page crashes on invalid input (updated)', description: 'Bug title' })

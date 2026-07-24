@@ -1,6 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  Search,
+  CheckCircle,
+  Cancel,
+  Lock,
+  BugReport,
+  Visibility,
+} from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -12,7 +19,7 @@ import {
   TableRow,
   Typography,
   Button,
-  Chip,
+  IconButton,
   Pagination,
   FormControl,
   InputLabel,
@@ -26,25 +33,12 @@ import {
   DialogActions,
   Grid,
 } from '@mui/material';
-import {
-  Search,
-  CheckCircle,
-  Cancel,
-  Lock,
-  BugReport,
-} from '@mui/icons-material';
-import { useVulnerabilities, useUpdateVulnerability } from '@/lib/security/hooks';
+import { useState } from 'react';
+
 import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
-
-const SEVERITY_COLORS: Record<string, string> = {
-  CRITICAL: '#dc2626',
-  HIGH: '#ea580c',
-  MEDIUM: '#ca8a04',
-  LOW: '#65a30d',
-  INFO: '#3b82f6',
-};
-
+import { SeverityChip, VulnDetailDialog } from '@/components/security';
+import { useVulnerabilities, useUpdateVulnerability } from '@/lib/security/hooks';
 
 const STATUS_OPTIONS = [
   { value: 'OPEN', label: 'Open' },
@@ -62,8 +56,10 @@ export default function VulnerabilitiesPage() {
   const [severityFilter, setSeverityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [selectedVuln, setSelectedVuln] = useState<string | null>(null);
+  const [selectedVulnId, setSelectedVulnId] = useState<string | null>(null);
+  const [selectedVulnForDetail, setSelectedVulnForDetail] = useState<any>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [vulnDetailOpen, setVulnDetailOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [reason, setReason] = useState('');
 
@@ -82,20 +78,20 @@ export default function VulnerabilitiesPage() {
   const total = data?.total || 0;
 
   const handleOpenUpdateDialog = (vulnId: string, currentStatus: string) => {
-    setSelectedVuln(vulnId);
+    setSelectedVulnId(vulnId);
     setNewStatus(currentStatus);
     setReason('');
     setUpdateDialogOpen(true);
   };
 
   const handleUpdateStatus = async () => {
-    if (selectedVuln) {
+    if (selectedVulnId) {
       await updateVulnerability.mutateAsync({
-        id: selectedVuln,
+        id: selectedVulnId,
         data: { status: newStatus, reason: reason || undefined },
       });
       setUpdateDialogOpen(false);
-      setSelectedVuln(null);
+      setSelectedVulnId(null);
     }
   };
 
@@ -174,33 +170,20 @@ export default function VulnerabilitiesPage() {
                 <TableCell>OWASP</TableCell>
                 <TableCell>Affected URL</TableCell>
                 <TableCell>Scan</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {vulnerabilities.map((vuln) => (
-                <TableRow
-                  key={vuln.id}
-                  hover
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => handleOpenUpdateDialog(vuln.id, vuln.status)}
-                >
+                <TableRow key={vuln.id} hover>
                   <TableCell>
-                    <Typography variant="body2" fontWeight="medium">
-                      {vuln.title}
-                    </Typography>
+                    <Typography variant="body2" fontWeight="medium">{vuln.title}</Typography>
                     <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 300 }}>
                       {vuln.description.substring(0, 100)}...
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      label={vuln.severity}
-                      size="small"
-                      sx={{
-                        bgcolor: SEVERITY_COLORS[vuln.severity],
-                        color: 'white',
-                      }}
-                    />
+                    <SeverityChip severity={vuln.severity} />
                   </TableCell>
                   <TableCell>
                     <Box display="flex" alignItems="center" gap={0.5}>
@@ -209,24 +192,22 @@ export default function VulnerabilitiesPage() {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
-                      {vuln.cweId || (vuln.cveId ? vuln.cveId : '-')}
-                    </Typography>
+                    <Typography variant="body2">{vuln.cweId || (vuln.cveId ? vuln.cveId : '-')}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
-                      {vuln.owaspCategory?.replace('A0', '').replace('_', ' ') || '-'}
-                    </Typography>
+                    <Typography variant="body2">{vuln.owaspCategory?.replace(/_/g, ' ') || '-'}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
-                      {vuln.affectedUrl || '-'}
-                    </Typography>
+                    <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>{vuln.affectedUrl || '-'}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
-                      {vuln.scan?.name || '-'}
-                    </Typography>
+                    <Typography variant="body2">{vuln.scan?.name || '-'}</Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <IconButton size="small" onClick={() => { setSelectedVulnForDetail(vuln); setVulnDetailOpen(true); }}>
+                      <Visibility />
+                    </IconButton>
+                    <Button size="small" onClick={() => handleOpenUpdateDialog(vuln.id, vuln.status)}>Update</Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -294,6 +275,12 @@ export default function VulnerabilitiesPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <VulnDetailDialog
+        vulnerability={selectedVulnForDetail}
+        open={vulnDetailOpen}
+        onClose={() => { setVulnDetailOpen(false); setSelectedVulnForDetail(null); }}
+      />
     </Box>
   );
 }

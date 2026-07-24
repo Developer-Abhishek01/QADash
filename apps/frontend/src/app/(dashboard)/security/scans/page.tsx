@@ -1,6 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  Add,
+  MoreVert,
+  PlayArrow,
+  Stop,
+  Visibility,
+  Delete,
+  Search,
+} from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -13,7 +21,6 @@ import {
   Typography,
   Button,
   IconButton,
-  Chip,
   Menu,
   MenuItem,
   Pagination,
@@ -28,38 +35,13 @@ import {
   Select,
   LinearProgress,
 } from '@mui/material';
-import {
-  Add,
-  MoreVert,
-  PlayArrow,
-  Stop,
-  Visibility,
-  Delete,
-  Search,
-} from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
-import { useSecurityScans, useStartSecurityScan, useCancelSecurityScan } from '@/lib/security/hooks';
+import { useState } from 'react';
+
 import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#6b7280',
-  QUEUED: '#3b82f6',
-  RUNNING: '#8b5cf6',
-  COMPLETED: '#10b981',
-  FAILED: '#dc2626',
-  CANCELLED: '#6b7280',
-  TIMEOUT: '#f59e0b',
-};
-
-const SCAN_TYPE_LABELS: Record<string, string> = {
-  FULL: 'Full Scan',
-  QUICK: 'Quick Scan',
-  AUTHENTICATION: 'Auth Scan',
-  API: 'API Scan',
-  DEPENDENCY: 'Dependency Scan',
-  CUSTOM: 'Custom',
-};
+import { SecurityStatusChip, ScanTypeChip, FindingBadge } from '@/components/security';
+import { useSecurityScans, useStartSecurityScan, useCancelSecurityScan } from '@/lib/security/hooks';
 
 export default function SecurityScansPage() {
   const router = useRouter();
@@ -184,17 +166,10 @@ export default function SecurityScansPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={SCAN_TYPE_LABELS[scan.scanType] || scan.scanType} size="small" />
+                    <ScanTypeChip type={scan.scanType} />
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      label={scan.status}
-                      size="small"
-                      sx={{
-                        bgcolor: STATUS_COLORS[scan.status] + '20',
-                        color: STATUS_COLORS[scan.status],
-                      }}
-                    />
+                    <SecurityStatusChip status={scan.status} />
                   </TableCell>
                   <TableCell>
                     {scan.status === 'RUNNING' || scan.status === 'QUEUED' ? (
@@ -213,17 +188,12 @@ export default function SecurityScansPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Box display="flex" gap={0.5}>
-                      {scan.criticalCount > 0 && (
-                        <Chip label={`${scan.criticalCount}C`} size="small" sx={{ bgcolor: '#dc2626', color: 'white' }} />
-                      )}
-                      {scan.highCount > 0 && (
-                        <Chip label={`${scan.highCount}H`} size="small" sx={{ bgcolor: '#ea580c', color: 'white' }} />
-                      )}
-                      {scan.mediumCount > 0 && (
-                        <Chip label={`${scan.mediumCount}M`} size="small" sx={{ bgcolor: '#ca8a04', color: 'white' }} />
-                      )}
-                    </Box>
+                    <FindingBadge
+                      critical={scan.criticalCount}
+                      high={scan.highCount}
+                      medium={scan.mediumCount}
+                      low={scan.lowCount}
+                    />
                   </TableCell>
                   <TableCell>
                     {scan.duration ? `${(scan.duration / 1000).toFixed(1)}s` : '-'}

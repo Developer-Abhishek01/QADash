@@ -1,8 +1,9 @@
-import { Module, forwardRef } from '@nestjs/common';
-import { ExecutionsService } from './executions.service';
-import { ExecutionsController } from './executions.controller';
-import { PrismaService } from '../../common/prisma.service';
 import { BullModule } from '@nestjs/bullmq';
+import { Module, forwardRef } from '@nestjs/common';
+
+import { ExecutionsController } from './executions.controller';
+import { ExecutionsService } from './executions.service';
+import { PrismaService } from '../../common/prisma.service';
 import { GatewayModule } from '../gateway/gateway.module';
 
 @Module({

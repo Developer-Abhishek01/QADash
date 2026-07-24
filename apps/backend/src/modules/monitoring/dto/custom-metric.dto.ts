@@ -1,5 +1,5 @@
-import { IsString, IsNumber, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsNumber, IsOptional } from 'class-validator';
 
 export class CustomMetricDto {
   @ApiProperty({ example: 'response_time', description: 'Metric name' })

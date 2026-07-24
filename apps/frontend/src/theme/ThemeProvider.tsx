@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { ThemeProvider as MUIThemeProvider, CssBaseline } from '@mui/material';
-import { lightTheme, darkTheme } from './index';
+import { useEffect, useState } from 'react';
+
 import { useAppSelector } from '@/lib/hooks/useRedux';
+
+import { lightTheme, darkTheme } from './index';
+
 
 interface ThemeProviderProps {
   children: React.ReactNode;

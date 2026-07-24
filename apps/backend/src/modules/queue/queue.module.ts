@@ -1,15 +1,16 @@
-import { Module } from '@nestjs/common';
-import { QueueService } from './queue.service';
-import { QueueController } from './queue.controller';
-import { QueueHealthService } from './queue-health.service';
 import { BullModule } from '@nestjs/bullmq';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ReportProcessor } from './processors/report.processor';
+
 import { AiProcessor } from './processors/ai.processor';
-import { NotificationProcessor } from './processors/notification.processor';
 import { ExecutionProcessor } from './processors/execution.processor';
-import { PrismaService } from '../../common/prisma.service';
+import { NotificationProcessor } from './processors/notification.processor';
+import { ReportProcessor } from './processors/report.processor';
+import { QueueHealthService } from './queue-health.service';
 import { QUEUES } from './queue.constants';
+import { QueueController } from './queue.controller';
+import { QueueService } from './queue.service';
+import { PrismaService } from '../../common/prisma.service';
 import { ExecutionsModule } from '../executions/executions.module';
 
 @Module({

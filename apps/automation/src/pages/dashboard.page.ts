@@ -1,4 +1,5 @@
 import { Page } from '@playwright/test';
+
 import { BasePage } from './base.page';
 import { DashboardPageLocators } from '../locators/common.locators';
 

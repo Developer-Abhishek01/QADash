@@ -1,6 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Email as EmailIcon,
+  Lock as LockIcon,
+  Visibility,
+  VisibilityOff,
+} from '@mui/icons-material';
 import {
   Box,
   Card,
@@ -13,15 +19,10 @@ import {
   InputAdornment,
   IconButton,
 } from '@mui/material';
-import {
-  Email as EmailIcon,
-  Lock as LockIcon,
-  Visibility,
-  VisibilityOff,
-} from '@mui/icons-material';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { useAuth } from '@/lib/auth/AuthContext';
 
 const loginSchema = z.object({
@@ -80,10 +81,6 @@ export default function LoginPage() {
           </Box>
 
           {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
-          <Alert severity="info" sx={{ mb: 3 }}>
-            Demo: admin@example.com / password123
-          </Alert>
 
           <form onSubmit={handleSubmit(onSubmit)}>
             <TextField

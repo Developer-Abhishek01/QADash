@@ -1,8 +1,10 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { AiJobData } from '../queue.service';
+import { ConfigService } from '@nestjs/config';
+import { Job } from 'bullmq';
+
 import { PrismaService } from '../../../common/prisma.service';
+import { AiJobData } from '../queue.service';
 
 @Processor('ai', {
   concurrency: 2,
@@ -10,33 +12,48 @@ import { PrismaService } from '../../../common/prisma.service';
 })
 export class AiProcessor extends WorkerHost {
   private readonly logger = new Logger(AiProcessor.name);
+  private readonly aiEngineUrl: string;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {
     super();
+    this.aiEngineUrl = this.configService.get<string>('AI_ENGINE_URL', 'http://localhost:8002');
   }
 
   async process(job: Job<AiJobData>): Promise<any> {
     const { jobId, type, projectId, payload } = job.data;
-
     this.logger.log(`Processing AI job ${jobId} type: ${type}`);
 
     let result: any;
-
     switch (type) {
       case 'ANALYZE_TEST':
-        result = await this.analyzeTest(payload);
+        result = await this.callAiEngine('/api/ai/analyze-test', payload);
         break;
       case 'GENERATE_TESTS':
-        result = await this.generateTests(payload);
+        result = await this.callAiEngine('/api/ai/generate-tests', payload);
         break;
       case 'ANALYZE_EXECUTION':
-        result = await this.analyzeExecution(payload);
+        result = await this.callAiEngine('/api/ai/analyze-execution', payload);
         break;
       case 'SUGGEST_FIXES':
-        result = await this.suggestFixes(payload);
+        result = await this.callAiEngine('/api/ai/suggest-fixes', payload);
         break;
       case 'GET_INSIGHTS':
-        result = await this.getInsights(projectId);
+        result = await this.callAiEngine(`/api/ai/insights/${projectId}`, {}, 'GET');
+        break;
+      case 'PIPELINE_NLP_TO_TEST':
+        result = await this.callAiEngine('/api/ai/pipeline/nlp-to-test', payload);
+        break;
+      case 'PIPELINE_EXCEL_TO_TESTS':
+        result = await this.callAiEngine('/api/ai/pipeline/excel-to-tests', payload);
+        break;
+      case 'VALIDATE_TEST_CASE':
+        result = await this.callAiEngine('/api/ai/validate/test-case', payload);
+        break;
+      case 'GENERATE_CODE':
+        result = await this.callAiEngine('/api/ai/generate-code', payload);
         break;
       default:
         throw new Error(`Unknown AI job type: ${type}`);
@@ -46,70 +63,20 @@ export class AiProcessor extends WorkerHost {
     return result;
   }
 
-  private async analyzeTest(payload: any) {
-    await this.simulateProcessing(1500);
-    return {
-      suggestions: ['Add more edge case tests', 'Use data-driven approach', 'Add explicit assertions'],
-      complexity: 'medium',
-      coverage: 72,
-      patterns: ['Page Object Model', 'Factory Pattern'],
+  private async callAiEngine(path: string, payload: any, method: string = 'POST'): Promise<any> {
+    const url = `${this.aiEngineUrl}${path}`;
+    const options: RequestInit = {
+      method,
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': 'qadash-ai-dev-key' },
     };
-  }
-
-  private async generateTests(payload: any) {
-    await this.simulateProcessing(2000);
-    return {
-      testCases: [
-        { name: 'Verify login with valid credentials', priority: 'high', type: 'positive' },
-        { name: 'Verify login with invalid password', priority: 'high', type: 'negative' },
-        { name: 'Verify password reset flow', priority: 'medium', type: 'positive' },
-        { name: 'Verify session timeout', priority: 'medium', type: 'negative' },
-      ],
-    };
-  }
-
-  private async analyzeExecution(payload: any) {
-    await this.simulateProcessing(1000);
-    const execution = await this.prisma.execution.findUnique({ where: { id: payload.executionId } });
-    return {
-      insights: execution?.failedTests ? [`${execution.failedTests} tests failed`, 'Timing issues detected'] : ['All tests passed'],
-      recommendations: ['Add explicit waits', 'Use retry mechanism for flaky tests'],
-      trends: { passRate: 85, trend: 'stable' },
-    };
-  }
-
-  private async suggestFixes(payload: any) {
-    await this.simulateProcessing(800);
-    return {
-      possibleCauses: ['Element not visible', 'Race condition', 'Timing issue'],
-      fixes: [
-        { action: 'Add explicit wait for element', confidence: 85 },
-        { action: 'Increase timeout', confidence: 70 },
-        { action: 'Use retry decorator', confidence: 65 },
-      ],
-    };
-  }
-
-  private async getInsights(projectId: string) {
-    const [tests, executions, bugs] = await Promise.all([
-      this.prisma.test.count({ where: { projectId } }),
-      this.prisma.execution.findMany({ where: { projectId } }),
-      this.prisma.bug.count({ where: { projectId, status: { not: 'CLOSED' } } }),
-    ]);
-
-    const failed = executions.filter(e => e.status === 'FAILED').length;
-    const total = executions.length;
-
-    return {
-      health: total > 0 ? Math.round(((total - failed) / total) * 100) : 100,
-      testCoverage: Math.min(100, tests * 8),
-      openBugs: bugs,
-      recommendations: ['Add more integration tests', 'Fix flaky tests', 'Increase test data variety'],
-    };
-  }
-
-  private async simulateProcessing(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    if (method === 'POST') {
+      options.body = JSON.stringify(payload);
+    }
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`AI Engine ${path} failed: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
   }
 
   @OnWorkerEvent('completed')

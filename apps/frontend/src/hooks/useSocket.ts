@@ -1,8 +1,8 @@
 'use client';
 
+import { useSnackbar } from 'notistack';
 import { useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { useSnackbar } from 'notistack';
 
 interface UseSocketOptions {
   url?: string;
@@ -44,7 +44,9 @@ export function useSocket(options: UseSocketOptions = {}) {
     });
 
     socketRef.current.on('connect', () => {
-      console.log('Socket connected');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[WS] Socket connected');
+      }
       onConnect?.();
 
       if (userId) {
@@ -53,7 +55,9 @@ export function useSocket(options: UseSocketOptions = {}) {
     });
 
     socketRef.current.on('disconnect', () => {
-      console.log('Socket disconnected');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[WS] Socket disconnected');
+      }
       onDisconnect?.();
     });
 
@@ -75,7 +79,9 @@ export function useSocket(options: UseSocketOptions = {}) {
     });
 
     socketRef.current.on('error', (error) => {
-      console.error('Socket error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[WS] Socket error:', error);
+      }
       enqueueSnackbar('Connection error', { variant: 'error' });
     });
   }, [url, userId, onConnect, onDisconnect, onExecutionUpdate, onJobUpdate, onAlert, onAnalyticsUpdate, enqueueSnackbar]);

@@ -1,13 +1,14 @@
 import { Controller, Get, Post, Body, Param, Query, Res, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
-import { MobileService, MobileTestConfig } from './mobile.service';
+
 import { DeviceManagementService } from './device-management.service';
-import { MobileReportService } from './mobile-report.service';
-import { UploadAppDto } from './dto/upload-app.dto';
-import { RunMobileTestsDto } from './dto/run-mobile-tests.dto';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { ReserveDeviceDto } from './dto/reserve-device.dto';
+import { RunMobileTestsDto } from './dto/run-mobile-tests.dto';
+import { UploadAppDto } from './dto/upload-app.dto';
+import { MobileReportService } from './mobile-report.service';
+import { MobileService, MobileTestConfig } from './mobile.service';
 
 @ApiTags('mobile')
 @Controller('mobile')

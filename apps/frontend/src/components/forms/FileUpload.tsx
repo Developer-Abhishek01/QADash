@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Box, Typography, IconButton, LinearProgress } from '@mui/material';
 import { CloudUpload, InsertDriveFile, Delete } from '@mui/icons-material';
+import { Box, Typography, IconButton, LinearProgress } from '@mui/material';
+import { useState, useRef } from 'react';
 
 interface FileUploadProps {
   accept?: string;

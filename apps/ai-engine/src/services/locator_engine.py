@@ -116,8 +116,51 @@ class LocatorEngine:
         }
 
     def _simulate_locator_test(self, locator: Dict, page_snapshot: Dict) -> bool:
-        """Simulate locator testing (in production, would use actual browser)"""
-        return len(locator.get('value', '')) > 5
+        """Test locator against page snapshot DOM elements"""
+        elements = page_snapshot.get('elements', page_snapshot.get('dom', []))
+        if not elements:
+            logger.warning("Page snapshot has no elements to test against")
+            return False
+
+        locator_value = locator.get('value', '')
+        locator_type = locator.get('type', '')
+        strategy = locator.get('strategy', '')
+
+        if strategy in ('data_testid', 'data_cy', 'id'):
+            attr_name = {'data_testid': 'data-testid', 'data_cy': 'data-cy', 'id': 'id'}.get(strategy, strategy)
+            selector_val = locator_value.strip('[]#')
+            for el in elements:
+                attrs = el.get('attributes', {})
+                if attrs.get(attr_name) == selector_val:
+                    return True
+            return False
+
+        if strategy == 'aria_label':
+            target_label = locator_value.split("'")[1] if "'" in locator_value else locator_value
+            for el in elements:
+                attrs = el.get('attributes', {})
+                if target_label.lower() in attrs.get('aria-label', '').lower():
+                    return True
+            return False
+
+        if locator_type == 'xpath' and 'text()' in locator_value:
+            target_text = locator_value.split("'")[1] if "'" in locator_value else ''
+            for el in elements:
+                if target_text.lower() in el.get('text', '').lower():
+                    return True
+            return False
+
+        if locator_type == 'css':
+            selector_val = locator_value.strip('[]#')
+            for el in elements:
+                attrs = el.get('attributes', {})
+                tag = el.get('tag', '')
+                combined = f"{tag}#{attrs.get('id', '')} {'.'.join(attrs.get('class', '').split())}"
+                if selector_val in combined:
+                    return True
+            return False
+
+        return len(locator_value) > 5
 
     def _generate_suggestion(self, locator: Dict, found: bool) -> str:
         """Generate improvement suggestion"""
