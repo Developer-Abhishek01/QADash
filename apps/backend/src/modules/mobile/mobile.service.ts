@@ -93,23 +93,23 @@ export class MobileService {
     return { executionId: execution.id };
   }
 
-  async getExecutionStatus(executionId: string): Promise<any> {
+  async getExecutionStatus(executionId: string): Promise<unknown> {
     return this.execution.getExecutionStatus(executionId);
   }
 
-  async getDeviceList(platform?: string): Promise<any[]> {
+  async getDeviceList(platform?: string): Promise<unknown[]> {
     return this.deviceManager.getDevices(platform as 'android' | 'ios' | undefined);
   }
 
-  async getAvailableDevices(platform: 'android' | 'ios', osVersion?: string): Promise<any[]> {
+  async getAvailableDevices(platform: 'android' | 'ios', osVersion?: string): Promise<unknown[]> {
     return this.deviceManager.getAvailableDevices(platform, osVersion);
   }
 
-  async getDevicesByProject(projectId: string): Promise<any[]> {
+  async getDevicesByProject(projectId: string): Promise<unknown[]> {
     return this.deviceManager.getDevicesByProject(projectId);
   }
 
-  async registerDevice(data: any): Promise<{ deviceId: string }> {
+  async registerDevice(data: { name: string; platform: 'android' | 'ios'; type: 'emulator' | 'real'; osVersion: string; manufacturer?: string; model?: string; udid?: string; host?: string; port?: number }): Promise<{ deviceId: string }> {
     return this.deviceManager.registerDevice(data);
   }
 
@@ -121,7 +121,7 @@ export class MobileService {
     return this.deviceManager.releaseDevice(deviceId);
   }
 
-  async getTestReports(executionId: string): Promise<any> {
+  async getTestReports(executionId: string): Promise<unknown> {
     return this.reportService.getReport(executionId);
   }
 }

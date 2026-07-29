@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../../common/prisma.service';
@@ -41,7 +42,7 @@ export class UsersService {
         email: data.email,
         password: hashedPassword,
         name: data.name,
-        role: (data.role as any) || 'VIEWER',
+        role: (data.role as UserRole) || UserRole.VIEWER,
       },
     });
   }
@@ -51,7 +52,7 @@ export class UsersService {
       where: { id },
       data: {
         ...data,
-        role: data.role as any,
+        role: data.role as UserRole,
       },
     });
   }

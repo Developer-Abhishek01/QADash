@@ -15,7 +15,7 @@ export class AiService {
     this.provider = this.configService.get('AI_PROVIDER') || 'rule-based';
   }
 
-  private async callAi(prompt: string): Promise<any> {
+  private async callAi(prompt: string): Promise<unknown> {
     if (this.provider !== 'openai') {
       this.logger.warn(`AI_PROVIDER is '${this.provider}', not 'openai'. Returning rule-based result.`);
       return null;
@@ -89,7 +89,7 @@ export class AiService {
       health: totalExecutions ? Math.round(((totalExecutions - failedExecutions) / totalExecutions) * 100) : 100,
       testCoverage: tests > 0 ? Math.min(100, tests * 10) : 0,
       openBugs: bugs,
-      recommendations: aiResult?.recommendations || [],
+      recommendations: (aiResult as { recommendations?: string[] } | null)?.recommendations || [],
     };
   }
 }

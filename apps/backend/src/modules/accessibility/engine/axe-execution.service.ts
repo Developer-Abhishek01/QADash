@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AccessibilitySeverity } from '@prisma/client';
 import axios from 'axios';
 
 import { PrismaService } from '../../../common/prisma.service';
@@ -9,7 +10,7 @@ interface AccessibilityTest {
   name: string;
   urls: string[];
   wcagLevel: string;
-  config: any;
+  config: Record<string, unknown>;
   environment: { baseUrl: string };
   project: { id: string; name: string };
 }
@@ -273,7 +274,7 @@ export class AxeExecutionService {
         data: {
           testId,
           ruleId: issue.ruleId as string,
-          impact: issue.impact as any,
+           impact: issue.impact as AccessibilitySeverity,
           category: issue.category as string,
           description: issue.description as string,
           help: issue.help as string,

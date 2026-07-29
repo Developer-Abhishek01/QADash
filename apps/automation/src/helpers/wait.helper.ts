@@ -48,7 +48,7 @@ export class WaitHelper {
     await this.page.waitForLoadState('networkidle', { timeout });
   }
 
-  async forFunction<T>(func: string | (() => T | Promise<T>), arg?: any, timeout = this.defaultTimeout): Promise<any> {
+  async forFunction<T>(func: string | (() => T | Promise<T>), arg?: unknown, timeout = this.defaultTimeout): Promise<unknown> {
     return this.page.waitForFunction(func, arg, { timeout });
   }
 

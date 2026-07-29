@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import { UserRole } from '@prisma/client';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 import { PrismaService } from '../../common/prisma.service';
@@ -32,7 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const { password, ...result } = user;
-    const permissions = ROLE_PERMISSIONS[user.role as any] || [];
+    const permissions = ROLE_PERMISSIONS[user.role as UserRole] || [];
 
     return { ...result, permissions };
   }

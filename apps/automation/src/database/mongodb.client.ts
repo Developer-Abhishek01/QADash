@@ -1,14 +1,16 @@
+import type { MongoClient as MongoClientType, Db } from 'mongodb';
+
 import { DatabaseClient, DatabaseConfig, QueryResult, FieldInfo } from './connection-manager';
 import { Logger } from '../utils/logger';
 
 interface MongoDocument {
-  _id?: any;
-  [key: string]: any;
+  _id?: unknown;
+  [key: string]: unknown;
 }
 
 export class MongoClient extends DatabaseClient {
-  private client: any = null;
-  private db: any = null;
+  private client: MongoClientType | null = null;
+  private db: Db | null = null;
 
   constructor(config: DatabaseConfig, logger?: Logger) {
     super(config, logger);
@@ -52,7 +54,7 @@ export class MongoClient extends DatabaseClient {
   }
 
   async beginTransaction(): Promise<{ commit(): Promise<void>; rollback(): Promise<void> }> {
-    const session = this.client.startSession();
+    const session = this.client!.startSession();
     session.startTransaction();
 
     return {
@@ -68,7 +70,7 @@ export class MongoClient extends DatabaseClient {
   }
 
   async getSchema(): Promise<string[]> {
-    return this.db.listCollections().toArray().then((cols: any) => cols.map((c: any) => c.name));
+    return this.db!.listCollections().toArray().then(cols => cols.map(c => c.name));
   }
 
   async getTables(): Promise<string[]> {
@@ -76,7 +78,7 @@ export class MongoClient extends DatabaseClient {
   }
 
   async getColumns(collection: string): Promise<FieldInfo[]> {
-    const sample = await this.db.collection(collection).findOne({});
+    const sample = await this.db!.collection(collection).findOne({});
     if (!sample) return [];
 
     const sampleDoc = sample as MongoDocument;
@@ -101,14 +103,14 @@ export class MongoClient extends DatabaseClient {
     options?: { limit?: number; skip?: number; sort?: Record<string, 1 | -1>; projection?: Record<string, 0 | 1> }
   ): Promise<QueryResult<T>> {
     const startTime = Date.now();
-    const cursor = this.db.collection(collection).find(filter, options);
+    const cursor = this.db!.collection(collection).find(filter, options);
 
     if (options?.sort) cursor.sort(options.sort);
     if (options?.skip) cursor.skip(options.skip);
     if (options?.limit) cursor.limit(options.limit);
 
     const rows = await cursor.toArray();
-    const count = await this.db.collection(collection).countDocuments(filter);
+    const count = await this.db!.collection(collection).countDocuments(filter);
 
     return {
       rows: rows as T[],
@@ -118,47 +120,47 @@ export class MongoClient extends DatabaseClient {
   }
 
   async findOne<T = MongoDocument>(collection: string, filter: Record<string, unknown>): Promise<T | null> {
-    return this.db.collection(collection).findOne(filter);
+    return this.db!.collection(collection).findOne(filter) as Promise<T | null>;
   }
 
   async insert<T = MongoDocument>(collection: string, document: T): Promise<string> {
-    const result = await this.db.collection(collection).insertOne(document);
+    const result = await this.db!.collection(collection).insertOne(document as unknown as import('mongodb').OptionalId<import('mongodb').Document>);
     return result.insertedId.toString();
   }
 
   async insertMany<T = MongoDocument>(collection: string, documents: T[]): Promise<string[]> {
-    const result = await this.db.collection(collection).insertMany(documents);
-    return Object.values(result.insertedIds).map((id: any) => id.toString());
+    const result = await this.db!.collection(collection).insertMany(documents as unknown as import('mongodb').OptionalId<import('mongodb').Document>[]);
+    return Object.values(result.insertedIds).map((id: unknown) => String(id));
   }
 
   async updateOne(collection: string, filter: Record<string, unknown>, update: Record<string, unknown>): Promise<number> {
-    const result = await this.db.collection(collection).updateOne(filter, update);
+    const result = await this.db!.collection(collection).updateOne(filter, update);
     return result.modifiedCount;
   }
 
   async updateMany(collection: string, filter: Record<string, unknown>, update: Record<string, unknown>): Promise<number> {
-    const result = await this.db.collection(collection).updateMany(filter, update);
+    const result = await this.db!.collection(collection).updateMany(filter, update);
     return result.modifiedCount;
   }
 
   async upsert(collection: string, filter: Record<string, unknown>, update: Record<string, unknown>): Promise<number> {
-    const result = await this.db.collection(collection).updateOne(filter, update, { upsert: true });
+    const result = await this.db!.collection(collection).updateOne(filter, update, { upsert: true });
     return result.modifiedCount || result.upsertedCount || 0;
   }
 
   async deleteOne(collection: string, filter: Record<string, unknown>): Promise<number> {
-    const result = await this.db.collection(collection).deleteOne(filter);
+    const result = await this.db!.collection(collection).deleteOne(filter);
     return result.deletedCount;
   }
 
   async deleteMany(collection: string, filter: Record<string, unknown>): Promise<number> {
-    const result = await this.db.collection(collection).deleteMany(filter);
+    const result = await this.db!.collection(collection).deleteMany(filter);
     return result.deletedCount;
   }
 
-  async aggregate<T = MongoDocument>(collection: string, pipeline: any[]): Promise<QueryResult<T>> {
+  async aggregate<T = MongoDocument>(collection: string, pipeline: Record<string, unknown>[]): Promise<QueryResult<T>> {
     const startTime = Date.now();
-    const rows = await this.db.collection(collection).aggregate(pipeline).toArray();
+    const rows = await this.db!.collection(collection).aggregate(pipeline).toArray();
     
     return {
       rows: rows as T[],
@@ -168,10 +170,10 @@ export class MongoClient extends DatabaseClient {
   }
 
   async count(collection: string, filter: Record<string, unknown> = {}): Promise<number> {
-    return this.db.collection(collection).countDocuments(filter);
+    return this.db!.collection(collection).countDocuments(filter);
   }
 
   async distinct<T = unknown>(collection: string, field: string, filter: Record<string, unknown> = {}): Promise<T[]> {
-    return this.db.collection(collection).distinct(field, filter);
+    return this.db!.collection(collection).distinct(field, filter);
   }
 }

@@ -33,6 +33,23 @@ import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
 import { importApi } from '@/lib/api/client';
 
+interface ImportData {
+  id: string;
+  name: string;
+  schema: { name: string; type: string; nullable: boolean }[];
+  mappings: MappingItem[];
+  totalRows: number;
+  fileType: string;
+}
+
+interface MappingItem {
+  sourceField: string;
+  targetField: string;
+  fieldType: string;
+  isRequired: boolean;
+  defaultValue?: string;
+  transformer?: string;
+}
 
 const FIELD_TYPES = [
   { value: 'string', label: 'Text' },
@@ -71,18 +88,18 @@ export default function ImportMappingPage() {
     defaultValue: string;
     transformer: string;
   }>>({});
-  const [importData, setImportData] = useState<any>(null);
-  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [importData, setImportData] = useState<ImportData | null>(null);
+  const [previewData, setPreviewData] = useState<Record<string, unknown>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const data = await importApi.get(importId);
+      const data = await importApi.get(importId) as ImportData;
       setImportData(data);
       
-      const preview = await importApi.getPreview(importId, 0, 10);
+      const preview = await importApi.getPreview(importId, 0, 10) as Record<string, unknown>[];
       setPreviewData(preview);
     } catch (error) {
       console.error('Failed to fetch import data:', error);
@@ -106,8 +123,14 @@ export default function ImportMappingPage() {
   const existingMappings = importData.mappings || [];
 
   if (Object.keys(mappings).length === 0 && existingMappings.length > 0) {
-    const initialMappings: Record<string, any> = {};
-    existingMappings.forEach((m: any) => {
+    const initialMappings: Record<string, {
+      targetField: string;
+      fieldType: string;
+      isRequired: boolean;
+      defaultValue: string;
+      transformer: string;
+    }> = {};
+    existingMappings.forEach((m: MappingItem) => {
       initialMappings[m.sourceField] = {
         targetField: m.targetField,
         fieldType: m.fieldType,
@@ -120,7 +143,13 @@ export default function ImportMappingPage() {
   }
 
   if (Object.keys(mappings).length === 0 && schema.length > 0) {
-    const auto: Record<string, any> = {};
+    const auto: Record<string, {
+      targetField: string;
+      fieldType: string;
+      isRequired: boolean;
+      defaultValue: string;
+      transformer: string;
+    }> = {};
     schema.forEach((field) => {
       auto[field.name] = {
         targetField: field.name,

@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import type { Request as ExpressRequest } from 'express';
 
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -15,8 +16,8 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Get()
-  findAll(@Request() req: any, @Query('userId') userId?: string) {
-    return this.projectsService.findAll(userId || req.user?.id);
+  findAll(@Request() req: ExpressRequest, @Query('userId') userId?: string) {
+    return this.projectsService.findAll(userId || (req.user as { id: string })?.id);
   }
 
   @Get(':id')

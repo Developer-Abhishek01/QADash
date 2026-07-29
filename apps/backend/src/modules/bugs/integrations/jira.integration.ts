@@ -31,7 +31,7 @@ export class JiraIntegration {
     };
   }
 
-  async createIssue(bug: any): Promise<JiraIssue> {
+  async createIssue(bug: Record<string, unknown>): Promise<JiraIssue> {
     if (!this.config.baseUrl) {
       throw new Error('Jira not configured: Set JIRA_URL, JIRA_EMAIL, JIRA_TOKEN, and JIRA_PROJECT_KEY env vars');
     }
@@ -55,7 +55,7 @@ export class JiraIntegration {
             }],
           },
           issuetype: { name: 'Bug' },
-          priority: { name: this.mapPriority(bug.priority) },
+          priority: { name: this.mapPriority(bug.priority as string) },
           labels: bug.tags || [],
         },
       }),
@@ -65,9 +65,9 @@ export class JiraIntegration {
       throw new Error(`Jira API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as { key: string; fields?: { status?: { name: string } } };
     this.logger.log(`Jira issue created: ${data.key}`);
-    return { key: data.key, summary: bug.title, description: bug.description || '', priority: bug.priority, status: 'OPEN', labels: bug.tags || [] };
+    return { key: data.key, summary: bug.title as string, description: (bug.description as string) || '', priority: bug.priority as string, status: 'OPEN', labels: (bug.tags as string[]) || [] };
   }
 
   private mapPriority(priority?: string): string {
@@ -84,7 +84,7 @@ export class JiraIntegration {
           'Authorization': `Basic ${Buffer.from(`${this.config.email}:${this.config.apiToken}`).toString('base64')}`,
         },
       });
-      const data = await response.json() as any;
+const data = await response.json() as { key: string; fields?: { status?: { name: string } } };
       return data.fields?.status?.name || 'OPEN';
     } catch {
       return 'OPEN';

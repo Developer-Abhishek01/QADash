@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { chromium, Browser, BrowserContext } from '@playwright/test';
+import { chromium, Browser, BrowserContext, Page } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '@qadash/logger';
 import { Worker, Job, WorkerOptions } from 'bullmq';
@@ -145,8 +145,8 @@ export class TestWorker extends Worker<TestJobData> {
       const test = await this.prisma.test.findUnique({ where: { id: testId } });
       if (!test) throw new Error(`Test ${testId} not found`);
 
-      const testConfig = test.config as any;
-      const targetUrl = testConfig?.url;
+      const testConfig = test.config as unknown as Record<string, unknown>;
+      const targetUrl = testConfig?.url as string | undefined;
 
       // Setup paths for static uploads — use env var, fall back to backend uploads
       const uploadsDir = process.env.UPLOADS_DIR || path.resolve(__dirname, '..', '..', '..', 'backend', 'uploads');
@@ -181,9 +181,10 @@ export class TestWorker extends Worker<TestJobData> {
       
       logger.info(`Running test ${test.name} against ${targetUrl || '(no URL set, using step navigation)'}`);
       
-      const steps = (testConfig?.steps || (test as any).steps || []).map((s: any) => ({
+      const testRecord = test as unknown as Record<string, unknown>;
+      const steps: Record<string, unknown>[] = ((testConfig?.steps as Record<string, unknown>[] | undefined) || (testRecord.steps as Record<string, unknown>[] | undefined) || []).map((s: Record<string, unknown>) => ({
         ...s,
-        type: s.type || s.action,
+        type: (s.type ?? s.action) as string,
       }));
       let title = '';
 
@@ -240,17 +241,17 @@ export class TestWorker extends Worker<TestJobData> {
         await script.runInContext(sandbox, { timeout: 30000, breakOnSigint: true });
         title = await page.title();
       } else if (steps && Array.isArray(steps) && steps.length > 0) {
-        logger.info(`Executing ${steps.length} steps for test ${test.name}`);
-        if (steps[0].type !== 'navigate' || !steps[0].url) {
+        logger.info(`Executing ${steps.length} steps for test ${test.name as string}`);
+        if (steps[0].type !== 'navigate' || !(steps[0].url as string)) {
           const url = targetUrl || 'about:blank';
           logger.info(`Navigating to ${url}...`);
-          await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+          await page.goto(url as string, { waitUntil: 'networkidle', timeout: 30000 });
         }
         await this.executeSteps(steps, page);
         title = await page.title();
       } else if (targetUrl) {
         logger.info(`Navigating to target URL: ${targetUrl}`);
-        await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 });
+        await page.goto(targetUrl as string, { waitUntil: 'networkidle', timeout: 30000 });
         title = await page.title();
       } else {
         const specResult = await this.runPlaywrightSpec(test, testId, startTime);
@@ -349,17 +350,17 @@ export class TestWorker extends Worker<TestJobData> {
   }
 
   private async runPlaywrightSpec(
-    test: any,
+    test: Record<string, unknown>,
     testId: string,
     startTime: number,
   ): Promise<{ passed: boolean; duration: number; logs?: string; error?: string; screenshotUrl?: string; videoUrl?: string } | null> {
-    const testConfig = (test.config || {}) as any;
-    let matchedSpec = test.specFile || testConfig.specFile || '';
+    const testConfig = (test.config ?? {}) as unknown as Record<string, unknown>;
+    let matchedSpec: string | undefined = (test.specFile as string) || (testConfig.specFile as string) || '';
     if (matchedSpec) {
       matchedSpec = path.basename(matchedSpec);
     }
     if (!matchedSpec) {
-      const specName = test.name?.toLowerCase().replace(/\s+/g, '-') || '';
+      const specName = ((test.name as string) ?? '').toLowerCase().replace(/\s+/g, '-') || '';
       const specDir = path.resolve(__dirname, '..', 'tests');
       if (!fs.existsSync(specDir)) return null;
 
@@ -367,7 +368,7 @@ export class TestWorker extends Worker<TestJobData> {
       matchedSpec = specFiles.find((f: string) => {
         const baseName = path.basename(f).replace(/\.spec\.[tj]s$/, '');
         return specName.includes(baseName) || baseName.includes(specName);
-      });
+      }) as string | undefined;
       if (!matchedSpec) return null;
     }
 
@@ -387,8 +388,8 @@ export class TestWorker extends Worker<TestJobData> {
           stdio: 'pipe',
         },
       );
-    } catch (e: any) {
-      logger.warn(`Playwright spec exit code non-zero: ${(e.stderr?.toString() || '').substring(0, 200)}`);
+    } catch (e: unknown) {
+      logger.warn(`Playwright spec exit code non-zero: ${((e as { stderr?: Buffer | string }).stderr?.toString() ?? '').substring(0, 200)}`);
     }
 
     const uploadsDir = process.env.UPLOADS_DIR || path.resolve(automationDir, '..', 'backend', 'uploads');
@@ -410,13 +411,13 @@ export class TestWorker extends Worker<TestJobData> {
       if (fs.existsSync(reportFile)) {
         try {
           const reportData = JSON.parse(fs.readFileSync(reportFile, 'utf-8'));
-          const allTests = this.flattenTests(reportData.suites || reportData);
-          const failedTests = allTests.filter((t: any) => t.status === 'failed' || t.status === 'timedOut');
-          const passedTests = allTests.filter((t: any) => t.status === 'passed' || t.status === 'expected');
+          const allTests = this.flattenTests(reportData.suites || reportData) as Record<string, unknown>[];
+          const failedTests = allTests.filter((t) => (t as Record<string, unknown>).status === 'failed' || (t as Record<string, unknown>).status === 'timedOut');
+          const passedTests = allTests.filter((t) => (t as Record<string, unknown>).status === 'passed' || (t as Record<string, unknown>).status === 'expected');
           testPassed = failedTests.length === 0 && passedTests.length > 0;
           testLogs = `${passedTests.length} passed, ${failedTests.length} failed`;
           if (failedTests.length > 0) {
-            testError = failedTests.map((t: any) => t.errors?.map((e: any) => e.message).join('; ')).join('; ');
+            testError = failedTests.map((t) => ((t as Record<string, unknown>).errors as unknown as Array<Record<string, unknown>>)?.map((e) => (e as Record<string, unknown>).message as string).join('; ')).join('; ');
           }
         } catch { }
       }
@@ -474,17 +475,20 @@ export class TestWorker extends Worker<TestJobData> {
     return results;
   }
 
-  private flattenTests(suite: any): any[] {
-    const tests: any[] = [];
-    if (suite.suites) for (const s of suite.suites) tests.push(...this.flattenTests(s));
-    if (suite.specs) for (const s of suite.specs) tests.push(...(s.tests || [s]));
-    if (suite.tests) tests.push(...suite.tests);
+  private flattenTests(suite: Record<string, unknown>): unknown[] {
+    const tests: unknown[] = [];
+    const suites = suite.suites as Record<string, unknown>[] | undefined;
+    const specs = suite.specs as Record<string, unknown>[] | undefined;
+    const suiteTests = suite.tests as unknown[] | undefined;
+    if (suites) for (const s of suites) tests.push(...this.flattenTests(s));
+    if (specs) for (const s of specs) tests.push(...((s.tests as unknown[]) || [s]));
+    if (suiteTests) tests.push(...suiteTests);
     return tests;
   }
 
-  private async executeSteps(steps: any[], page: any) {
+  private async executeSteps(steps: Record<string, unknown>[], page: Page) {
     for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
+      const step = steps[i] as { type?: string; url?: string; selector?: string; value?: string; waitFor?: string; ms?: number };
       switch (step.type) {
         case 'navigate':
           if (step.url) {
@@ -492,17 +496,17 @@ export class TestWorker extends Worker<TestJobData> {
           }
           break;
         case 'click':
-          await page.click(step.selector);
+          await page.click(step.selector!);
           break;
         case 'type':
-          await page.fill(step.selector, step.value);
+          await page.fill(step.selector!, step.value!);
           break;
         case 'select':
-          await page.selectOption(step.selector, step.value);
+          await page.selectOption(step.selector!, step.value!);
           break;
         case 'assert':
           {
-            const actual = await page.textContent(step.selector);
+            const actual = await page.textContent(step.selector!);
             if (actual?.trim() !== step.value) {
               throw new Error(`Assertion failed on "${step.selector}": expected "${step.value}", got "${actual?.trim()}"`);
             }
@@ -510,7 +514,7 @@ export class TestWorker extends Worker<TestJobData> {
           break;
         case 'wait':
           if (step.waitFor) {
-            await page.waitForLoadState(step.waitFor, { timeout: step.ms || 30000 });
+            await page.waitForLoadState(step.waitFor as 'load' | 'domcontentloaded' | 'networkidle', { timeout: step.ms || 30000 });
           } else {
             await page.waitForTimeout(step.ms || 1000);
           }

@@ -84,39 +84,37 @@ class ApiClient {
     }
   }
 
-  private unwrap<T>(response: any): T {
+  private unwrap<T>(response: unknown): T {
     if (response && typeof response === 'object' && 'success' in response && 'data' in response) {
-      return response.data as T;
+      return (response as { data: T }).data;
     }
     return response as T;
   }
 
-  async get<T>(url: string, paramsOrConfig?: any): Promise<T> {
-    // If paramsOrConfig has 'params' or 'headers', treat it as AxiosConfig
-    const config = (paramsOrConfig && (paramsOrConfig.params || paramsOrConfig.headers))
-      ? paramsOrConfig
-      : { params: paramsOrConfig };
-    const response = await this.client.get<any>(url, config);
+async get<T>(url: string, paramsOrConfig?: unknown): Promise<T> {
+    const p = paramsOrConfig as Record<string, unknown> | undefined;
+    const config = p && ('params' in p || 'headers' in p) ? p : { params: paramsOrConfig };
+    const response = await this.client.get(url, config as Record<string, unknown>);
     return this.unwrap<T>(response.data);
   }
 
-  async post<T>(url: string, data?: unknown, config?: any): Promise<T> {
-    const response = await this.client.post<any>(url, data, config);
+  async post<T>(url: string, data?: unknown, config?: unknown): Promise<T> {
+    const response = await this.client.post(url, data, config as Record<string, unknown>);
     return this.unwrap<T>(response.data);
   }
 
-  async put<T>(url: string, data?: unknown, config?: any): Promise<T> {
-    const response = await this.client.put<any>(url, data, config);
+  async put<T>(url: string, data?: unknown, config?: unknown): Promise<T> {
+    const response = await this.client.put(url, data, config as Record<string, unknown>);
     return this.unwrap<T>(response.data);
   }
 
-  async patch<T>(url: string, data?: unknown, config?: any): Promise<T> {
-    const response = await this.client.patch<any>(url, data, config);
+  async patch<T>(url: string, data?: unknown, config?: unknown): Promise<T> {
+    const response = await this.client.patch(url, data, config as Record<string, unknown>);
     return this.unwrap<T>(response.data);
   }
 
-  async delete<T>(url: string, config?: any): Promise<T> {
-    const response = await this.client.delete<any>(url, config);
+  async delete<T>(url: string, config?: unknown): Promise<T> {
+    const response = await this.client.delete(url, config as Record<string, unknown>);
     return this.unwrap<T>(response.data);
   }
 }
@@ -126,211 +124,211 @@ export const client = apiClient;
 
 export const authApi = {
   login: (email: string, password: string) =>
-    apiClient.post<{ accessToken: string; refreshToken: string; user: any }>('auth/login', { email, password }),
+    apiClient.post<{ accessToken: string; refreshToken: string; user: unknown }>('auth/login', { email, password }),
   register: (data: { email: string; password: string; name: string }) =>
     apiClient.post<{ id: string }>('auth/register', data),
   logout: () => apiClient.post<void>('auth/logout'),
-  me: () => apiClient.get<any>('auth/me'),
+  me: () => apiClient.get<unknown>('auth/me'),
   refreshToken: (refreshToken: string) =>
     apiClient.post<{ accessToken: string; refreshToken?: string }>('auth/refresh', { refreshToken }),
   updateProfile: (data: { name?: string; avatar?: string }) =>
-    apiClient.put<any>('auth/profile', data),
+    apiClient.put<unknown>('auth/profile', data),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     apiClient.post<void>('auth/change-password', data),
 };
 
 export const executionsApi = {
-  list: (params?: any) => apiClient.get<any[]>('executions', params),
-  get: (id: string) => apiClient.get<any>(`executions/${id}`),
-  create: (data: any) => apiClient.post<any>('executions', data),
-  start: (id: string) => apiClient.post<any>(`executions/${id}/start`),
-  cancel: (id: string) => apiClient.post<any>(`executions/${id}/cancel`),
-  retry: (id: string) => apiClient.post<any>(`executions/${id}/retry`),
-  delete: (id: string) => apiClient.delete<any>(`executions/${id}`),
-  livePreview: (id: string) => apiClient.get<any>(`executions/${id}/live-preview`),
+  list: (params?: unknown) => apiClient.get<unknown[]>('executions', params),
+  get: (id: string) => apiClient.get<unknown>(`executions/${id}`),
+  create: (data: unknown) => apiClient.post<unknown>('executions', data),
+  start: (id: string) => apiClient.post<unknown>(`executions/${id}/start`),
+  cancel: (id: string) => apiClient.post<unknown>(`executions/${id}/cancel`),
+  retry: (id: string) => apiClient.post<unknown>(`executions/${id}/retry`),
+  delete: (id: string) => apiClient.delete<unknown>(`executions/${id}`),
+  livePreview: (id: string) => apiClient.get<unknown>(`executions/${id}/live-preview`),
 };
 
 export const usersApi = {
-  list: (params?: any) => apiClient.get<any[]>('users', params),
-  get: (id: string) => apiClient.get<any>(`users/${id}`),
-  create: (data: any) => apiClient.post<any>('users', data),
-  update: (id: string, data: any) => apiClient.put<any>(`users/${id}`, data),
+  list: (params?: unknown) => apiClient.get<unknown[]>('users', params),
+  get: (id: string) => apiClient.get<unknown>(`users/${id}`),
+  create: (data: unknown) => apiClient.post<unknown>('users', data),
+  update: (id: string, data: unknown) => apiClient.put<unknown>(`users/${id}`, data),
   delete: (id: string) => apiClient.delete<void>(`users/${id}`),
 };
 
 export const projectsApi = {
-  list: (params?: any) => apiClient.get<any[]>('projects', params),
-  get: (id: string) => apiClient.get<any>(`projects/${id}`),
-  create: (data: any) => apiClient.post<any>('projects', data),
-  update: (id: string, data: any) => apiClient.put<any>(`projects/${id}`, data),
+  list: (params?: unknown) => apiClient.get<unknown[]>('projects', params),
+  get: (id: string) => apiClient.get<unknown>(`projects/${id}`),
+  create: (data: unknown) => apiClient.post<unknown>('projects', data),
+  update: (id: string, data: unknown) => apiClient.put<unknown>(`projects/${id}`, data),
   delete: (id: string) => apiClient.delete<void>(`projects/${id}`),
 };
 
 export const importApi = {
-  list: (params?: any) => apiClient.get<any>('import/list', params),
-  get: (id: string) => apiClient.get<any>(`import/${id}`),
-  upload: (data: FormData) => apiClient.post<any>('import/upload', data),
+  list: (params?: unknown) => apiClient.get<unknown>('import/list', params),
+  get: (id: string) => apiClient.get<unknown>(`import/${id}`),
+  upload: (data: FormData) => apiClient.post<unknown>('import/upload', data),
   delete: (id: string) => apiClient.delete<void>(`import/${id}`),
   getPreview: (id: string, offset = 0, limit = 10) => 
-    apiClient.get<any[]>(`import/${id}/preview`, { offset, limit }),
-  saveMappings: (id: string, mappings: any[]) => 
-    apiClient.post<any>('import/mappings/save', { importId: id, mappings }),
-  process: (id: string) => apiClient.post<any>(`import/${id}/process`),
+    apiClient.get<unknown[]>(`import/${id}/preview`, { offset, limit }),
+  saveMappings: (id: string, mappings: unknown[]) => 
+    apiClient.post<unknown>('import/mappings/save', { importId: id, mappings }),
+  process: (id: string) => apiClient.post<unknown>(`import/${id}/process`),
 };
 
 export const testsApi = {
-  list: (params?: any) => apiClient.get<any[]>('tests', params),
-  get: (id: string) => apiClient.get<any>(`tests/${id}`),
-  create: (data: any) => apiClient.post<any>('tests', data),
-  update: (id: string, data: any) => apiClient.put<any>(`tests/${id}`, data),
+  list: (params?: unknown) => apiClient.get<unknown[]>('tests', params),
+  get: (id: string) => apiClient.get<unknown>(`tests/${id}`),
+  create: (data: unknown) => apiClient.post<unknown>('tests', data),
+  update: (id: string, data: unknown) => apiClient.put<unknown>(`tests/${id}`, data),
   delete: (id: string) => apiClient.delete<void>(`tests/${id}`),
-  run: (id: string) => apiClient.post<any>(`tests/${id}/run`),
-  results: (id: string) => apiClient.get<any>(`tests/${id}/results`),
+  run: (id: string) => apiClient.post<unknown>(`tests/${id}/run`),
+  results: (id: string) => apiClient.get<unknown>(`tests/${id}/results`),
 };
 
 export const reportsApi = {
-  list: (params?: any) => apiClient.get<any[]>('reports', params),
-  get: (id: string) => apiClient.get<any>(`reports/${id}`),
-  generate: (data: any) => apiClient.post<any>('reports', data),
+  list: (params?: unknown) => apiClient.get<unknown[]>('reports', params),
+  get: (id: string) => apiClient.get<unknown>(`reports/${id}`),
+  generate: (data: unknown) => apiClient.post<unknown>('reports', data),
   delete: (id: string) => apiClient.delete<void>(`reports/${id}`),
   bulkDelete: (ids: string[]) => apiClient.delete<void>(`reports/bulk?ids=${ids.join(',')}`),
 };
 
 export const bugsApi = {
-  list: (params?: any) => apiClient.get<any[]>('bugs', params),
-  get: (id: string) => apiClient.get<any>(`bugs/${id}`),
-  create: (data: any) => apiClient.post<any>('bugs', data),
-  update: (id: string, data: any) => apiClient.put<any>(`bugs/${id}`, data),
+  list: (params?: unknown) => apiClient.get<unknown[]>('bugs', params),
+  get: (id: string) => apiClient.get<unknown>(`bugs/${id}`),
+  create: (data: unknown) => apiClient.post<unknown>('bugs', data),
+  update: (id: string, data: unknown) => apiClient.put<unknown>(`bugs/${id}`, data),
   delete: (id: string) => apiClient.delete<void>(`bugs/${id}`),
 };
 
 export const analyticsApi = {
-  getDashboard: () => apiClient.get<any>('analytics/dashboard'),
-  getOverview: () => apiClient.get<any>('analytics/overview'),
-  getTrends: (params?: any) => apiClient.get<any>('analytics/trends', params),
-  getFlakyTests: (params?: any) => apiClient.get<any>('analytics/flaky', params),
-  getCoverage: (params?: any) => apiClient.get<any>('analytics/coverage', params),
+  getDashboard: () => apiClient.get<unknown>('analytics/dashboard'),
+  getOverview: () => apiClient.get<unknown>('analytics/overview'),
+  getTrends: (params?: unknown) => apiClient.get<unknown>('analytics/trends', params),
+  getFlakyTests: (params?: unknown) => apiClient.get<unknown>('analytics/flaky', params),
+  getCoverage: (params?: unknown) => apiClient.get<unknown>('analytics/coverage', params),
 };
 
 export const aiApi = {
   analyze: (projectId: string, testCode: string) =>
-    apiClient.post<any>(`ai/projects/${projectId}/analyze-test`, { testCode }),
-  predict: (testHistory: any[], currentMetrics: any) =>
-    apiClient.post<any>('ai/projects/global/predict', { test_history: testHistory, current_metrics: currentMetrics }),
+    apiClient.post<unknown>(`ai/projects/${projectId}/analyze-test`, { testCode }),
+  predict: (testHistory: unknown[], currentMetrics: unknown) =>
+    apiClient.post<unknown>('ai/projects/global/predict', { test_history: testHistory, current_metrics: currentMetrics }),
   getInsights: (projectId: string) =>
-    apiClient.get<any>(`ai/projects/${projectId}/insights`),
+    apiClient.get<unknown>(`ai/projects/${projectId}/insights`),
 };
 
 export const schedulerApi = {
-  list: (params?: any) => apiClient.get<any[]>('scheduler/jobs', params),
-  get: (id: string) => apiClient.get<any>(`scheduler/jobs/${id}`),
-  create: (data: any) => apiClient.post<any>('scheduler/jobs', data),
-  update: (id: string, data: any) => apiClient.put<any>(`scheduler/jobs/${id}`, data),
+  list: (params?: unknown) => apiClient.get<unknown[]>('scheduler/jobs', params),
+  get: (id: string) => apiClient.get<unknown>(`scheduler/jobs/${id}`),
+  create: (data: unknown) => apiClient.post<unknown>('scheduler/jobs', data),
+  update: (id: string, data: unknown) => apiClient.put<unknown>(`scheduler/jobs/${id}`, data),
   delete: (id: string) => apiClient.delete<void>(`scheduler/jobs/${id}`),
-  run: (id: string) => apiClient.post<any>(`scheduler/jobs/${id}/run`),
-  pause: (id: string) => apiClient.post<any>(`scheduler/jobs/${id}/pause`),
-  resume: (id: string) => apiClient.post<any>(`scheduler/jobs/${id}/resume`),
+  run: (id: string) => apiClient.post<unknown>(`scheduler/jobs/${id}/run`),
+  pause: (id: string) => apiClient.post<unknown>(`scheduler/jobs/${id}/pause`),
+  resume: (id: string) => apiClient.post<unknown>(`scheduler/jobs/${id}/resume`),
 };
 
 export const environmentsApi = {
-  list: (params?: any) => apiClient.get<any[]>('environments', params),
-  get: (id: string) => apiClient.get<any>(`environments/${id}`),
-  create: (data: any) => apiClient.post<any>('environments', data),
-  update: (id: string, data: any) => apiClient.put<any>(`environments/${id}`, data),
+  list: (params?: unknown) => apiClient.get<unknown[]>('environments', params),
+  get: (id: string) => apiClient.get<unknown>(`environments/${id}`),
+  create: (data: unknown) => apiClient.post<unknown>('environments', data),
+  update: (id: string, data: unknown) => apiClient.put<unknown>(`environments/${id}`, data),
   delete: (id: string) => apiClient.delete<void>(`environments/${id}`),
-  test: (id: string) => apiClient.post<any>(`environments/${id}/test`),
+  test: (id: string) => apiClient.post<unknown>(`environments/${id}/test`),
 };
 
 export const settingsApi = {
-  get: () => apiClient.get<any>('settings'),
-  update: (data: any) => apiClient.put<any>('settings', data),
-  getTeam: () => apiClient.get<any>('settings/team'),
-  updateTeam: (data: { userId: string; role: string }[]) => apiClient.put<any>('settings/team', data),
-  getIntegrations: () => apiClient.get<any>('settings/integrations'),
-  updateIntegrations: (data: any) => apiClient.put<any>('settings/integrations', data),
+  get: () => apiClient.get<unknown>('settings'),
+  update: (data: unknown) => apiClient.put<unknown>('settings', data),
+  getTeam: () => apiClient.get<unknown>('settings/team'),
+  updateTeam: (data: { userId: string; role: string }[]) => apiClient.put<unknown>('settings/team', data),
+  getIntegrations: () => apiClient.get<unknown>('settings/integrations'),
+  updateIntegrations: (data: unknown) => apiClient.put<unknown>('settings/integrations', data),
 };
 
 export const notificationsApi = {
-  list: (params?: any) => apiClient.get<any[]>('notifications', params),
-  get: (id: string) => apiClient.get<any>(`notifications/${id}`),
-  markRead: (id: string) => apiClient.post<any>(`notifications/${id}/read`),
+  list: (params?: unknown) => apiClient.get<unknown[]>('notifications', params),
+  get: (id: string) => apiClient.get<unknown>(`notifications/${id}`),
+  markRead: (id: string) => apiClient.post<unknown>(`notifications/${id}/read`),
   markAllRead: () => apiClient.post<void>('notifications/read-all'),
   delete: (id: string) => apiClient.delete<void>(`notifications/${id}`),
 };
 
 export const healthApi = {
-  check: () => apiClient.get<any>('health'),
+  check: () => apiClient.get<unknown>('health'),
 };
 
 export const generatorApi = {
-  generate: (data: any) => apiClient.post<any>('generator/generate', data),
-  runAction: (action: string, data?: any) => apiClient.post<any>('generator/action', { action, data }),
+  generate: (data: unknown) => apiClient.post<unknown>('generator/generate', data),
+  runAction: (action: string, data?: unknown) => apiClient.post<unknown>('generator/action', { action, data }),
 };
 
 export const orchestrationApi = {
-  submitJob: (data: any) => apiClient.post<any>('orchestration/jobs', data),
-  submitBatch: (data: any[]) => apiClient.post<any>('orchestration/jobs/batch', data),
-  listJobs: (params?: Record<string, string>) => apiClient.get<any>('orchestration/jobs', params ? { params } : undefined),
-  getJobStatus: (id: string) => apiClient.get<any>(`orchestration/jobs/${id}`),
-  cancelJob: (id: string) => apiClient.delete<any>(`orchestration/jobs/${id}`),
-  orchestrateExecution: (executionId: string, options: any) =>
-    apiClient.post<any>(`orchestration/execute/${executionId}`, options),
-  getServiceHealth: () => apiClient.get<any[]>('orchestration/services/health'),
+  submitJob: (data: unknown) => apiClient.post<unknown>('orchestration/jobs', data),
+  submitBatch: (data: unknown[]) => apiClient.post<unknown>('orchestration/jobs/batch', data),
+  listJobs: (params?: Record<string, string>) => apiClient.get<unknown>('orchestration/jobs', params ? { params } : undefined),
+  getJobStatus: (id: string) => apiClient.get<unknown>(`orchestration/jobs/${id}`),
+  cancelJob: (id: string) => apiClient.delete<unknown>(`orchestration/jobs/${id}`),
+  orchestrateExecution: (executionId: string, options: unknown) =>
+    apiClient.post<unknown>(`orchestration/execute/${executionId}`, options),
+  getServiceHealth: () => apiClient.get<unknown[]>('orchestration/services/health'),
   scaleService: (name: string, replicas: number) =>
-    apiClient.post<any>(`orchestration/services/${name}/scale`, { replicas }),
-  getEvents: (limit?: number) => apiClient.get<any[]>('orchestration/events', { limit }),
-  getQueueStats: () => apiClient.get<any>('orchestration/queue/stats'),
+    apiClient.post<unknown>(`orchestration/services/${name}/scale`, { replicas }),
+  getEvents: (limit?: number) => apiClient.get<unknown[]>('orchestration/events', { limit }),
+  getQueueStats: () => apiClient.get<unknown>('orchestration/queue/stats'),
 };
 
 export const securityApi = {
-  listScans: (params?: any) => apiClient.get<any[]>('security/scans', params),
-  getScan: (id: string) => apiClient.get<any>(`security/scans/${id}`),
-  createScan: (data: any) => apiClient.post<any>('security/scans', data),
-  runScan: (id: string) => apiClient.post<any>(`security/scans/${id}/run`),
-  stopScan: (id: string) => apiClient.post<any>(`security/scans/${id}/stop`),
-  getVulnerabilities: (params?: any) => apiClient.get<any[]>('security/vulnerabilities', params),
-  getReport: (scanId: string) => apiClient.get<any>(`security/scans/${scanId}/report`),
+  listScans: (params?: unknown) => apiClient.get<unknown[]>('security/scans', params),
+  getScan: (id: string) => apiClient.get<unknown>(`security/scans/${id}`),
+  createScan: (data: unknown) => apiClient.post<unknown>('security/scans', data),
+  runScan: (id: string) => apiClient.post<unknown>(`security/scans/${id}/run`),
+  stopScan: (id: string) => apiClient.post<unknown>(`security/scans/${id}/stop`),
+  getVulnerabilities: (params?: unknown) => apiClient.get<unknown[]>('security/vulnerabilities', params),
+  getReport: (scanId: string) => apiClient.get<unknown>(`security/scans/${scanId}/report`),
 };
 
 export const performanceApi = {
-  listTests: (params?: any) => apiClient.get<any[]>('performance/tests', params),
-  getTest: (id: string) => apiClient.get<any>(`performance/tests/${id}`),
-  createTest: (data: any) => apiClient.post<any>('performance/tests', data),
-  runTest: (id: string) => apiClient.post<any>(`performance/tests/${id}/run`),
-  getResults: (id: string) => apiClient.get<any>(`performance/tests/${id}/results`),
-  getMetrics: () => apiClient.get<any>('performance/metrics'),
+  listTests: (params?: unknown) => apiClient.get<unknown[]>('performance/tests', params),
+  getTest: (id: string) => apiClient.get<unknown>(`performance/tests/${id}`),
+  createTest: (data: unknown) => apiClient.post<unknown>('performance/tests', data),
+  runTest: (id: string) => apiClient.post<unknown>(`performance/tests/${id}/run`),
+  getResults: (id: string) => apiClient.get<unknown>(`performance/tests/${id}/results`),
+  getMetrics: () => apiClient.get<unknown>('performance/metrics'),
 };
 
 export const accessibilityApi = {
-  listTests: (params?: any) => apiClient.get<any[]>('accessibility/tests', params),
-  getTest: (id: string) => apiClient.get<any>(`accessibility/tests/${id}`),
-  createTest: (data: any) => apiClient.post<any>('accessibility/tests', data),
-  runTest: (id: string) => apiClient.post<any>(`accessibility/tests/${id}/run`),
-  getIssues: (params?: any) => apiClient.get<any[]>('accessibility/issues', params),
-  getReport: (testId: string) => apiClient.get<any>(`accessibility/tests/${testId}/report`),
+  listTests: (params?: unknown) => apiClient.get<unknown[]>('accessibility/tests', params),
+  getTest: (id: string) => apiClient.get<unknown>(`accessibility/tests/${id}`),
+  createTest: (data: unknown) => apiClient.post<unknown>('accessibility/tests', data),
+  runTest: (id: string) => apiClient.post<unknown>(`accessibility/tests/${id}/run`),
+  getIssues: (params?: unknown) => apiClient.get<unknown[]>('accessibility/issues', params),
+  getReport: (testId: string) => apiClient.get<unknown>(`accessibility/tests/${testId}/report`),
 };
 
 export const infrastructureApi = {
-  getInfrastructure: () => apiClient.get<any>('monitoring/infrastructure'),
-  getSystemStatus: () => apiClient.get<any>('monitoring/status'),
-  getSystemInfo: () => apiClient.get<any>('monitoring/system'),
-  getHealth: () => apiClient.get<any>('monitoring/health'),
-  getDetailedHealth: () => apiClient.get<any>('monitoring/health/detailed'),
+  getInfrastructure: () => apiClient.get<unknown>('monitoring/infrastructure'),
+  getSystemStatus: () => apiClient.get<unknown>('monitoring/status'),
+  getSystemInfo: () => apiClient.get<unknown>('monitoring/system'),
+  getHealth: () => apiClient.get<unknown>('monitoring/health'),
+  getDetailedHealth: () => apiClient.get<unknown>('monitoring/health/detailed'),
 };
 
 export const workersApi = {
-  list: () => apiClient.get<any>('monitoring/workers'),
-  getQueueHealth: () => apiClient.get<any>('queue/health'),
-  getQueueMetrics: (queue: string) => apiClient.get<any>(`queue/metrics/${queue}`),
-  getWorkers: () => apiClient.get<any>('queue/workers'),
-  getFailedJobs: (queue?: string) => apiClient.get<any>('queue/failed-jobs', queue ? { queue } : undefined),
-  scaleUp: (workers: number) => apiClient.post<any>('queue/scale-up', { workers }),
-  scaleDown: (workers: number) => apiClient.post<any>('queue/scale-down', { workers }),
-  retryJob: (queue: string, jobId: string) => apiClient.post<any>(`queue/retry/${queue}/${jobId}`),
-  retryAllFailed: (queue: string) => apiClient.post<any>(`queue/retry-all/${queue}`),
-  pauseQueue: (queue: string) => apiClient.post<any>(`queue/pause/${queue}`),
-  resumeQueue: (queue: string) => apiClient.post<any>(`queue/resume/${queue}`),
-  drainQueue: (queue: string) => apiClient.post<any>(`queue/drain/${queue}`),
+  list: () => apiClient.get<unknown>('monitoring/workers'),
+  getQueueHealth: () => apiClient.get<unknown>('queue/health'),
+  getQueueMetrics: (queue: string) => apiClient.get<unknown>(`queue/metrics/${queue}`),
+  getWorkers: () => apiClient.get<unknown>('queue/workers'),
+  getFailedJobs: (queue?: string) => apiClient.get<unknown>('queue/failed-jobs', queue ? { queue } : undefined),
+  scaleUp: (workers: number) => apiClient.post<unknown>('queue/scale-up', { workers }),
+  scaleDown: (workers: number) => apiClient.post<unknown>('queue/scale-down', { workers }),
+  retryJob: (queue: string, jobId: string) => apiClient.post<unknown>(`queue/retry/${queue}/${jobId}`),
+  retryAllFailed: (queue: string) => apiClient.post<unknown>(`queue/retry-all/${queue}`),
+  pauseQueue: (queue: string) => apiClient.post<unknown>(`queue/pause/${queue}`),
+  resumeQueue: (queue: string) => apiClient.post<unknown>(`queue/resume/${queue}`),
+  drainQueue: (queue: string) => apiClient.post<unknown>(`queue/drain/${queue}`),
 };
 
 export default apiClient;

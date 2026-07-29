@@ -184,7 +184,7 @@ export class MobileExecutionService {
       id: tc.id,
       name: tc.name,
       testId: tc.id,
-      steps: (tc.config as any)?.steps || [{ id: 's1', action: 'screenshot' as const }],
+      steps: ((tc.config as Record<string, unknown>)?.steps as MobileTestStep[]) || [{ id: 's1', action: 'screenshot' as const }],
     }));
 
     return {

@@ -46,7 +46,7 @@ export class GeneratorService {
     return null;
   }
 
-  private async generateBatch(apiKey: string, baseURL: string, modelOrFallback: boolean, systemPrompt: string, userPrompt: string, batchSize: number, total: number): Promise<any[]> {
+  private async generateBatch(apiKey: string, baseURL: string, modelOrFallback: boolean, systemPrompt: string, userPrompt: string, batchSize: number, total: number): Promise<unknown[]> {
     const all = [];
     const seen = new Set();
     const batches = Math.ceil(total / batchSize);
@@ -83,14 +83,15 @@ export class GeneratorService {
       this.generateBatch(process.env.AI2_API_KEY, process.env.AI2_BASE_URL || 'https://openrouter.ai/api/v1', true, baseSystem, userPrompt, BATCH_SIZE, count),
     ]);
 
-    const allTestCases = [];
+    const allTestCases: unknown[] = [];
     const seen = new Set();
     for (const tc of [...results1, ...results2]) {
-      const key = tc.title?.toLowerCase().trim();
+      const typedTc = tc as { title?: string } | null;
+      const key = typedTc?.title?.toLowerCase().trim();
       if (key && !seen.has(key)) { seen.add(key); allTestCases.push(tc); }
     }
 
-    const finalTestCases = allTestCases.slice(0, count).map((tc, i) => ({ ...tc, id: `TC-${String(i + 1).padStart(3, '0')}` }));
+    const finalTestCases = allTestCases.slice(0, count).map((tc, i) => ({ ...tc as Record<string, unknown>, id: `TC-${String(i + 1).padStart(3, '0')}` }));
 
     return {
       aiGenerated: true,
@@ -103,7 +104,7 @@ export class GeneratorService {
     };
   }
 
-  async runAction(action: string, data: any) {
+  async runAction(action: string, data: unknown) {
     this.logger.log(`Running generator AI action with dual AI: ${action}`);
 
     const systemPrompts: Record<string, string> = {

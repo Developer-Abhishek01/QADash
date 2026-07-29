@@ -71,7 +71,18 @@ function StatCard({ title, value, subtitle, icon, trend, color = 'primary' }: St
   );
 }
 
+interface RecentExecution {
+  id: string;
+  name: string;
+  duration: string;
+  time: string;
+  status: string;
+}
 
+interface FlakyTestData {
+  name: string;
+  flaky: string;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -81,8 +92,8 @@ export default function DashboardPage() {
     passRate: string;
     failedTests: number;
     avgDuration: string;
-    recentExecutions: any[];
-    flakyTests: any[];
+    recentExecutions: RecentExecution[];
+    flakyTests: FlakyTestData[];
   }>({
     totalExecutions: 0,
     passRate: '0%',
@@ -98,17 +109,18 @@ export default function DashboardPage() {
         executionsApi.list(),
         analyticsApi.getFlakyTests().catch(() => []),
       ]);
-      const passed = Array.isArray(executions) ? executions.filter(e => e.status === 'passed').length : 0;
-      const failed = Array.isArray(executions) ? executions.filter(e => e.status === 'failed').length : 0;
-      const total = Array.isArray(executions) ? executions.length : 0;
-      const recent = Array.isArray(executions) ? executions.slice(0, 5) : [];
+      const execList = Array.isArray(executions) ? executions as { status: string }[] : [];
+      const passed = execList.filter(e => e.status === 'passed').length;
+      const failed = execList.filter(e => e.status === 'failed').length;
+      const total = execList.length;
+      const recent = execList.slice(0, 5);
       
       setStats(prev => ({
         ...prev,
         totalExecutions: total,
         passRate: total > 0 ? ((passed / total) * 100).toFixed(1) + '%' : '0%',
         failedTests: failed,
-        recentExecutions: recent as any,
+        recentExecutions: recent as RecentExecution[],
         flakyTests: Array.isArray(flaky) ? flaky.slice(0, 3) : prev.flakyTests,
       }));
     } catch (error) {
@@ -186,7 +198,7 @@ export default function DashboardPage() {
                 Recent Executions
               </Typography>
               <List>
-                {stats.recentExecutions.map((execution: any) => (
+                {stats.recentExecutions.map((execution: RecentExecution) => (
                   <ListItem
                     key={execution.id}
                     sx={{
@@ -225,7 +237,7 @@ export default function DashboardPage() {
                 Flaky Tests
               </Typography>
               <List>
-                {stats.flakyTests.length > 0 ? stats.flakyTests.map((test: any, index: number) => (
+                {stats.flakyTests.length > 0 ? stats.flakyTests.map((test: FlakyTestData, index: number) => (
                   <ListItem key={index} sx={{ px: 0 }}>
                     <ListItemText
                       primary={test.name}

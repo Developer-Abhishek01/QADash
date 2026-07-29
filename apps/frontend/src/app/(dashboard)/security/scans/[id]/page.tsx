@@ -43,6 +43,7 @@ import Loading from '@/components/feedback/Loading';
 import { SecurityStatusChip, SeverityChip, ScanTypeChip, FindingBadge, VulnDetailDialog } from '@/components/security';
 import { useScanSocket } from '@/components/security/useScanSocket';
 import { useSecurityScan, useStartSecurityScan, useCancelSecurityScan, useVulnerabilities, useUpdateVulnerability, useGenerateReport } from '@/lib/security/hooks';
+import type { Vulnerability } from '@/lib/security/types';
 
 const STATUS_OPTIONS = [
   { value: 'OPEN', label: 'Open' },
@@ -65,7 +66,7 @@ export default function ScanDetailPage() {
   const updateVuln = useUpdateVulnerability();
   const generateReport = useGenerateReport();
 
-  const [selectedVuln, setSelectedVuln] = useState<any>(null);
+  const [selectedVuln, setSelectedVuln] = useState<Record<string, unknown> | null>(null);
   const [vulnDetailOpen, setVulnDetailOpen] = useState(false);
   const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null);
   const [statusUpdateOpen, setStatusUpdateOpen] = useState(false);
@@ -79,11 +80,12 @@ export default function ScanDetailPage() {
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const [liveFindings, setLiveFindings] = useState(0);
 
-  const onProgress = useCallback((data: any) => {
-    if (data.status) setLiveStatus(data.status);
-    if (data.progress !== undefined) setLiveProgress(data.progress);
-    if (data.findings !== undefined) setLiveFindings(data.findings);
-    if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+  const onProgress = useCallback((data: unknown) => {
+    const d = data as { status: string; progress: number; findings: number };
+    if (d.status) setLiveStatus(d.status);
+    if (d.progress !== undefined) setLiveProgress(d.progress);
+    if (d.findings !== undefined) setLiveFindings(d.findings);
+    if (d.status === 'COMPLETED' || d.status === 'FAILED') {
       refetch();
     }
   }, [refetch]);
@@ -295,7 +297,7 @@ export default function ScanDetailPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {vulnerabilities.map((vuln: any) => (
+                      {(vulnerabilities as Vulnerability[]).map((vuln) => (
                         <TableRow key={vuln.id} hover>
                           <TableCell>
                             <Typography variant="body2" fontWeight={500}>{vuln.title}</Typography>
@@ -320,7 +322,7 @@ export default function ScanDetailPage() {
                               <Button
                                 size="small"
                                 variant="outlined"
-                                onClick={() => { setSelectedVuln(vuln); setVulnDetailOpen(true); }}
+                                onClick={() => { setSelectedVuln(vuln as unknown as Record<string, unknown>); setVulnDetailOpen(true); }}
                               >
                                 View
                               </Button>
@@ -353,7 +355,7 @@ export default function ScanDetailPage() {
       </Grid>
 
       <VulnDetailDialog
-        vulnerability={selectedVuln}
+        vulnerability={selectedVuln as unknown as Parameters<typeof VulnDetailDialog>[0]['vulnerability']}
         open={vulnDetailOpen}
         onClose={() => { setVulnDetailOpen(false); setSelectedVuln(null); }}
       />

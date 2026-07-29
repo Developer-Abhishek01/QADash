@@ -174,9 +174,9 @@ export class ExecutionEngine {
       result.status = 'passed';
       result.endTime = new Date();
       result.duration = result.endTime.getTime() - (result.startTime?.getTime() || 0);
-    } catch (error: any) {
+    } catch (error: unknown) {
       result.status = 'failed';
-      result.error = error.message;
+      result.error = (error as Error).message;
       result.endTime = new Date();
       result.duration = result.endTime.getTime() - (result.startTime?.getTime() || 0);
     }

@@ -34,13 +34,13 @@ export class TestsController {
   }
 
   @Post()
-  create(@Body() data: CreateTestDto, @Request() req: any) {
+  create(@Body() data: CreateTestDto, @Request() req: { user: { id: string } }) {
     return this.testsService.create({ ...data, userId: req.user.id });
   }
 
   @Post(':id/run')
   @ApiOperation({ summary: 'Run a single test case' })
-  async run(@Param('id') id: string, @Request() req: any) {
+  async run(@Param('id') id: string, @Request() req: { user: { id: string } }) {
     const test = await this.testsService.findById(id);
     const execution = await this.executionsService.create({
       name: `Run: ${test.name}`,
@@ -53,7 +53,7 @@ export class TestsController {
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: UpdateTestDto, @Request() req: any) {
+  update(@Param('id') id: string, @Body() data: UpdateTestDto, @Request() req: { user: { id: string } }) {
     return this.testsService.update(id, data, req.user.id);
   }
 
@@ -64,7 +64,7 @@ export class TestsController {
 
   @Post(':id/save-code')
   @ApiOperation({ summary: 'Save generated code with version history' })
-  async saveCode(@Param('id') id: string, @Body() data: { code: string }, @Request() req: any) {
+  async saveCode(@Param('id') id: string, @Body() data: { code: string }, @Request() req: { user: { id: string } }) {
     return this.testsService.saveCode(id, data.code, req.user.id);
   }
 
@@ -76,8 +76,8 @@ export class TestsController {
 
   @Post('generate-from-text')
   @ApiOperation({ summary: 'Generate test case from natural language via AI pipeline' })
-  async generateFromText(@Body() data: { text: string; projectId?: string; name?: string; url?: string }, @Request() req: any) {
-    const apiKey = process.env.AI_ENGINE_API_KEY || 'qadash-ai-dev-key';
+  async generateFromText(@Body() data: { text: string; projectId?: string; name?: string; url?: string }, @Request() req: { user: { id: string } }) {
+    const apiKey = process.env.AI_ENGINE_API_KEY;
     const response = await firstValueFrom(
       this.httpService.post(`${this.AI_ENGINE_URL}/api/ai/pipeline/nlp-to-test`,
         {
@@ -121,8 +121,8 @@ export class TestsController {
 
   @Post('validate')
   @ApiOperation({ summary: 'Validate test case structure via AI engine' })
-  async validateTestCase(@Body() data: { testCase: any }) {
-    const apiKey = process.env.AI_ENGINE_API_KEY || 'qadash-ai-dev-key';
+  async validateTestCase(@Body() data: { testCase: unknown }) {
+    const apiKey = process.env.AI_ENGINE_API_KEY;
     const response = await firstValueFrom(
       this.httpService.post(`${this.AI_ENGINE_URL}/api/ai/validate/test-case`,
         { test_case: data.testCase },

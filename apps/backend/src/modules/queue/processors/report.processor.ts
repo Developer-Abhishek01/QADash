@@ -1,5 +1,6 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Job } from 'bullmq';
 
 import { PrismaService } from '../../../common/prisma.service';
@@ -16,7 +17,7 @@ export class ReportProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<ReportJobData>): Promise<any> {
+  async process(job: Job<ReportJobData>): Promise<unknown> {
     const { reportId, projectId, type, dateRange, userId } = job.data;
 
     this.logger.log(`Generating ${type} report for project ${projectId}`);
@@ -34,8 +35,8 @@ export class ReportProcessor extends WorkerHost {
     await this.prisma.report.update({
       where: { id: reportId },
       data: {
-        summary: summary as any,
-        data: reportData as any,
+        summary,
+        data: reportData as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -74,7 +75,7 @@ export class ReportProcessor extends WorkerHost {
     };
   }
 
-  private buildSummary(type: string, data: any) {
+  private buildSummary(type: string, data: { totalTests: number; totalExecutions: number; passRate: number }) {
     switch (type) {
       case 'TEST_SUMMARY':
         return {

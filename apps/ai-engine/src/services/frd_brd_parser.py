@@ -175,48 +175,106 @@ class FRDBRDParser:
 
         return sections
 
+    @staticmethod
+    def _detect_role(title: str) -> str:
+        role_map = [
+            (r'\b(super\s*admin|superadmin)\b', 'Superadmin'),
+            (r'\b(tenant\s*admin|tenantadmin)\b', 'Tenant Admin'),
+            (r'\badmin\b', 'Admin'),
+            (r'\btrainer\b', 'Trainer'),
+            (r'\bclient\b', 'Client'),
+            (r'\bmanager\b', 'Manager'),
+            (r'\buser\b', 'User'),
+            (r'\b(developer|engineer)\b', 'Developer'),
+            (r'\b(owner|supervisor)\b', 'Owner'),
+        ]
+        for pattern, name in role_map:
+            if re.search(pattern, title, re.IGNORECASE):
+                return name
+        return 'General'
+
     def _extract_functional_requirements(self, sections: List[Dict]) -> List[Dict]:
         """Extract functional requirements from document sections"""
         requirements = []
+        seen = set()
         req_patterns = [
             re.compile(r'(?:FR|FRQ|FUNC)[-_]?(\d+)[:\s]+(.+)', re.IGNORECASE),
-            re.compile(r'(?:The\s+)?(?:system|user|application)\s+(?:should|shall|must|will|can)\s+(.+?)[.;]', re.IGNORECASE),
-            re.compile(r'^[-*]\s*(?:FR|Functional Requirement)\s*[:\-]?\s*(.+)', re.IGNORECASE),
+            re.compile(r'(?:The\s+)?(?:system|user|application|platform)\s+(?:should|shall|must|will|can|ensures?|supports?|allows?|provides?|requires?|manages?)\s+(.+?)[.;]', re.IGNORECASE),
+            re.compile(r'^[-–—●•*▶]\s*(?:FR|Functional Requirement)?\s*[:\-]?\s*(.+)', re.IGNORECASE),
+            re.compile(r'^[-–—●•*▶]\s*(.+)', re.IGNORECASE),
         ]
+        action_verbs = re.compile(r'(?:create|manage|view|configure|assign(?:ment)?s?|track(?:ing)?|access|edit(?:ing)?|delet(?:e|ing)|add(?:ing)?|updat(?:e|ing)|remov(?:e|ing)|defin(?:e|ing)|set(?:ting)?|generat(?:e|ing|ion)?|export|import|approv(?:e|al)?|review|submit|cancel(?:lation)?|schedul(?:e|ing)|monitor(?:ing)?|log(?:ging)?|perform(?:ance|ing)?|conduct|chat|complet(?:e|ing)|check(?:ing)?)\b', re.IGNORECASE)
+        skip_lines = re.compile(r'^(?:overview|introduction|table\s+of\s+contents|sequence|participant|end$|note:?|note\b)', re.IGNORECASE)
         prio_pattern = re.compile(r'priority[:\s]+(high|medium|low|critical)', re.IGNORECASE)
-        module_pattern = re.compile(r'module[:\s]+([a-z_]+)', re.IGNORECASE)
+        req_patterns = [
+            re.compile(r'(?:FR|FRQ|FUNC)[-_]?(\d+)[:\s]+(.+)', re.IGNORECASE),
+            re.compile(r'(?:The\s+)?(?:system|user|application|platform)\s+(?:should|shall|must|will|can|ensures?|supports?|allows?|provides?|requires?|manages?)\s+(.+?)[.;]', re.IGNORECASE),
+            re.compile(r'^[-–—●•*▶]\s*(?:FR|Functional Requirement)?\s*[:\-]?\s*(.+)', re.IGNORECASE),
+            re.compile(r'^[-–—●•*▶]\s*(?:✅|❌|⚠️)?\s*(.+)', re.IGNORECASE),
+        ]
 
         for section in sections:
             content = section['content'] + section['title']
+            section_title_lower = section['title'].lower()
+            is_role_section = bool(re.search(r'(?:permissions?|responsibilities?|features?|capabilities?|access|roles?|allowed)', section_title_lower))
+
+            module_name = self._detect_role(section['title'])
 
             for line in content.split('\n'):
                 line = line.strip()
-                if not line:
+                if not line or len(line) < 10 or skip_lines.search(line):
+                    continue
+                if line in seen:
+                    continue
+                seen.add(line)
+
+                # Role/permission sections: every action-verb line is a requirement
+                if is_role_section and action_verbs.search(line):
+                    priority = 'medium'
+                    prio_match = prio_pattern.search(line)
+                    if prio_match:
+                        priority = prio_match.group(1).lower()
+                    requirements.append({
+                        'id': f"FR-{len(requirements)+1:03d}",
+                        'title': line[:100],
+                        'description': line,
+                        'module': module_name,
+                        'priority': priority,
+                        'source_section': section['title'],
+                    })
+                    continue
+
+                # Any line with an action verb is likely a requirement
+                if action_verbs.search(line):
+                    priority = 'medium'
+                    prio_match = prio_pattern.search(line)
+                    if prio_match:
+                        priority = prio_match.group(1).lower()
+                    requirements.append({
+                        'id': f"FR-{len(requirements)+1:03d}",
+                        'title': line[:100],
+                        'description': line,
+                        'module': module_name,
+                        'priority': priority,
+                        'source_section': section['title'],
+                    })
                     continue
 
                 for pattern in req_patterns:
                     match = pattern.search(line)
                     if match:
-                        req_id = match.group(1) if match.lastindex and match.lastindex >= 2 else f"FR-{len(requirements)+1:03d}"
                         desc = match.group(2) if match.lastindex and match.lastindex >= 2 else match.group(1)
                         if not desc or len(desc) < 10:
                             continue
-
                         priority = 'medium'
                         prio_match = prio_pattern.search(line)
                         if prio_match:
                             priority = prio_match.group(1).lower()
-
-                        module = 'general'
-                        mod_match = module_pattern.search(line)
-                        if mod_match:
-                            module = mod_match.group(1).lower()
-
                         requirements.append({
                             'id': f"FR-{len(requirements)+1:03d}",
                             'title': desc.strip()[:100],
                             'description': desc.strip(),
-                            'module': section['title'].lower().replace(' ', '_') or module,
+                            'module': module_name,
                             'priority': priority,
                             'source_section': section['title'],
                         })
@@ -501,6 +559,125 @@ class FRDBRDParser:
         m = base['module']
 
         variants = []
+
+        # Read enhanced data fields (passed by backend when documentId is provided)
+        br = req.get('business_rules', []) or []
+        vr = req.get('validation_rules', []) or []
+        ae = req.get('api_endpoints', []) or []
+        pm = req.get('permissions', []) or []
+        wf = req.get('workflows', []) or []
+
+        # Enhanced: Business rule verification
+        for rule in br[:2]:
+            rule_desc = rule.get('description', '') or ''
+            rule_id = rule.get('id', 'BR')
+            rule_type = rule.get('type', 'logic')
+            rule_prio = rule.get('priority', 'medium')
+            variants.append({
+                'id': f"TC-{base['req_id']}-BR-{len(variants) + 1}",
+                'requirement_id': base['req_id'],
+                'title': f"[Business Rule] {rule_desc[:80]}",
+                'description': f"Verify business rule {rule_id}: {rule_desc[:120]}",
+                'module': m, 'priority': prio_map.get(rule_prio, p), 'severity': 'HIGH' if rule_prio in ('critical', 'high') else s, 'type': 'Functional',
+                'preconditions': f"System is configured for {m} module with rule {rule_id}",
+                'test_data': f"Input data matching '{rule_type}' rule: {rule_desc[:80]}",
+                'steps': [
+                    f"Navigate to {m} module",
+                    f"Apply conditions triggering rule: {rule_desc[:80]}",
+                    f"Verify {rule_type} rule {rule_id} is enforced",
+                ],
+                'expected': f"Business rule {rule_id} is enforced correctly: {rule_desc[:120]}",
+                'automation_candidate': True, 'framework': framework,
+            })
+
+        # Enhanced: Validation rule verification
+        for rule in vr[:2]:
+            field = rule.get('field', 'unknown')
+            rule_name = rule.get('rule', 'validation')
+            rule_val = rule.get('value', '')
+            err_msg = rule.get('errorMessage', f'Invalid {field}')
+            variants.append({
+                'id': f"TC-{base['req_id']}-VR-{len(variants) + 1}",
+                'requirement_id': base['req_id'],
+                'title': f"[Validation] {field} - {rule_name}",
+                'description': f"Verify field '{field}' validation: {rule_name} with value '{rule_val}'",
+                'module': m, 'priority': 'HIGH', 'severity': 'HIGH', 'type': 'Validation',
+                'preconditions': f"Access {m} module with input field '{field}'",
+                'test_data': f"Invalid value for '{field}' breaking rule '{rule_name}' (expected {rule_val})",
+                'steps': [
+                    f"Navigate to {m} module",
+                    f"Locate field '{field}'",
+                    f"Enter value violating {rule_name} rule (expected: {rule_val})",
+                    f"Submit and verify error message",
+                ],
+                'expected': f"System shows error message: '{err_msg}' for field '{field}'",
+                'automation_candidate': True, 'framework': framework,
+            })
+
+        # Enhanced: API endpoint test
+        for ep in ae[:2]:
+            ep_method = (ep.get('method', '') or 'GET').upper()
+            ep_path = ep.get('path', '/api/endpoint')
+            ep_auth = ep.get('auth', False)
+            ep_roles = ep.get('roles', [])
+            variants.append({
+                'id': f"TC-{base['req_id']}-API-{len(variants) + 1}",
+                'requirement_id': base['req_id'],
+                'title': f"[API] {ep_method} {ep_path}",
+                'description': f"Verify {ep_method} {ep_path} API endpoint",
+                'module': m, 'priority': p, 'severity': s, 'type': 'API',
+                'preconditions': 'User is authenticated with valid token' if ep_auth else 'System is operational',
+                'test_data': f"Endpoint: {ep_path}, Method: {ep_method}" + (f", Roles: {', '.join(ep_roles)}" if ep_roles else ''),
+                'steps': [
+                    f"Send {ep_method} request to {ep_path}",
+                ] + (['Include valid auth token in request headers'] if ep_auth else []) + [
+                    f"Verify HTTP 2xx response for {ep_method} {ep_path}",
+                ],
+                'expected': f"API {ep_method} {ep_path} responds successfully" + (' with valid authentication' if ep_auth else ''),
+                'automation_candidate': True, 'framework': framework,
+            })
+
+        # Enhanced: Permission-based test
+        for perm in pm[:2]:
+            perm_role = perm.get('role', 'User')
+            perm_module = perm.get('module', m)
+            perm_list = perm.get('permissions', ['access'])
+            perms_str = ', '.join(perm_list)
+            variants.append({
+                'id': f"TC-{base['req_id']}-PERM-{len(variants) + 1}",
+                'requirement_id': base['req_id'],
+                'title': f"[Security] Role '{perm_role}' - {perms_str} on '{perm_module}'",
+                'description': f"Verify role '{perm_role}' has {perms_str} access to '{perm_module}'",
+                'module': m, 'priority': 'CRITICAL', 'severity': 'CRITICAL', 'type': 'Security',
+                'preconditions': f"User is logged in with role '{perm_role}'",
+                'test_data': f"Role: {perm_role}, Module: {perm_module}, Permissions: [{perms_str}]",
+                'steps': [
+                    f"Login as user with role '{perm_role}'",
+                    f"Navigate to '{perm_module}' module",
+                    f"Attempt to perform: {perms_str}",
+                    f"Verify access is granted as expected",
+                ],
+                'expected': f"User with role '{perm_role}' can {perms_str} resources in '{perm_module}'",
+                'automation_candidate': True, 'framework': framework,
+            })
+
+        # Enhanced: Workflow test
+        for flow in wf[:2]:
+            flow_name = flow.get('name', 'Unnamed Workflow')
+            flow_trigger = flow.get('trigger', 'User initiates action')
+            flow_steps = flow.get('steps', [])
+            variants.append({
+                'id': f"TC-{base['req_id']}-WF-{len(variants) + 1}",
+                'requirement_id': base['req_id'],
+                'title': f"[Workflow] {flow_name[:80]}",
+                'description': f"Execute workflow '{flow_name}' with {len(flow_steps)} steps",
+                'module': m, 'priority': p, 'severity': s, 'type': 'Functional',
+                'preconditions': f"Trigger: {flow_trigger[:100]}",
+                'test_data': f"Workflow: {flow_name}, Steps: {len(flow_steps)}",
+                'steps': [f"Step {idx+1}: {step.get('description', '')[:120] or step.get('action', 'execute')} (actor: {step.get('actor', 'System')})" for idx, step in enumerate(flow_steps)],
+                'expected': f"Workflow '{flow_name}' completes all {len(flow_steps)} steps successfully",
+                'automation_candidate': True, 'framework': framework,
+            })
 
         # 1. Positive / Happy path
         variants.append({

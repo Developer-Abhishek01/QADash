@@ -23,7 +23,7 @@ export class ExecutionsController {
   }
 
   @Post()
-  create(@Body() data: CreateExecutionDto, @Request() req: any) {
+  create(@Body() data: CreateExecutionDto, @Request() req: { user: { id: string } }) {
     return this.executionsService.create({ ...data, userId: req.user.id });
   }
 
@@ -38,7 +38,7 @@ export class ExecutionsController {
   }
 
   @Post(':id/retry')
-  retry(@Param('id') id: string, @Request() req: any) {
+  retry(@Param('id') id: string, @Request() req: { user: { id: string } }) {
     return this.executionsService.retry(id, req.user.id);
   }
 

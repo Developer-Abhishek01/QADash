@@ -64,8 +64,8 @@ function ResetPasswordForm() {
       });
       setMessage({ type: 'success', text: 'Password reset successful! Redirecting to login...' });
       setTimeout(() => router.push('/login'), 3000);
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Invalid or expired token' });
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Invalid or expired token' });
     } finally {
       setIsLoading(false);
     }

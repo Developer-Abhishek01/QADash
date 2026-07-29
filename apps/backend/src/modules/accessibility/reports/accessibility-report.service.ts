@@ -105,47 +105,48 @@ export class AccessibilityReportService {
     };
   }
 
-  private prepareReportData(test: any): ReportData {
-    const recommendations = this.generateRecommendations(test.issues);
+  private prepareReportData(test: Record<string, unknown>): ReportData {
+    const issues = test.issues as Array<Record<string, unknown>>;
+    const recommendations = this.generateRecommendations(issues);
 
     return {
       test: {
-        id: test.id,
-        name: test.name,
-        projectId: test.projectId,
-        status: test.status,
-        startedAt: test.startedAt,
-        completedAt: test.completedAt,
-        duration: test.duration || 0,
-        score: test.score,
-        totalPages: test.totalPages,
-        criticalCount: test.criticalCount,
-        seriousCount: test.seriousCount,
-        moderateCount: test.moderateCount,
-        minorCount: test.minorCount,
-        passCount: test.passCount,
-        wcagLevel: test.wcagLevel,
+        id: test.id as string,
+        name: test.name as string,
+        projectId: test.projectId as string,
+        status: test.status as string,
+        startedAt: test.startedAt as Date,
+        completedAt: test.completedAt as Date,
+        duration: (test.duration as number) || 0,
+        score: test.score as number,
+        totalPages: test.totalPages as number,
+        criticalCount: test.criticalCount as number,
+        seriousCount: test.seriousCount as number,
+        moderateCount: test.moderateCount as number,
+        minorCount: test.minorCount as number,
+        passCount: test.passCount as number,
+        wcagLevel: test.wcagLevel as string,
       },
-      project: test.project,
-      issues: test.issues.map((i: any) => ({
-        id: i.id,
-        ruleId: i.ruleId,
-        impact: i.impact,
-        category: i.category,
-        description: i.description,
-        help: i.help,
-        helpUrl: i.helpUrl,
-        wcagCriteria: i.wcagCriteria || [],
-        wcagTechniques: i.wcagTechniques || [],
-        htmlSnippet: i.htmlSnippet,
-        selector: i.selector,
-        pageUrl: i.pageUrl,
+      project: test.project as { name: string } | null,
+      issues: issues.map((i) => ({
+        id: i.id as string,
+        ruleId: i.ruleId as string,
+        impact: i.impact as string,
+        category: i.category as string,
+        description: i.description as string,
+        help: i.help as string,
+        helpUrl: i.helpUrl as string,
+        wcagCriteria: (i.wcagCriteria as string[]) || [],
+        wcagTechniques: (i.wcagTechniques as string[]) || [],
+        htmlSnippet: i.htmlSnippet as string,
+        selector: i.selector as string,
+        pageUrl: i.pageUrl as string,
       })),
       recommendations,
     };
   }
 
-  private generateRecommendations(issues: any[]): {
+  private generateRecommendations(issues: Record<string, unknown>[]): {
     priority: string;
     category: string;
     issue: string;
@@ -220,12 +221,12 @@ export class AccessibilityReportService {
       const fixInfo = fixMap[ruleId] || { fix: 'Review accessibility guidelines', code: '', wcag: ['WCAG 2.0'] };
 
       recommendations.push({
-        priority: issue.impact.toUpperCase(),
-        category: issue.category || 'Other',
-        issue: issue.description,
+        priority: (issue.impact as string).toUpperCase(),
+        category: (issue.category as string) || 'Other',
+        issue: issue.description as string,
         fix: fixInfo.fix,
         code: fixInfo.code,
-        wcag: issue.wcagCriteria || fixInfo.wcag,
+        wcag: (issue.wcagCriteria as string[]) || fixInfo.wcag,
       });
     }
 

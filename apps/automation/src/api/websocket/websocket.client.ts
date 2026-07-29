@@ -77,8 +77,8 @@ export class WebSocketClient {
           reject(error);
         };
 
-        (this.ws as any).onping = () => this.emitEvent('ping', {});
-        (this.ws as any).onpong = () => this.emitEvent('pong', {});
+        (this.ws as unknown as { onping: () => void; onpong: () => void }).onping = () => this.emitEvent('ping', {});
+        (this.ws as unknown as { onping: () => void; onpong: () => void }).onpong = () => this.emitEvent('pong', {});
       } catch (error) {
         reject(error);
       }

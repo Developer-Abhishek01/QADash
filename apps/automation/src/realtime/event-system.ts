@@ -154,7 +154,7 @@ export class ExecutionEventPublisher {
 
   async publishTestCompleted(executionId: string, testId: string, status: 'passed' | 'failed' | 'skipped', duration: number, error?: string): Promise<void> {
     const eventType = status === 'passed' ? 'test:passed' : status === 'failed' ? 'test:failed' : 'test:skipped';
-    await this.eventSystem.emitEvent(eventType as any, { duration, error }, { executionId, testId });
+    await this.eventSystem.emitEvent(eventType as unknown as EventType, { duration, error }, { executionId, testId });
   }
 
   async publishLogs(executionId: string, testId: string, logs: string): Promise<void> {

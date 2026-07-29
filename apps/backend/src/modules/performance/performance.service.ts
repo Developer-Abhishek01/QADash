@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as cronParser from 'cron-parser';
 
 import { AlertService } from './alerts/alert.service';
 import { CreatePerformanceTestDto, UpdatePerformanceTestDto, TestFilterDto, CreateAlertDto, UpdateAlertDto } from './dto/performance.dto';
-import { K6ExecutionService } from './engine/k6-execution.service';
+import { K6ExecutionService, PerformanceTest } from './engine/k6-execution.service';
 import { MetricsCollectorService } from './metrics/metrics-collector.service';
 import { PrismaService } from '../../common/prisma.service';
 
@@ -30,8 +31,8 @@ export class PerformanceService implements OnModuleInit {
         userId,
         testType: dto.testType || 'LOAD',
         script: dto.script,
-        config: (dto.config || {}) as any,
-        thresholds: (dto.thresholds || {}) as any,
+        config: (dto.config || {}) as unknown as Prisma.InputJsonValue,
+        thresholds: (dto.thresholds || {}) as unknown as Prisma.InputJsonValue,
         tags: dto.tags || [],
         isScheduled: dto.isScheduled || false,
         schedule: dto.schedule,
@@ -69,7 +70,7 @@ export class PerformanceService implements OnModuleInit {
       data: { status: 'QUEUED', startedAt: new Date() },
     });
 
-    await this.k6Service.executeTest(test as any);
+    await this.k6Service.executeTest(test as unknown as PerformanceTest);
     return { message: 'Test queued successfully', testId };
   }
 
@@ -131,8 +132,8 @@ export class PerformanceService implements OnModuleInit {
       where: { id: testId },
       data: {
         ...dto,
-        config: dto.config ? (dto.config as any) : undefined,
-        thresholds: dto.thresholds ? (dto.thresholds as any) : undefined,
+        config: dto.config ? (dto.config as unknown as Prisma.InputJsonValue) : undefined,
+        thresholds: dto.thresholds ? (dto.thresholds as unknown as Prisma.InputJsonValue) : undefined,
       },
     });
   }

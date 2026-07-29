@@ -16,7 +16,7 @@ export class NotificationProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<NotificationJobData>): Promise<any> {
+  async process(job: Job<NotificationJobData>): Promise<unknown> {
     const { userId, type, title, message, link, email } = job.data;
 
     this.logger.log(`Sending notification to user ${userId}: ${title}`);
@@ -24,7 +24,7 @@ export class NotificationProcessor extends WorkerHost {
     await this.prisma.notification.create({
       data: {
         userId,
-        type: type as any,
+        type,
         title,
         message,
         link,

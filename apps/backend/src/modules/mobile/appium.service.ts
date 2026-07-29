@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+interface AppiumResponse {
+  value?: unknown;
+  sessionId?: string;
+  ELEMENT?: string;
+}
+
 export interface AppiumCapabilities {
   platformName: 'Android' | 'iOS';
   platformVersion: string;
@@ -64,8 +70,8 @@ export class AppiumService {
       throw new Error(`Appium create session failed: ${response.status} - ${text}`);
     }
 
-    const data = await response.json() as any;
-    const sessionId = data.value?.sessionId || data.sessionId;
+    const data = await response.json() as AppiumResponse;
+    const sessionId = ((data.value as Record<string, unknown> | undefined)?.sessionId as string) || data.sessionId || '';
 
     if (!sessionId) {
       throw new Error('Appium did not return a session ID');
@@ -95,13 +101,13 @@ export class AppiumService {
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`Appium get session failed: ${response.status}`);
 
-    const data = await response.json() as any;
-    const value = data.value || data;
+    const data = await response.json() as AppiumResponse;
+    const value = (data.value as Record<string, unknown>) || (data as unknown as Record<string, unknown>);
 
     return {
       sessionId,
-      deviceId: value.capabilities?.deviceName || value.deviceUDID || '',
-      capabilities: value.capabilities || value,
+      deviceId: (value.capabilities as Record<string, unknown> | undefined)?.deviceName as string || value.deviceUDID as string || '',
+      capabilities: ((value.capabilities as Record<string, unknown>) || value) as unknown as AppiumCapabilities,
       status: 'running',
       startTime: new Date(),
     };
@@ -116,8 +122,9 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium find element failed: ${response.status}`);
 
-    const data = await response.json() as any;
-    const elementId = data.value?.ELEMENT || data.value?.elementId || data.ELEMENT;
+    const data = await response.json() as AppiumResponse;
+    const val = data.value as Record<string, unknown> | undefined;
+    const elementId = (val?.ELEMENT as string) || (val?.elementId as string) || data.ELEMENT || '';
 
     return {
       id: elementId,
@@ -138,11 +145,11 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium find elements failed: ${response.status}`);
 
-    const data = await response.json() as any;
-    const elements = data.value || [];
+    const data = await response.json() as AppiumResponse;
+    const elements = (data.value as Array<Record<string, unknown>>) || [];
 
-    return elements.map((el: any) => {
-      const id = el.ELEMENT || el.elementId;
+    return elements.map((el: Record<string, unknown>) => {
+      const id = (el.ELEMENT as string) || (el.elementId as string);
       return { id, locator, value, displayed: true, enabled: true };
     });
   }
@@ -170,7 +177,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium get text failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as unknown as { value?: string };
     return data.value || '';
   }
 
@@ -179,7 +186,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium get attribute failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as { value?: string };
     return data.value || '';
   }
 
@@ -188,7 +195,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium isDisplayed failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as AppiumResponse;
     return data.value === true;
   }
 
@@ -197,7 +204,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium isEnabled failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as AppiumResponse;
     return data.value === true;
   }
 
@@ -206,7 +213,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium screenshot failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as { value?: string };
     return data.value || '';
   }
 
@@ -231,7 +238,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium stop recording failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as { value?: string };
 
     this.logger.log(`Recording stopped: ${sessionId}`);
 
@@ -247,8 +254,8 @@ export class AppiumService {
       });
 
       if (!response.ok) return [];
-      const data = await response.json() as any;
-      return (data.value || []).map((entry: any) => entry.message || '');
+      const data = await response.json() as AppiumResponse;
+      return ((data.value as Array<Record<string, unknown>>) || []).map((entry) => String(entry['message'] || ''));
     } catch {
       return [];
     }
@@ -333,7 +340,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium get device time failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as { value?: string };
     return data.value || new Date().toISOString();
   }
 
@@ -342,7 +349,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium get network connection failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as { value?: number };
     return data.value || 0;
   }
 
@@ -361,8 +368,9 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium get capabilities failed: ${response.status}`);
 
-    const data = await response.json() as any;
-    return data.value?.capabilities || data.value || {};
+    const data = await response.json() as AppiumResponse;
+    const val = data.value as Record<string, unknown> | undefined;
+    return (val?.capabilities as Record<string, unknown>) || val || {};
   }
 
   async executeScript(sessionId: string, script: string, args?: unknown[]): Promise<unknown> {
@@ -374,7 +382,7 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium execute script failed: ${response.status}`);
 
-    const data = await response.json() as any;
+    const data = await response.json() as AppiumResponse;
     return data.value;
   }
 
@@ -385,8 +393,9 @@ export class AppiumService {
 
     if (!response.ok) throw new Error(`Appium get active element failed: ${response.status}`);
 
-    const data = await response.json() as any;
-    const elementId = data.value?.ELEMENT || data.value?.elementId || data.ELEMENT;
+    const data = await response.json() as AppiumResponse;
+    const val = data.value as Record<string, unknown> | undefined;
+    const elementId = (val?.ELEMENT as string) || (val?.elementId as string) || data.ELEMENT || '';
 
     return { id: elementId, locator: 'active', value: 'active', displayed: true, enabled: true };
   }

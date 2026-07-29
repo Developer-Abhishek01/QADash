@@ -6,7 +6,7 @@ describe('createLogger', () => {
   it('should create a logger with the given name', () => {
     const log = createLogger('test-logger');
     expect(log).toBeDefined();
-    expect((log as any).bindings?.name).toBeUndefined();
+    expect((log as unknown as { bindings?: { name?: string } }).bindings?.name).toBeUndefined();
   });
 
   it('should respect custom log level', () => {

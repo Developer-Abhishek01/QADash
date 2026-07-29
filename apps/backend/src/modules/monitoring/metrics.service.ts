@@ -349,8 +349,8 @@ export class MetricsService {
     return this.register.metrics();
   }
 
-  getMetricsAsJSON(): Promise<any> {
-    return this.register.getMetricsAsJSON();
+  async getMetricsAsJSON(): Promise<Record<string, unknown>[]> {
+    return this.register.getMetricsAsJSON() as unknown as Promise<Record<string, unknown>[]>;
   }
 
   clear(): void {

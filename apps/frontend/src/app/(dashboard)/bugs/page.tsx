@@ -50,7 +50,7 @@ export default function BugsPage() {
   const fetchBugs = async () => {
     try {
       setLoading(true);
-      const data = await bugsApi.list(filters);
+      const data = await bugsApi.list(filters) as Bug[];
       setBugs(data);
       updateStats(data);
     } catch (error) {

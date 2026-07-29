@@ -27,13 +27,13 @@ export function usePerfSocket(projectId?: string, testId?: string, callbacks?: P
       }
     });
 
-    socketRef.current.on('performance.realtime', (data: any) => {
+    socketRef.current.on('performance.realtime', (data: { testId: string; metrics: { timestamp: string; metrics: Record<string, unknown>; active: boolean } }) => {
       if ((!testId || data.testId === testId) && callbacks?.onRealtimeMetrics) {
         callbacks.onRealtimeMetrics(data);
       }
     });
 
-    socketRef.current.on('performance.alert', (data: any) => {
+    socketRef.current.on('performance.alert', (data: { alertId: string; testId: string; severity: string; title: string; message: string }) => {
       if (callbacks?.onAlert) {
         callbacks.onAlert(data);
       }

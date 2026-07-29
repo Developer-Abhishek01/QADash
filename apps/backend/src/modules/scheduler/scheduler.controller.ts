@@ -18,7 +18,7 @@ export class SchedulerController {
   @Get(':id')
   findOne(@Param('id') id: string) { return this.schedulerService.findById(id); }
   @Post()
-  create(@Body() data: CreateScheduleDto, @Request() req: any) {
+  create(@Body() data: CreateScheduleDto, @Request() req: { user: { id: string } }) {
     return this.schedulerService.create({ ...data, userId: req.user.id });
   }
   @Put(':id')

@@ -49,6 +49,7 @@ import { useA11ySocket } from '@/components/accessibility/useA11ySocket';
 import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
 import { useAccessibilityTest, useRunAccessibilityTest, useCancelAccessibilityTest, useAccessibilityIssues, useGenerateAccessibilityReport } from '@/lib/accessibility/hooks';
+import type { AccessibilityIssue } from '@/lib/accessibility/types';
 
 const SEVERITY_COLORS: Record<string, string> = {
   CRITICAL: '#dc2626',
@@ -73,8 +74,9 @@ export default function TestDetailPage() {
   const [reportFormat, setReportFormat] = useState('html');
   const [liveProgress, setLiveProgress] = useState<{ scannedPages: number; totalPages: number; issuesFound: number } | null>(null);
 
-  const onProgress = useCallback((data: any) => {
-    setLiveProgress({ scannedPages: data.scannedPages, totalPages: data.totalPages, issuesFound: data.issuesFound });
+  const onProgress = useCallback((data: unknown) => {
+    const d = data as { scannedPages: number; totalPages: number; issuesFound: number };
+    setLiveProgress({ scannedPages: d.scannedPages, totalPages: d.totalPages, issuesFound: d.issuesFound });
   }, []);
 
   const onCompleted = useCallback(() => {
@@ -300,7 +302,7 @@ export default function TestDetailPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {issueList.map((issue: any) => (
+                      {issueList.map((issue: AccessibilityIssue) => (
                         <TableRow key={issue.id} hover>
                           <TableCell>
                             <Typography variant="body2" fontWeight={500}>{issue.ruleId}</Typography>

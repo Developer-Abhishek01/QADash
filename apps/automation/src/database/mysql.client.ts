@@ -1,8 +1,10 @@
+import type { Pool } from 'mysql2/promise';
+
 import { DatabaseClient, DatabaseConfig, QueryResult, Transaction, FieldInfo } from './connection-manager';
 import { Logger } from '../utils/logger';
 
 export class MySqlClient extends DatabaseClient {
-  private pool: any = null;
+  private pool: Pool | null = null;
 
   constructor(config: DatabaseConfig, logger?: Logger) {
     super(config, logger);
@@ -42,11 +44,11 @@ export class MySqlClient extends DatabaseClient {
     const startTime = Date.now();
     
     try {
-      const [rows, fields] = await this.pool.query(sql, params);
+      const [rows, fields] = await this.pool!.query(sql, params);
       
-      const fieldInfos: FieldInfo[] = (fields as any[])?.map((f: any) => ({
+      const fieldInfos: FieldInfo[] = (fields as unknown as Array<{ name: string; type: number; notNull?: boolean }>)?.map(f => ({
         name: f.name,
-        dataType: f.type,
+        dataType: String(f.type),
         nullable: !f.notNull,
       })) || [];
 
@@ -68,7 +70,7 @@ export class MySqlClient extends DatabaseClient {
   }
 
   async beginTransaction(): Promise<Transaction> {
-    const connection = await this.pool.getConnection();
+    const connection = await this.pool!.getConnection();
     
     try {
       await connection.beginTransaction();
@@ -91,22 +93,22 @@ export class MySqlClient extends DatabaseClient {
 
   async getSchema(): Promise<string[]> {
     const result = await this.query("SHOW DATABASES");
-    return result.rows
-      .map((r: any) => r.Database)
+    return (result.rows as Record<string, unknown>[])
+      .map((r: Record<string, unknown>) => r.Database as string)
       .filter((db: string) => !['information_schema', 'performance_schema', 'mysql', 'sys'].includes(db));
   }
 
   async getTables(): Promise<string[]> {
     const result = await this.query('SHOW TABLES');
     const key = `Tables_in_${this.config.database}`;
-    return result.rows.map((r: any) => r[key]);
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => r[key] as string);
   }
 
   async getColumns(table: string): Promise<FieldInfo[]> {
     const result = await this.query(`DESCRIBE ${table}`);
-    return result.rows.map((r: any) => ({
-      name: r.Field,
-      dataType: r.Type,
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => ({
+      name: r.Field as string,
+      dataType: r.Type as string,
       nullable: r.Null === 'YES',
     }));
   }

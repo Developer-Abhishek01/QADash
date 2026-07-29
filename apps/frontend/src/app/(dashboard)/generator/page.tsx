@@ -35,7 +35,7 @@ export default function AIGeneratorPage() {
     setResult('');
     setError(null);
     try {
-      const res = await generatorApi.generate({ mode, prompt });
+      const res = await generatorApi.generate({ mode, prompt }) as { result?: string; code?: string };
       setResult(res.result ?? res.code ?? JSON.stringify(res));
     } catch {
       setError('Generation failed. Please try again.');

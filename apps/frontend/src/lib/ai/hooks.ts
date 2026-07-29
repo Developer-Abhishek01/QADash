@@ -10,6 +10,6 @@ export const aiKeys = {
 export function useAIInsights(projectId: string = 'default') {
   return useQuery({
     queryKey: aiKeys.insights(),
-    queryFn: () => aiApi.getInsights(projectId) as Promise<{ health: number; coverage: number; bugs: number; recommendations: number; insights: any[] }>,
+    queryFn: () => aiApi.getInsights(projectId) as Promise<{ health: number; coverage: number; bugs: number; recommendations: number; insights: unknown[] }>,
   });
 }

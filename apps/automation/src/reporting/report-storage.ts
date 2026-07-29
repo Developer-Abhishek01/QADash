@@ -78,7 +78,7 @@ export class ReportStorage {
   ): Promise<StoredReport> {
     const reportId = `report-${executionId}-${Date.now()}`;
     
-    const filePaths: Record<ExportFormat, string> = {} as any;
+    const filePaths: Record<ExportFormat, string> = {} as unknown as Record<ExportFormat, string>;
     let totalSize = 0;
 
     exportResults.forEach(result => {

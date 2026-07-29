@@ -25,6 +25,7 @@ import { useState, useEffect } from 'react';
 
 import PageHeader from '@/components/common/PageHeader';
 import { useCreateAccessibilityTest, useRunAccessibilityTest } from '@/lib/accessibility/hooks';
+import type { CreateTestDto } from '@/lib/accessibility/types';
 import { projectsApi } from '@/lib/api/client';
 
 export default function NewAccessibilityTest() {
@@ -41,11 +42,11 @@ export default function NewAccessibilityTest() {
     isScheduled: false,
     schedule: '',
   });
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    projectsApi.list().then(data => setProjects(Array.isArray(data) ? data : [])).catch(() => {});
+    projectsApi.list().then((data: unknown) => setProjects(Array.isArray(data) ? data as Record<string, unknown>[] : [])).catch(() => {});
   }, []);
 
   const createTest = useCreateAccessibilityTest();
@@ -69,7 +70,7 @@ export default function NewAccessibilityTest() {
   const handleSubmit = async (runAfterCreate = false) => {
     setIsSubmitting(true);
     try {
-      const result = await createTest.mutateAsync(formData as any);
+      const result = await createTest.mutateAsync(formData as CreateTestDto) as { id: string };
       if (runAfterCreate) {
         await runTest.mutateAsync(result.id);
       }
@@ -124,8 +125,8 @@ export default function NewAccessibilityTest() {
                   <FormControl fullWidth>
                     <InputLabel>Project</InputLabel>
                     <Select value={formData.projectId} onChange={(e) => handleChange('projectId', e.target.value)} label="Project">
-                      {projects.map((p: any) => (
-                        <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                      {projects.map((p: Record<string, unknown>) => (
+                        <MenuItem key={String(p.id)} value={String(p.id)}>{String(p.name)}</MenuItem>
                       ))}
                     </Select>
                   </FormControl>

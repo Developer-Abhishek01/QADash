@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Put, Body, Param, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
+import type { Request as ExpressRequest } from 'express';
 
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto, UpdateUserRoleDto } from './dto/auth.dto';
@@ -30,8 +31,8 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  async logout(@Request() req: any, @Body() body: LogoutDto) {
-    await this.authService.logout(req.user.id, body.refreshToken);
+  async logout(@Request() req: ExpressRequest, @Body() body: LogoutDto) {
+    await this.authService.logout((req.user as { id: string }).id, body.refreshToken);
     return { message: 'Logged out successfully' };
   }
 
@@ -46,23 +47,23 @@ export class AuthController {
   @Get('me')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  me(@Request() req: any) { return this.authService.getProfile(req.user.id); }
+  me(@Request() req: ExpressRequest) { return this.authService.getProfile((req.user as { id: string }).id); }
 
   @Put('profile')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  updateProfile(@Request() req: any, @Body() body: UpdateProfileDto) { return this.authService.updateProfile(req.user.id, body); }
+  updateProfile(@Request() req: ExpressRequest, @Body() body: UpdateProfileDto) { return this.authService.updateProfile((req.user as { id: string }).id, body); }
 
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) { return this.authService.changePassword(req.user.id, changePasswordDto); }
+  changePassword(@Request() req: ExpressRequest, @Body() changePasswordDto: ChangePasswordDto) { return this.authService.changePassword((req.user as { id: string }).id, changePasswordDto); }
 
   @Get('permissions')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  getPermissions(@Request() req: any) { return { role: req.user.role, permissions: this.authService.getPermissions(req.user.role) }; }
+  getPermissions(@Request() req: ExpressRequest) { return { role: (req.user as { role: UserRole }).role, permissions: this.authService.getPermissions((req.user as { role: UserRole }).role) }; }
 
   @Put('users/:userId/role')
   @HttpCode(HttpStatus.OK)

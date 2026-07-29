@@ -3,10 +3,10 @@
 import { TextField, TextFieldProps } from '@mui/material';
 import { UseFormRegister, FieldError } from 'react-hook-form';
 
-interface FormTextFieldProps extends Omit<TextFieldProps, 'name'> {
+interface FormTextFieldProps extends Omit<TextFieldProps, 'name' | 'error'> {
   name: string;
-  register: UseFormRegister<any>;
-  error?: boolean;
+  register: UseFormRegister<Record<string, unknown>>;
+  error?: FieldError;
 }
 
 export function FormTextField({
@@ -28,14 +28,14 @@ export function FormTextField({
       onBlur={onBlur}
       ref={ref}
       error={!!error}
-      helperText={(error as any)?.message}
+      helperText={error?.message}
     />
   );
 }
 
 type FormSelectProps = TextFieldProps & {
   name: string;
-  register: UseFormRegister<any>;
+  register: UseFormRegister<Record<string, unknown>>;
   error?: FieldError;
   options: { value: string | number; label: string }[];
 }
@@ -80,7 +80,7 @@ export function FormSelect({
 
 interface FormCheckboxProps {
   name: string;
-  register: UseFormRegister<any>;
+  register: UseFormRegister<Record<string, unknown>>;
   label: string;
   error?: FieldError;
 }

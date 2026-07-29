@@ -77,33 +77,105 @@ interface KpiCard {
   trend: { value: string; positive: boolean; neutral?: boolean };
 }
 
+interface Execution {
+  id: string;
+  name?: string;
+  status: string;
+  duration?: number;
+  startedAt?: string;
+  createdAt?: string;
+  testRuns?: TestRun[];
+}
+
+interface TestRun {
+  id: string;
+  status: string;
+  duration?: number;
+  error?: string;
+  logs?: string;
+  test?: {
+    id: string;
+    name?: string;
+    config?: Record<string, unknown>;
+  };
+  metadata?: string | Record<string, unknown>;
+}
+
+interface Project {
+  id: string;
+  name: string;
+}
+
+interface AvailableTest {
+  id: string;
+  name: string;
+  config?: { url?: string };
+  tags?: string[];
+}
+
+interface LivePreviewData {
+  executionId: string;
+  screenshot?: string;
+  step?: string;
+  timestamp: number;
+}
+
+interface ActionEvent {
+  executionId: string;
+  type: 'click' | 'type' | 'navigate' | 'assert' | 'select' | 'wait' | 'screenshot' | 'scroll' | 'hover';
+  selector?: string;
+  value?: string;
+  url?: string;
+  status?: 'running' | 'passed' | 'failed';
+  timestamp: number;
+}
+
+interface ConsoleEvent {
+  executionId: string;
+  type: 'log' | 'warn' | 'error' | 'api' | 'info';
+  message: string;
+  url?: string;
+  method?: string;
+  statusCode?: number;
+  timestamp: number;
+}
+
+interface HlElement {
+  executionId: string;
+  selector: string;
+  tagName: string;
+  rect: { x: number; y: number; width: number; height: number };
+  action: 'click' | 'type' | 'hover';
+  timestamp: number;
+}
+
 export default function ExecutionsPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user: _user } = useAuth();
-  const [executions, setExecutions] = useState<any[]>([]);
+  const [executions, setExecutions] = useState<Execution[]>([]);
   const [_isLoading, setIsLoading] = useState(true);
   const [_isMounted, setIsMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [executionToDelete, setExecutionToDelete] = useState<any>(null);
-  const [selectedExecution, setSelectedExecution] = useState<any>(null);
+  const [executionToDelete, setExecutionToDelete] = useState<Execution | null>(null);
+  const [selectedExecution, setSelectedExecution] = useState<Execution | null>(null);
   const [isTriggering, setIsTriggering] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
   const [newTest, setNewTest] = useState({ name: '', url: '', browser: 'chromium' });
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState('');
   const [livePreview, setLivePreview] = useState<{ screenshot: string; step: string; timestamp: number } | null>(null);
-  const [actionLogs, setActionLogs] = useState<any[]>([]);
-  const [consoleLogs, setConsoleLogs] = useState<any[]>([]);
-  const [elementHighlights, setElementHighlights] = useState<any[]>([]);
+  const [actionLogs, setActionLogs] = useState<ActionEvent[]>([]);
+  const [consoleLogs, setConsoleLogs] = useState<ConsoleEvent[]>([]);
+  const [elementHighlights, setElementHighlights] = useState<HlElement[]>([]);
   const lastFrameRef = useRef<string>('');
   const framePendingRef = useRef(false);
   const frameTimestamps = useRef<number[]>([]);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
-  const [availableTests, setAvailableTests] = useState<any[]>([]);
+  const [availableTests, setAvailableTests] = useState<AvailableTest[]>([]);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -114,17 +186,18 @@ export default function ExecutionsPage() {
   const fetchExecutions = async () => {
     try {
       setIsLoading(true);
-      const data = await executionsApi.list();
+      const data = await executionsApi.list() as Execution[];
       setExecutions(data);
       if (detailOpen && selectedExecution) {
-        const updated = data.find((e: any) => e.id === selectedExecution.id);
+        const updated = data.find((e: Execution) => e.id === selectedExecution.id);
         if (updated && updated.status !== selectedExecution.status) {
-          setSelectedExecution((prev: any) => ({ ...prev, status: updated.status }));
+          setSelectedExecution((prev: Execution | null) => (prev ? { ...prev, status: updated.status } : null));
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch executions:', error);
-      const message = error.response?.data?.message || error.message || 'Failed to load executions from server';
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      const message = err.response?.data?.message || err.message || 'Failed to load executions from server';
       enqueueSnackbar(message, { variant: 'error' });
       if (message.includes('Network Error')) {
         enqueueSnackbar('Backend server (Port 3001) is not responding. Please run run.bat', { variant: 'warning', persist: true });
@@ -140,9 +213,10 @@ export default function ExecutionsPage() {
   useEffect(() => {
     setIsMounted(true);
     fetchExecutions();
-    projectsApi.list().then((projectsList: any[]) => {
-      setProjects(projectsList);
-      if (projectsList.length > 0) setProjectId(projectsList[0].id);
+    projectsApi.list().then((projectsList) => {
+      const list = projectsList as Project[];
+      setProjects(list);
+      if (list.length > 0) setProjectId(list[0].id);
     }).catch(() => {});
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => { clearInterval(timer); };
@@ -151,12 +225,14 @@ export default function ExecutionsPage() {
 
   useEffect(() => {
     if (open && projectId) {
-      testsApi.list({ projectId }).then((tests: any[]) => {
-        setAvailableTests(Array.isArray(tests) ? tests : []);
+      testsApi.list({ projectId }).then((tests) => {
+        const list = tests as AvailableTest[];
+        setAvailableTests(Array.isArray(list) ? list : []);
       }).catch(() => setAvailableTests([]));
     } else if (open) {
-      testsApi.list().then((tests: any[]) => {
-        setAvailableTests(Array.isArray(tests) ? tests : []);
+      testsApi.list().then((tests) => {
+        const list = tests as AvailableTest[];
+        setAvailableTests(Array.isArray(list) ? list : []);
       }).catch(() => setAvailableTests([]));
     } else {
       setAvailableTests([]);
@@ -164,7 +240,7 @@ export default function ExecutionsPage() {
   }, [open, projectId]);
 
   useEffect(() => {
-    const hasRunning = executions.some((e: any) => e.status === 'RUNNING');
+    const hasRunning = executions.some((e: Execution) => e.status === 'RUNNING');
     if (!hasRunning) return;
     const interval = setInterval(() => fetchExecutionsRef.current(), 5000);
     return () => clearInterval(interval);
@@ -196,9 +272,9 @@ export default function ExecutionsPage() {
 
   const kpiCards: KpiCard[] = useMemo(() => {
     const total = executions.length;
-    const passed = executions.filter((e: any) => e.status === 'PASSED').length;
-    const failed = executions.filter((e: any) => e.status === 'FAILED').length;
-    const running = executions.filter((e: any) => e.status === 'RUNNING').length;
+    const passed = executions.filter((e: Execution) => e.status === 'PASSED').length;
+    const failed = executions.filter((e: Execution) => e.status === 'FAILED').length;
+    const running = executions.filter((e: Execution) => e.status === 'RUNNING').length;
     return [
       {
         label: 'Total Executions',
@@ -239,31 +315,31 @@ export default function ExecutionsPage() {
     let result = [...executions];
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      result = result.filter((e: any) =>
+      result = result.filter((e: Execution) =>
         e.name?.toLowerCase().includes(q) ||
         e.id?.toLowerCase().includes(q)
       );
     }
     if (statusFilter !== 'all') {
-      result = result.filter((e: any) => e.status === statusFilter.toUpperCase());
+      result = result.filter((e: Execution) => e.status === statusFilter.toUpperCase());
     }
     if (dateFilter === 'custom' && dateRangeStart && dateRangeEnd) {
       const start = new Date(dateRangeStart);
       start.setHours(0, 0, 0, 0);
       const end = new Date(dateRangeEnd);
       end.setHours(23, 59, 59, 999);
-      result = result.filter((e: any) => e.createdAt && new Date(e.createdAt) >= start && new Date(e.createdAt) <= end);
+      result = result.filter((e: Execution) => e.createdAt && new Date(e.createdAt) >= start && new Date(e.createdAt) <= end);
     } else if (dateFilter !== 'all') {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       if (dateFilter === 'today') {
-        result = result.filter((e: any) => e.createdAt && new Date(e.createdAt) >= today);
+        result = result.filter((e: Execution) => e.createdAt && new Date(e.createdAt) >= today);
       } else if (dateFilter === '7days') {
         const d = new Date(today); d.setDate(d.getDate() - 7);
-        result = result.filter((e: any) => e.createdAt && new Date(e.createdAt) >= d);
+        result = result.filter((e: Execution) => e.createdAt && new Date(e.createdAt) >= d);
       } else if (dateFilter === '30days') {
         const d = new Date(today); d.setDate(d.getDate() - 30);
-        result = result.filter((e: any) => e.createdAt && new Date(e.createdAt) >= d);
+        result = result.filter((e: Execution) => e.createdAt && new Date(e.createdAt) >= d);
       }
     }
     return result;
@@ -290,7 +366,7 @@ export default function ExecutionsPage() {
           projectId,
           config: { url: newTest.url, framework: 'playwright', browsers: [newTest.browser], timeout: 30000, retries: 0 },
           tags: ['manual-execution'],
-        });
+        }) as { id: string };
         allTestIds.push(test.id);
       }
       allTestIds.push(...selectedTests);
@@ -300,7 +376,7 @@ export default function ExecutionsPage() {
         return;
       }
       const executionName = newTest.name || `Execution ${new Date().toLocaleString('en-IN')}`;
-      const created = await executionsApi.create({ name: executionName, projectId, testIds: allTestIds });
+      const created = await executionsApi.create({ name: executionName, projectId, testIds: allTestIds }) as { id: string };
       await executionsApi.start(created.id);
       enqueueSnackbar(`Execution started with ${allTestIds.length} test(s)`, { variant: 'success' });
       setNewTest({ name: '', url: '', browser: 'chromium' });
@@ -315,16 +391,16 @@ export default function ExecutionsPage() {
     }
   };
 
-  const handleRowClick = async (row: any) => {
+  const handleRowClick = async (row: Execution) => {
     try {
       setDetailOpen(true);
       setLivePreview(null);
-      const fullData = await executionsApi.get(row.id);
+      const fullData = await executionsApi.get(row.id) as Execution;
       setSelectedExecution(fullData);
       if (fullData.status === 'RUNNING') {
         const interval = setInterval(async () => {
           try {
-            const updated = await executionsApi.get(row.id);
+            const updated = await executionsApi.get(row.id) as Execution;
             setSelectedExecution(updated);
             if (updated.status !== 'RUNNING') clearInterval(interval);
           } catch {}
@@ -342,8 +418,9 @@ export default function ExecutionsPage() {
     if (selectedExecution.status !== 'RUNNING') { console.log('[LIVEPREVIEW] Skipping live preview setup — execution status is', selectedExecution.status); return; }
     const socket = socketClient.connect();
     let frameCount = 0;
-    const onFrame = (data: any) => {
-      if (data.executionId !== selectedExecution.id || !data.screenshot) return;
+    const onFrame = (data: LivePreviewData) => {
+      if (data.executionId !== selectedExecution.id) return;
+      if (!data.screenshot) return;
       frameCount++;
       if (frameCount % 30 === 1) {
         const now = performance.now();
@@ -361,21 +438,21 @@ export default function ExecutionsPage() {
       }
       framePendingRef.current = true;
       lastFrameRef.current = data.screenshot;
-      setLivePreview({ screenshot: data.screenshot, step: data.step, timestamp: data.timestamp });
+      setLivePreview({ screenshot: data.screenshot, step: data.step ?? '', timestamp: data.timestamp });
       requestAnimationFrame(() => { framePendingRef.current = false; });
     };
     socket.on('live-preview', onFrame);
-    const onActionLog = (data: any) => {
+    const onActionLog = (data: ActionEvent) => {
       if (data.executionId === selectedExecution.id) {
         setActionLogs(prev => [...prev.slice(-200), data]);
       }
     };
-    const onConsoleLog = (data: any) => {
+    const onConsoleLog = (data: ConsoleEvent) => {
       if (data.executionId === selectedExecution.id) {
         setConsoleLogs(prev => [...prev.slice(-200), data]);
       }
     };
-    const onElementHighlight = (data: any) => {
+    const onElementHighlight = (data: HlElement) => {
       if (data.executionId === selectedExecution.id) {
         setElementHighlights(prev => [...prev.slice(-50), data]);
       }
@@ -385,10 +462,10 @@ export default function ExecutionsPage() {
     socket.on('element-highlight', onElementHighlight);
     const fetchLivePreview = async () => {
       try {
-        const data = await executionsApi.livePreview(selectedExecution.id);
+        const data = await executionsApi.livePreview(selectedExecution.id) as { screenshot?: string; step?: string; timestamp?: number } | undefined;
         console.log('[LIVEPREVIEW] REST polling — got data:', !!data, 'hasScreenshot:', !!data?.screenshot, 'dataLen:', data?.screenshot?.length, 'step:', data?.step);
         if (data && data.screenshot) {
-          setLivePreview(data);
+          setLivePreview(data as { screenshot: string; step: string; timestamp: number });
         } else if (data) {
           setLivePreview(prev => prev ? { ...prev, step: data.step || prev.step, timestamp: data.timestamp || prev.timestamp } : null);
         }
@@ -437,7 +514,7 @@ export default function ExecutionsPage() {
   };
 
   const handleExport = () => {
-    const rows = filteredExecutions.map((e: any) => ({
+    const rows = filteredExecutions.map((e: Execution) => ({
       ID: e.id,
       Name: e.name || 'Untitled Execution',
       Status: e.status,
@@ -445,7 +522,7 @@ export default function ExecutionsPage() {
       Started: e.startedAt ? new Date(e.startedAt).toLocaleString() : '-',
     }));
     const headers = Object.keys(rows[0] || {});
-    const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String((r as any)[h]).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String((r as Record<string, unknown>)[h]).replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -460,19 +537,20 @@ export default function ExecutionsPage() {
     const screenshots: { id: string; url: string; name: string }[] = [];
     let videoUrl = '';
     if (selectedExecution?.testRuns) {
-      selectedExecution.testRuns.forEach((run: any) => {
+      selectedExecution.testRuns.forEach((run: TestRun) => {
         let meta = run.metadata;
         if (typeof meta === 'string') { try { meta = JSON.parse(meta); } catch {} }
         if (meta && typeof meta === 'object') {
-          if (meta.screenshot) {
+          const m = meta as { screenshot?: string; video?: string };
+          if (m.screenshot) {
             screenshots.push({
               id: run.id,
-              url: meta.screenshot.startsWith('http') ? meta.screenshot : `http://localhost:3001${meta.screenshot}`,
+              url: m.screenshot.startsWith('http') ? m.screenshot : `http://localhost:3001${m.screenshot}`,
               name: run.test?.name || 'Test Step Screenshot',
             });
           }
-          if (meta.video) {
-            videoUrl = meta.video.startsWith('http') ? meta.video : `http://localhost:3001${meta.video}`;
+          if (m.video) {
+            videoUrl = m.video.startsWith('http') ? m.video : `http://localhost:3001${m.video}`;
           }
         }
       });
@@ -818,7 +896,7 @@ export default function ExecutionsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredExecutions.map((row: any) => (
+                filteredExecutions.map((row: Execution) => (
                   <TableRow
                     key={row.id}
                     hover
@@ -840,7 +918,7 @@ export default function ExecutionsPage() {
                     <TableCell>{statusChip(row.status)}</TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
-                        {row.status === 'RUNNING' ? calculateElapsed(row.startedAt) : formatDuration(row.duration)}
+                        {row.status === 'RUNNING' ? calculateElapsed(row.startedAt ?? '') : formatDuration(row.duration ?? 0)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -897,7 +975,7 @@ export default function ExecutionsPage() {
           </Typography>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             {['PASSED', 'FAILED', 'RUNNING', 'PENDING'].map((s) => {
-              const count = filteredExecutions.filter((e: any) => e.status === s).length;
+              const count = filteredExecutions.filter((e: Execution) => e.status === s).length;
               if (count === 0) return null;
               return (
                 <Chip
@@ -941,7 +1019,7 @@ export default function ExecutionsPage() {
                 <Typography variant="caption" color="text.secondary">Execution Details</Typography>
               </Box>
             </Box>
-            {statusChip(selectedExecution?.status)}
+            {statusChip(selectedExecution?.status ?? '')}
           </Box>
         </DialogTitle>
         <DialogContent dividers sx={{ '&.MuiDialogContent-dividers': { borderColor: 'divider' } }}>
@@ -963,10 +1041,10 @@ export default function ExecutionsPage() {
                     </TableHead>
                     <TableBody>
                       {selectedExecution?.testRuns && selectedExecution.testRuns.length > 0 ? (
-                        selectedExecution.testRuns.map((run: any) => {
-                          const config = run.test?.config || {};
-                          const steps = config?.steps || [];
-                          const srcData = config?._sourceFileData?.[0] || {};
+                        selectedExecution.testRuns.map((run: TestRun) => {
+                          const config = run.test?.config ?? {};
+                          const steps = (config.steps as unknown[]) ?? [];
+                          const srcData = (config._sourceFileData as Record<string, unknown>[])?.[0] ?? {};
                           const hasSrcData = srcData && Object.keys(srcData).length > 0;
                           const isRunning = run.status === 'RUNNING';
                           const isPassed = run.status === 'PASSED';
@@ -1026,9 +1104,9 @@ export default function ExecutionsPage() {
 
               {selectedExecution?.testRuns && (
                 <Grid item xs={12}>
-                  {selectedExecution.testRuns.map((run: any) => {
-                    const config = run.test?.config || {};
-                    const srcData = config?._sourceFileData?.[0] || {};
+                  {selectedExecution.testRuns.map((run: TestRun) => {
+                    const config = run.test?.config ?? {};
+                    const srcData = (config._sourceFileData as Record<string, unknown>[])?.[0] ?? {};
                     const hasSrcData = srcData && Object.keys(srcData).length > 0;
                     return (
                       <Collapse key={`detail-${run.id}`} in={expandedRun === run.id}>
@@ -1162,7 +1240,7 @@ export default function ExecutionsPage() {
                 </Box>
                 <Box sx={{ p: 2, bgcolor: '#1e1e1e', color: '#d4d4d4', borderRadius: 2, fontFamily: 'monospace', fontSize: '0.75rem', height: 200, overflowY: 'auto' }}>
                   {selectedExecution?.testRuns && selectedExecution.testRuns.length > 0 ? (
-                    selectedExecution.testRuns.map((run: any, idx: number) => (
+                    selectedExecution.testRuns.map((run: TestRun, idx: number) => (
                       <div key={idx}>
                         <div style={{ color: '#569cd6', marginBottom: 4 }}>--- Test: {run.test?.name} ---</div>
                         {run.logs ? <div style={{ whiteSpace: 'pre-wrap' }}>{run.logs}</div> : <div style={{ fontStyle: 'italic', opacity: 0.6 }}>Waiting for logs...</div>}
@@ -1233,7 +1311,7 @@ export default function ExecutionsPage() {
         <DialogContent dividers sx={{ '&.MuiDialogContent-dividers': { borderColor: 'divider' } }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
             <TextField select label="Project" fullWidth value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              {projects.map((p: any) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+              {projects.map((p: Project) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
             </TextField>
 
             <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', letterSpacing: 0.5 }}>CREATE NEW TEST (OPTIONAL)</Typography>
@@ -1250,7 +1328,7 @@ export default function ExecutionsPage() {
             <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', letterSpacing: 0.5 }}>OR SELECT EXISTING TESTS</Typography>
             {availableTests.length > 0 ? (
               <Box sx={{ maxHeight: 200, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}>
-                {availableTests.map((tc: any) => (
+                {availableTests.map((tc: AvailableTest) => (
                   <Box key={tc.id} sx={{ display: 'flex', alignItems: 'center', py: 0.3 }}>
                     <Checkbox size="small" checked={selectedTests.includes(tc.id)}
                       onChange={() => setSelectedTests(prev => prev.includes(tc.id) ? prev.filter(id => id !== tc.id) : [...prev, tc.id])} />
@@ -1258,7 +1336,7 @@ export default function ExecutionsPage() {
                       <Typography variant="body2">{tc.name}</Typography>
                       <Typography variant="caption" color="text.secondary">
                         {tc.config?.url ? tc.config.url.substring(0, 40) : 'No URL'}
-                        {tc.tags?.length > 0 ? ` | ${tc.tags.join(', ')}` : ''}
+                        {tc.tags && tc.tags.length > 0 ? ` | ${tc.tags.join(', ')}` : ''}
                       </Typography>
                     </Box>
                   </Box>

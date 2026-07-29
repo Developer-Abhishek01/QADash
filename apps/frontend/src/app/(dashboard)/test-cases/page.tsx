@@ -56,10 +56,22 @@ const wizardSteps = ['Upload Test Cases', 'AI Mapping', 'Execution Trigger'];
 
 interface ParsedTestCase {
   name: string;
-  steps: any[];
+  steps: Record<string, unknown>[];
   url: string;
   sourceRow: number;
   sourceData: Record<string, string>;
+}
+
+interface TestCaseItem {
+  id: string;
+  name: string;
+  status: string;
+  tags?: string[];
+  code?: string;
+  projectId?: string;
+  createdAt?: string;
+  project?: { name: string; id: string };
+  config?: Record<string, unknown>;
 }
 
 export default function TestCasesPage() {
@@ -74,14 +86,14 @@ export default function TestCasesPage() {
   const [selectedCaseIndices, setSelectedCaseIndices] = useState<number[]>([]);
   const [targetUrl, setTargetUrl] = useState('');
   const [projectId, setProjectId] = useState('');
-  const [environments, setEnvironments] = useState<any[]>([]);
+  const [environments, setEnvironments] = useState<Record<string, unknown>[]>([]);
   const [selectedEnvId, setSelectedEnvId] = useState('');
-  const [testCases, setTestCases] = useState<any[]>([]);
+  const [testCases, setTestCases] = useState<TestCaseItem[]>([]);
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewTc, setViewTc] = useState<any | null>(null);
-  const [editTc, setEditTc] = useState<any | null>(null);
+  const [viewTc, setViewTc] = useState<TestCaseItem | null>(null);
+  const [editTc, setEditTc] = useState<TestCaseItem | null>(null);
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editCode, setEditCode] = useState('');
@@ -98,7 +110,7 @@ export default function TestCasesPage() {
   const fetchTestCases = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await testsApi.list();
+      const data = await testsApi.list() as TestCaseItem[];
       setTestCases(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch test cases:', error);
@@ -110,9 +122,10 @@ export default function TestCasesPage() {
 
   useEffect(() => {
     fetchTestCases();
-    projectsApi.list().then((projectsList: any[]) => {
-      setProjects(projectsList);
-      if (projectsList.length > 0 && !projectId) setProjectId(projectsList[0].id);
+    projectsApi.list().then((projectsList: unknown) => {
+      const list = projectsList as Record<string, unknown>[];
+      setProjects(list);
+      if (list.length > 0 && !projectId) setProjectId(list[0].id as string);
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchTestCases]);
@@ -123,11 +136,12 @@ export default function TestCasesPage() {
     if (!matchedProject) return;
     setSelectedEnvId('');
     setTargetUrl('');
-    environmentsApi.list({ projectId: matchedProject.id }).then((envList: any[]) => {
-      setEnvironments(envList);
-      if (envList.length > 0 && !selectedEnvId) {
-        setSelectedEnvId(envList[0].id);
-        setTargetUrl(envList[0].baseUrl);
+    environmentsApi.list({ projectId: matchedProject.id }).then((envList: unknown) => {
+      const list = envList as Record<string, unknown>[];
+      setEnvironments(list);
+      if (list.length > 0 && !selectedEnvId) {
+        setSelectedEnvId(list[0].id as string);
+        setTargetUrl(list[0].baseUrl as string);
       }
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,7 +195,7 @@ export default function TestCasesPage() {
     return key ? row[key] || '' : '';
   };
 
-  const rowToStep = (row: Record<string, string>): any | null => {
+  const rowToStep = (row: Record<string, string>): Record<string, unknown> | null => {
     let action = getVal(row, ['action', 'type', 'step_type', 'command', 'keyword']);
     if (!action) {
       const stepKey = findKey(row, ['step', 'steps', 'test_step', 'test steps', 'test_steps']);
@@ -240,7 +254,7 @@ export default function TestCasesPage() {
   };
 
   // Parse multi-line step text like "1. Step one\n2. Step two" into step objects
-  const parseStepsText = (text: string): any[] => {
+  const parseStepsText = (text: string): Record<string, unknown>[] => {
     if (!text) return [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     return lines.map((line) => {
@@ -325,7 +339,7 @@ export default function TestCasesPage() {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet);
+        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
         if (rows.length === 0) return [];
 
         const headers = Object.keys(rows[0]).map(h => h.toLowerCase());
@@ -338,7 +352,7 @@ export default function TestCasesPage() {
 
         if (hasAction && !hasTestCaseName) {
           // Each row is a step -> group them as one test case
-          const steps: any[] = [];
+          const steps: Record<string, unknown>[] = [];
           let firstUrl = '';
           const allRowData: Record<string, string> = {};
           for (const row of rows) {
@@ -350,11 +364,12 @@ export default function TestCasesPage() {
             Object.assign(allRowData, cleanRow);
             const step = rowToStep(cleanRow);
             if (step) {
-              if (step._multi) {
-                for (const s of step._multi) { steps.push(s); if (s.url && !firstUrl) firstUrl = s.url; }
+              const stepMulti = (step as Record<string, unknown>)._multi as Record<string, unknown>[] | undefined;
+              if (stepMulti) {
+                for (const s of stepMulti) { steps.push(s); if ((s as Record<string, unknown>).url && !firstUrl) firstUrl = (s as Record<string, unknown>).url as string; }
               } else {
                 steps.push(step);
-                if (step.url && !firstUrl) firstUrl = step.url;
+                if ((step as Record<string, unknown>).url && !firstUrl) firstUrl = (step as Record<string, unknown>).url as string;
               }
             }
           }
@@ -374,7 +389,7 @@ export default function TestCasesPage() {
           const tcName = cleanRow.test_case || cleanRow.testcasename || cleanRow.test_name || cleanRow.testname || cleanRow.name || cleanRow.scenario || cleanRow.title || `Test Case ${i + 1}`;
           const tcUrl = cleanRow.url || cleanRow.baseurl || cleanRow.site || '';
           if (step) {
-            testCases.push({ name: tcName, steps: step._multi || [step], url: tcUrl, sourceRow: i, sourceData: cleanRow });
+            testCases.push({ name: tcName, steps: (step._multi as Record<string, unknown>[] | undefined) || [step], url: tcUrl, sourceRow: i, sourceData: cleanRow });
           } else {
             // No action column found — check for multi-line steps column
             const stepsKey = Object.keys(cleanRow).find(k => k.includes('step') || k.includes('action') || k.includes('testcase') || k.includes('description'));
@@ -402,7 +417,7 @@ export default function TestCasesPage() {
     if (ext === 'json') {
       try {
         const contentStr = typeof content === 'string' ? content : new TextDecoder().decode(content as ArrayBuffer);
-        const parsed = JSON.parse(contentStr);
+        const parsed = JSON.parse(contentStr) as Record<string, unknown> | Record<string, unknown>[];
         if (Array.isArray(parsed)) {
           if (parsed.length === 0) return [];
           // Check if this is an array of steps or test cases
@@ -414,25 +429,26 @@ export default function TestCasesPage() {
             for (const s of parsed) {
               Object.assign(allData, Object.fromEntries(Object.entries(s).map(([k, v]) => [k, String(v ?? '')])));
             }
-            return [{ name, steps: parsed, url: parsed.find((s: any) => s.url)?.url || '', sourceRow: 0, sourceData: allData }];
+            return [{ name, steps: parsed, url: (parsed.find((s: Record<string, unknown>) => s.url)?.url as string) || '', sourceRow: 0, sourceData: allData }];
           }
           // Array of test case objects
-          return parsed.map((item: any, idx: number) => {
-            const name = item.name || item.test_case || item.testCase || item.title || item.scenario || `Test Case ${idx + 1}`;
-            let steps = item.steps || item.actions || (item.action ? [item] : []);
+          return parsed.map((item: Record<string, unknown>, idx: number): ParsedTestCase => {
+            const name = String(item.name || item.test_case || item.testCase || item.title || item.scenario || `Test Case ${idx + 1}`);
+            let steps = (item.steps || item.actions || (item.action ? [item] : [])) as Record<string, unknown>[];
             if (!Array.isArray(steps)) steps = [];
             return {
               name,
               steps,
-              url: item.url || item.baseUrl || '',
+              url: String(item.url || item.baseUrl || ''),
               sourceRow: idx,
               sourceData: Object.fromEntries(Object.entries(item).map(([k, v]) => [k, String(v ?? '')])),
             };
           });
         }
-        if (parsed.steps && Array.isArray(parsed.steps)) {
+        const parsedObj = parsed as Record<string, unknown>;
+        if (parsedObj.steps && Array.isArray(parsedObj.steps)) {
           const name = fileName.replace(/\.[^/.]+$/, '');
-          return [{ name, steps: parsed.steps, url: parsed.url || '', sourceRow: 0, sourceData: {} }];
+          return [{ name, steps: parsedObj.steps as Record<string, unknown>[], url: String(parsedObj.url || ''), sourceRow: 0, sourceData: {} }];
         }
         return [];
       } catch { return []; }
@@ -453,7 +469,7 @@ export default function TestCasesPage() {
 
       if (hasAction && !hasTestCaseName) {
         // Each row is a step -> group as one test case
-        const steps: any[] = [];
+        const steps: Record<string, unknown>[] = [];
         let firstUrl = '';
         const allRowData: Record<string, string> = {};
         for (let i = 1; i < lines.length; i++) {
@@ -463,11 +479,12 @@ export default function TestCasesPage() {
           Object.assign(allRowData, row);
           const step = rowToStep(row);
           if (step) {
-            if (step._multi) {
-              for (const s of step._multi) { steps.push(s); if (s.url && !firstUrl) firstUrl = s.url; }
+            const stepMulti = (step as Record<string, unknown>)._multi as Record<string, unknown>[] | undefined;
+            if (stepMulti) {
+              for (const s of stepMulti) { steps.push(s); if ((s as Record<string, unknown>).url && !firstUrl) firstUrl = (s as Record<string, unknown>).url as string; }
             } else {
               steps.push(step);
-              if (step.url && !firstUrl) firstUrl = step.url;
+              if ((step as Record<string, unknown>).url && !firstUrl) firstUrl = (step as Record<string, unknown>).url as string;
             }
           }
         }
@@ -485,7 +502,7 @@ export default function TestCasesPage() {
         const tcName = row.test_case || row.testcasename || row.test_name || row.testname || row.name || row.scenario || row.title || `Test Case ${i}`;
         const tcUrl = row.url || row.baseurl || row.site || '';
         if (step) {
-          testCases.push({ name: tcName, steps: step._multi || [step], url: tcUrl, sourceRow: i, sourceData: row });
+          testCases.push({ name: tcName, steps: (step._multi as Record<string, unknown>[] | undefined) || [step], url: tcUrl, sourceRow: i, sourceData: row });
         } else {
           const stepsKey = Object.keys(row).find(k => k.includes('step') || k.includes('action') || k.includes('testcase') || k.includes('description'));
           const stepsText = stepsKey ? row[stepsKey] || '' : '';
@@ -566,7 +583,8 @@ export default function TestCasesPage() {
       const expandedIds: string[] = [];
       for (const id of idsToRun) {
         const tc = testCases.find(t => t.id === id);
-        const childIds = tc?.config?._childTestIds;
+        const cfg = tc?.config as Record<string, unknown> | undefined;
+        const childIds = cfg?._childTestIds as string[] | undefined;
         if (Array.isArray(childIds) && childIds.length > 0) {
           expandedIds.push(...childIds);
         } else {
@@ -584,7 +602,7 @@ export default function TestCasesPage() {
         name: suiteName,
         projectId: testProjectId,
         testIds: expandedIds,
-      });
+      }) as { id: string };
       await executionsApi.start(execution.id);
       enqueueSnackbar(`${suiteType} triggered with ${expandedIds.length} test(s)`, { variant: 'success' });
       setSelectedTestIds([]);
@@ -656,7 +674,7 @@ export default function TestCasesPage() {
                   _sourceRow: tc.sourceRow,
                   _sourceFileData: tc.sourceData ? [tc.sourceData] : [],
                 },
-              })
+              }) as Promise<{ id: string }>
             )
           );
           allChildIds.push(...batchResults.map(r => r.id));
@@ -672,7 +690,7 @@ export default function TestCasesPage() {
         const uniqueUrls = [...new Set(allUrls)];
         const groupUrl = uniqueUrls.length === 1 ? uniqueUrls[0] : (targetUrl || '');
 
-        const parentPayload: any = {
+        const parentPayload: Record<string, unknown> = {
           name: selectedFileName.replace(/\.[^/.]+$/, ''),
           status: 'ACTIVE',
           tags: ['uploaded', 'file-group', `source:${selectedFileName}`],
@@ -685,30 +703,32 @@ export default function TestCasesPage() {
             _childTestIds: allChildIds,
             _childUrls: allUrls.length > 0 ? allUrls : undefined,
           },
+          projectName,
         };
-        parentPayload.projectName = projectName;
         if (isJsFile && typeof fileContent === 'string') {
           parentPayload.code = fileContent;
         }
-        const parentTest = await testsApi.create(parentPayload);
+        const parentTest = await testsApi.create(parentPayload) as { id: string };
         // Cache source data locally for parent group
         sourceDataCache.current.set(parentTest.id, allSourceData);
 
         enqueueSnackbar(`File "${selectedFileName}" uploaded — ${allChildIds.length} test case(s) created`, { variant: 'success' });
 
-        projectsApi.list().then((projectsList: any[]) => {
-          setProjects(projectsList);
-          if (projectsList.length > 0) setProjectId(projectsList[0].id);
+        projectsApi.list().then((projectsList: unknown) => {
+          const list = projectsList as Record<string, unknown>[];
+          setProjects(list);
+          if (list.length > 0) setProjectId(list[0].id as string);
         }).catch(() => {});
         setIsMapping(false);
         setActiveStep(1);
 
         // Refresh test list to show parent card
         fetchTestCases();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to create test cases:', err);
-        const apiMsg = err?.response?.data?.message;
-        const detail = Array.isArray(apiMsg) ? apiMsg.join(', ') : (apiMsg || err?.message || 'Unknown error');
+        const errorObj = err as { response?: { data?: { message?: string | string[] } }; message?: string };
+        const apiMsg = errorObj.response?.data?.message;
+        const detail = Array.isArray(apiMsg) ? apiMsg.join(', ') : (apiMsg || errorObj.message || 'Unknown error');
         enqueueSnackbar(`Upload failed: ${detail}`, { variant: 'error', autoHideDuration: 6000 });
         setIsMapping(false);
       }
@@ -719,12 +739,12 @@ export default function TestCasesPage() {
 
   const handleBack = () => setActiveStep((prev) => prev - 1);
 
-  const handleMapAI = async (tc: any) => {
+  const handleMapAI = async (tc: TestCaseItem) => {
     enqueueSnackbar(`AI Mapping started for ${tc.name}...`, { variant: 'info' });
 
     try {
-      const configUrl = tc.config?.url || '';
-      let aiSteps: any[] = [];
+      const configUrl = (tc.config as Record<string, unknown> | undefined)?.url as string || '';
+      let aiSteps: Record<string, unknown>[] = [];
 
       if (tc.code) {
         const result = parseFileToTestCases(tc.code, `${tc.name}.js`);
@@ -738,7 +758,7 @@ export default function TestCasesPage() {
       }
 
       await testsApi.update(tc.id, {
-        config: { ...(tc.config || {}), steps: aiSteps },
+        config: { ...(tc.config as Record<string, unknown> || {}), steps: aiSteps },
         tags: [...(tc.tags || []).filter((t: string) => t !== 'ready'), 'ready'],
         status: 'ACTIVE',
       });
@@ -750,19 +770,20 @@ export default function TestCasesPage() {
     }
   };
 
-  const handleRunTestCase = async (tc: any) => {
-    const config = typeof tc.config === 'string' ? JSON.parse(tc.config) : (tc.config || {});
+  const handleRunTestCase = async (tc: TestCaseItem) => {
+    const config = (typeof tc.config === 'string' ? JSON.parse(tc.config) : tc.config || {}) as Record<string, unknown>;
 
     // If this is a group test, run all child test cases individually
     const isGroup = config._isGroup === true;
-    const testIdsToRun = isGroup ? (config._childTestIds || []) : [tc.id];
+    const testIdsToRun = isGroup ? (config._childTestIds as string[] || []) : [tc.id];
 
     if (!isGroup) {
       if (!config.url) {
         enqueueSnackbar('Please set a target URL before running', { variant: 'warning' });
         return;
       }
-      if (!tc.code && (!config.steps || !Array.isArray(config.steps) || config.steps.length === 0)) {
+      const steps = config.steps as Record<string, unknown>[] | undefined;
+      if (!tc.code && (!steps || !Array.isArray(steps) || steps.length === 0)) {
         enqueueSnackbar('No test steps found. Upload a test file with steps or add steps in test configuration.', { variant: 'warning' });
         return;
       }
@@ -779,7 +800,7 @@ export default function TestCasesPage() {
         name: isGroup ? `Group Run: ${tc.name} (${testIdsToRun.length} tests)` : `Single Run: ${tc.name}`,
         projectId: tc.projectId,
         testIds: testIdsToRun,
-      });
+      }) as { id: string };
       await executionsApi.start(execution.id);
       enqueueSnackbar(isGroup
         ? `Execution started for ${testIdsToRun.length} test(s) from "${tc.name}"`
@@ -793,16 +814,19 @@ export default function TestCasesPage() {
       setLoading(false);
     }
   };
-  const handleViewTestCase = (tc: any) => {
+  const handleViewTestCase = (tc: TestCaseItem) => {
     setViewTc(tc);
   };
-  const handleEditTestCase = (tc: any) => {
+  const handleEditTestCase = (tc: TestCaseItem) => {
     setEditTc(tc);
     setEditName(tc.name || '');
-    setEditUrl(tc.config?.url || '');
+    const cfg = tc.config as Record<string, unknown> | undefined;
+    setEditUrl(cfg?.url as string || '');
     setEditCode(tc.code || '');
-    setEditSteps(tc.config?.steps ? JSON.stringify(tc.config.steps, null, 2) : '');
-    setEditSourceData(tc.config?._sourceData ? { ...tc.config._sourceData } : {});
+    const steps = cfg?.steps as Record<string, unknown>[] | undefined;
+    setEditSteps(steps ? JSON.stringify(steps, null, 2) : '');
+    const srcData = cfg?._sourceData as Record<string, string> | undefined;
+    setEditSourceData(srcData ? { ...srcData } : {});
   };
   const handleSaveEdit = async () => {
     if (!editTc) return;
@@ -810,7 +834,7 @@ export default function TestCasesPage() {
       setLoading(true);
       let parsedSteps;
       try { parsedSteps = editSteps ? JSON.parse(editSteps) : []; } catch { parsedSteps = []; }
-      const config: any = { url: editUrl, steps: parsedSteps };
+      const config: Record<string, unknown> = { url: editUrl, steps: parsedSteps };
       if (Object.keys(editSourceData).length > 0) {
         config._sourceData = editSourceData;
       }
@@ -834,7 +858,7 @@ export default function TestCasesPage() {
       setLoading(true);
       // If test has children, delete them first
       const tc = testCases.find(t => t.id === id);
-      const childIds = tc?.config?._childTestIds;
+      const childIds = (tc?.config as Record<string, unknown> | undefined)?._childTestIds as string[] | undefined;
       if (Array.isArray(childIds) && childIds.length > 0) {
         await Promise.all(childIds.map((cid: string) =>
           testsApi.delete(cid).catch(() => {})
@@ -859,7 +883,7 @@ export default function TestCasesPage() {
       const allIdsToDelete: string[] = [];
       for (const id of selectedTestIds) {
         const tc = testCases.find(t => t.id === id);
-        const childIds = tc?.config?._childTestIds;
+        const childIds = (tc?.config as Record<string, unknown> | undefined)?._childTestIds as string[] | undefined;
         if (Array.isArray(childIds) && childIds.length > 0) {
           allIdsToDelete.push(id, ...childIds);
         } else {
@@ -877,6 +901,7 @@ export default function TestCasesPage() {
       setLoading(false);
     }
   };
+  const getCfg = (tc: TestCaseItem): Record<string, unknown> | undefined => tc.config as Record<string, unknown> | undefined;
   return (
     <Box>
       <PageHeader
@@ -975,48 +1000,63 @@ export default function TestCasesPage() {
                     </IconButton>
                   </Box>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
-                  {tc.config?._isGroup ? (
-                    <>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Typography variant="body2" fontWeight={600} color="primary.main">{tc.config._childTestIds?.length || 0}</Typography>
-                        <Typography variant="body2" color="text.secondary">test cases</Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tc.config?.steps?.length > 0 ? 'success.main' : 'grey.300' }} />
-                        <Typography variant="body2" color="text.secondary">{tc.config?.steps?.length || 0} total steps</Typography>
-                      </Box>
-                    </>
-                  ) : (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tc.config?.steps?.length > 0 ? 'success.main' : 'grey.300' }} />
-                      <Typography variant="body2" color="text.secondary">{tc.config?.steps?.length || 0} steps</Typography>
-                    </Box>
-                  )}
-                  {tc.project?.name && (
-                    <Chip label={tc.project.name} size="small" variant="outlined" color="primary" sx={{ height: 20, '& .MuiChip-label': { fontSize: '0.65rem', px: 0.5 } }} />
-                  )}
-                </Box>
-                {tc.config?._isGroup ? (
-                  tc.config?._childUrls && tc.config._childUrls.length > 0 && (
-                    <Box sx={{ mb: 1.5 }}>
-                      {tc.config._childUrls.slice(0, 2).map((u: string, i: number) => (
-                        <Typography key={i} variant="caption" color="info.main" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'rgba(2, 136, 209, 0.08)', px: 0.8, py: 0.3, borderRadius: 0.5, display: 'inline-block', mr: 0.5, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {u}
-                        </Typography>
-                      ))}
-                      {tc.config._childUrls.length > 2 && (
-                        <Typography variant="caption" color="text.secondary">+{tc.config._childUrls.length - 2} more</Typography>
+                {(() => {
+                  const c = getCfg(tc);
+                  const isGroup = c?._isGroup;
+                  const childIds = c?._childTestIds as string[] | undefined;
+                  const steps = c?.steps as Record<string, unknown>[] | undefined;
+                  return (
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
+                      {isGroup ? (
+                        <>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="body2" fontWeight={600} color="primary.main">{childIds?.length || 0}</Typography>
+                            <Typography variant="body2" color="text.secondary">test cases</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: steps?.length ? 'success.main' : 'grey.300' }} />
+                            <Typography variant="body2" color="text.secondary">{steps?.length || 0} total steps</Typography>
+                          </Box>
+                        </>
+                      ) : (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: steps?.length ? 'success.main' : 'grey.300' }} />
+                          <Typography variant="body2" color="text.secondary">{steps?.length || 0} steps</Typography>
+                        </Box>
+                      )}
+                      {tc.project?.name && (
+                        <Chip label={tc.project.name} size="small" variant="outlined" color="primary" sx={{ height: 20, '& .MuiChip-label': { fontSize: '0.65rem', px: 0.5 } }} />
                       )}
                     </Box>
-                  )
-                ) : tc.config?.url && (
-                  <Box sx={{ mb: 1.5 }}>
-                    <Typography variant="caption" color="info.main" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'rgba(2, 136, 209, 0.08)', px: 0.8, py: 0.3, borderRadius: 0.5, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {tc.config.url}
-                    </Typography>
-                  </Box>
-                )}
+                  );
+                })()}
+                {(() => {
+                  const c = getCfg(tc);
+                  const isGroup = c?._isGroup;
+                  const childUrls = c?._childUrls as string[] | undefined;
+                  const url = c?.url as string | undefined;
+                  if (isGroup) {
+                    return childUrls && childUrls.length > 0 ? (
+                      <Box sx={{ mb: 1.5 }}>
+                        {childUrls.slice(0, 2).map((u: string, i: number) => (
+                          <Typography key={i} variant="caption" color="info.main" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'rgba(2, 136, 209, 0.08)', px: 0.8, py: 0.3, borderRadius: 0.5, display: 'inline-block', mr: 0.5, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {u}
+                          </Typography>
+                        ))}
+                        {childUrls.length > 2 && (
+                          <Typography variant="caption" color="text.secondary">+{childUrls.length - 2} more</Typography>
+                        )}
+                      </Box>
+                    ) : null;
+                  }
+                  return url ? (
+                    <Box sx={{ mb: 1.5 }}>
+                      <Typography variant="caption" color="info.main" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'rgba(2, 136, 209, 0.08)', px: 0.8, py: 0.3, borderRadius: 0.5, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {url}
+                      </Typography>
+                    </Box>
+                  ) : null;
+                })()}
                 <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 'auto', pt: 1 }}>
                   Added: {tc.createdAt ? new Date(tc.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                 </Typography>
@@ -1032,7 +1072,7 @@ export default function TestCasesPage() {
                     </IconButton>
                   </Tooltip>
                   <Box sx={{ flex: 1 }} />
-                  {!tc.config?._isGroup && (
+                  {!getCfg(tc)?._isGroup && (
                     <Button
                       size="small"
                       variant="outlined"
@@ -1051,7 +1091,7 @@ export default function TestCasesPage() {
                     onClick={() => handleRunTestCase(tc)}
                     sx={{ minWidth: 0, px: 1.5, fontSize: '0.7rem' }}
                   >
-                    {tc.config?._isGroup ? `Run All (${tc.config._childTestIds?.length || 0})` : 'Run'}
+                    {(() => { const c = getCfg(tc); return c?._isGroup ? `Run All (${(c._childTestIds as string[] | undefined)?.length || 0})` : 'Run'; })()}
                   </Button>
                 </Box>
               </CardContent>
@@ -1077,7 +1117,7 @@ export default function TestCasesPage() {
                 <Autocomplete
                   freeSolo
                   fullWidth
-                  options={projects.map((p: any) => p.name)}
+                  options={projects.map((p: Record<string, unknown>) => p.name as string)}
                   value={projectId}
                   onInputChange={(_, newValue) => setProjectId(newValue)}
                   size="small"
@@ -1095,14 +1135,14 @@ export default function TestCasesPage() {
                     onChange={(e) => {
                       const envId = e.target.value;
                       setSelectedEnvId(envId);
-                      const env = environments.find((en: any) => en.id === envId);
-                      if (env) setTargetUrl(env.baseUrl);
+                      const env = environments.find((en: Record<string, unknown>) => en.id === envId);
+                      if (env) setTargetUrl(env.baseUrl as string);
                     }}
                     size="small"
                     SelectProps={{ native: true }}
                   >
-                    {environments.map((env: any) => (
-                      <option key={env.id} value={env.id}>{env.name} ({env.baseUrl})</option>
+                    {environments.map((env: Record<string, unknown>) => (
+                      <option key={env.id as string} value={env.id as string}>{env.name as string} ({env.baseUrl as string})</option>
                     ))}
                   </TextField>
                 ) : (
@@ -1323,13 +1363,16 @@ placeholder="https://"
                 <Chip label={viewTc.status} size="small" color={viewTc.status === 'ACTIVE' ? 'success' : 'warning'} />
               </Box>
               {(() => {
+                if (!viewTc) return null;
+                const vc = getCfg(viewTc);
                 const srcData = sourceDataCache.current.has(viewTc.id)
                   ? sourceDataCache.current.get(viewTc.id)
-                  : (Array.isArray(viewTc.config?._sourceFileData) ? viewTc.config._sourceFileData : null);
+                  : (Array.isArray(vc?._sourceFileData) ? vc._sourceFileData as Record<string, string>[] : null);
+                const srcFileName = vc?._sourceFileName as string | undefined;
                 return srcData && srcData.length > 0 ? (
                   <Box>
                     <Typography variant="caption" color="text.secondary">
-                      Source File: {viewTc.config?._sourceFileName || 'uploaded file'} ({srcData.length} rows)
+                      Source File: {srcFileName || 'uploaded file'} ({srcData.length} rows)
                     </Typography>
                     <TableContainer component={Paper} variant="outlined" sx={{ mt: 0.5, maxHeight: 350 }}>
                       <Table size="small" stickyHeader>
@@ -1358,41 +1401,51 @@ placeholder="https://"
                   </Box>
                 ) : null;
               })()}
-              {viewTc.config?.url && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">URL</Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{viewTc.config.url}</Typography>
-                </Box>
-              )}
-              {viewTc.config?.steps && viewTc.config.steps.length > 0 && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Steps ({viewTc.config.steps.length})</Typography>
-                  <TableContainer component={Paper} variant="outlined" sx={{ mt: 0.5 }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>#</TableCell>
-                          <TableCell>Type</TableCell>
-                          <TableCell>Selector / URL</TableCell>
-                          <TableCell>Value</TableCell>
-                          <TableCell>Description</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {viewTc.config.steps.map((step: any, i: number) => (
-                          <TableRow key={i}>
-                            <TableCell>{i + 1}</TableCell>
-                            <TableCell><Chip label={step.type} size="small" variant="outlined" /></TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{step.selector || step.url || '-'}</TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{step.value || '-'}</TableCell>
-                            <TableCell>{step.description || '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
-              )}
+              {(() => {
+                if (!viewTc) return null;
+                const vc = getCfg(viewTc);
+                const url = vc?.url as string | undefined;
+                const steps = vc?.steps as Record<string, unknown>[] | undefined;
+                return (
+                  <>
+                    {url ? (
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">URL</Typography>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{url}</Typography>
+                      </Box>
+                    ) : null}
+                    {steps && steps.length > 0 ? (
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Steps ({steps.length})</Typography>
+                        <TableContainer component={Paper} variant="outlined" sx={{ mt: 0.5 }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>#</TableCell>
+                                <TableCell>Type</TableCell>
+                                <TableCell>Selector / URL</TableCell>
+                                <TableCell>Value</TableCell>
+                                <TableCell>Description</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {steps.map((step: Record<string, unknown>, i: number) => (
+                                <TableRow key={i}>
+                                  <TableCell>{i + 1}</TableCell>
+                                <TableCell><Chip label={String(step.type ?? '')} size="small" variant="outlined" /></TableCell>
+                                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{String(step.selector ?? step.url ?? '') || '-'}</TableCell>
+                                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{String(step.value ?? '') || '-'}</TableCell>
+                                <TableCell>{String(step.description ?? '') || '-'}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    ) : null}
+                  </>
+                );
+              })()}
               {viewTc.code && (
                 <Box>
                   <Typography variant="caption" color="text.secondary">Code</Typography>
@@ -1437,13 +1490,15 @@ placeholder="https://"
             <TextField label="Name" value={editName} onChange={e => setEditName(e.target.value)} fullWidth size="small" />
             <TextField label="URL" value={editUrl} onChange={e => setEditUrl(e.target.value)} fullWidth size="small" placeholder="https://" />
             {editTc && (() => {
+              const ec = getCfg(editTc);
               const srcData = sourceDataCache.current.has(editTc.id)
                 ? sourceDataCache.current.get(editTc.id)
-                : (Array.isArray(editTc.config?._sourceFileData) ? editTc.config._sourceFileData : null);
+                : (Array.isArray(ec?._sourceFileData) ? ec._sourceFileData as Record<string, string>[] : null);
+              const srcFileName = ec?._sourceFileName as string | undefined;
               return srcData && srcData.length > 0 ? (
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                    Source File: {editTc.config?._sourceFileName || 'uploaded'} ({srcData.length} rows)
+                    Source File: {srcFileName || 'uploaded'} ({srcData.length} rows)
                   </Typography>
                   <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 220 }}>
                     <Table size="small" stickyHeader>

@@ -5,7 +5,7 @@ import { io, Socket } from 'socket.io-client';
 
 interface ScanSocketCallbacks {
   onProgress?: (data: { scanId: string; status: string; progress: number; findings?: number }) => void;
-  onVulnerabilityFound?: (data: { id: string; title: string; severity: string; affectedUrl: string }) => void;
+  onVulnerabilityFound?: (data: { scanId: string; id: string; title: string; severity: string; affectedUrl: string }) => void;
   onCompleted?: (data: { scanId: string; status: string; findings: number }) => void;
   onError?: (data: { scanId: string; error: string }) => void;
 }
@@ -31,19 +31,19 @@ export function useScanSocket(projectId?: string, scanId?: string, callbacks?: S
       }
     });
 
-    socketRef.current.on('security-scan-update', (data: any) => {
+    socketRef.current.on('security-scan-update', (data: { scanId: string; status: string; progress: number; findings?: number }) => {
       if ((!scanId || data.scanId === scanId) && callbacks?.onProgress) {
         callbacks.onProgress(data);
       }
     });
 
-    socketRef.current.on('vulnerability-found', (data: any) => {
+    socketRef.current.on('vulnerability-found', (data: { scanId: string; id: string; title: string; severity: string; affectedUrl: string }) => {
       if ((!scanId || data.scanId === scanId) && callbacks?.onVulnerabilityFound) {
         callbacks.onVulnerabilityFound(data);
       }
     });
 
-    socketRef.current.on('security-alert', (data: any) => {
+    socketRef.current.on('security-alert', (data: { scanId: string; error: string; severity?: string }) => {
       if (callbacks?.onError && data.severity === 'ERROR') {
         callbacks.onError(data);
       }

@@ -1,8 +1,10 @@
+import type { ConnectionPool } from 'mssql';
+
 import { DatabaseClient, DatabaseConfig, QueryResult, Transaction, FieldInfo } from './connection-manager';
 import { Logger } from '../utils/logger';
 
 export class SqlServerClient extends DatabaseClient {
-  private pool: any = null;
+  private pool: ConnectionPool | null = null;
 
   constructor(config: DatabaseConfig, logger?: Logger) {
     super(config, logger);
@@ -47,7 +49,7 @@ export class SqlServerClient extends DatabaseClient {
     const startTime = Date.now();
     
     try {
-      const request = this.pool.request();
+      const request = this.pool!.request();
       
       if (params) {
         params.forEach((param, index) => {
@@ -79,7 +81,7 @@ export class SqlServerClient extends DatabaseClient {
   }
 
   async beginTransaction(): Promise<Transaction> {
-    const transaction = new (await import('mssql')).Transaction(this.pool);
+    const transaction = new (await import('mssql')).Transaction(this.pool as unknown as ConnectionPool);
     await transaction.begin();
 
     return {
@@ -98,7 +100,7 @@ export class SqlServerClient extends DatabaseClient {
       FROM information_schema.schemata 
       WHERE schema_name NOT IN ('INFORMATION_SCHEMA', 'sys', 'guest')
     `);
-    return result.rows.map((r: any) => r.schema_name);
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => r.schema_name as string);
   }
 
   async getTables(): Promise<string[]> {
@@ -107,7 +109,7 @@ export class SqlServerClient extends DatabaseClient {
       FROM INFORMATION_SCHEMA.TABLES 
       WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = 'dbo'
     `);
-    return result.rows.map((r: any) => r.TABLE_NAME);
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => r.TABLE_NAME as string);
   }
 
   async getColumns(table: string): Promise<FieldInfo[]> {
@@ -117,9 +119,9 @@ export class SqlServerClient extends DatabaseClient {
       WHERE TABLE_NAME = @tableName AND TABLE_SCHEMA = 'dbo'
     `, [{ tableName: table }]);
     
-    return result.rows.map((r: any) => ({
-      name: r.COLUMN_NAME,
-      dataType: r.DATA_TYPE,
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => ({
+      name: r.COLUMN_NAME as string,
+      dataType: r.DATA_TYPE as string,
       nullable: r.IS_NULLABLE === 'YES',
     }));
   }
@@ -128,7 +130,7 @@ export class SqlServerClient extends DatabaseClient {
     const columns = Object.keys(data);
     const placeholders = columns.map((_, i) => `@p${i + 1}`).join(', ');
     const setClause = columns.map(col => `${col} = @${col}`).join(', ');
-    const params: any = { ...data };
+    const params: Record<string, unknown> = { ...data };
     
     const sql = `
       MERGE INTO ${table} AS target
@@ -140,7 +142,7 @@ export class SqlServerClient extends DatabaseClient {
         INSERT (${columns.join(', ')}) VALUES (${placeholders});
     `;
     
-    const result = await this.query(sql, params);
+    const result = await this.query(sql, params as unknown as unknown[]);
     return result.rowCount;
   }
 
@@ -171,7 +173,7 @@ export class SqlServerClient extends DatabaseClient {
   }
 
   async executeStoredProc(procedure: string, params?: Record<string, unknown>): Promise<QueryResult> {
-    const request = this.pool.request();
+    const request = this.pool!.request();
     
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -179,6 +181,6 @@ export class SqlServerClient extends DatabaseClient {
       });
     }
 
-    return request.execute(procedure);
+    return request.execute(procedure) as unknown as QueryResult;
   }
 }

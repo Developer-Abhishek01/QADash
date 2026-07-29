@@ -1,6 +1,7 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Prisma, VulnerabilitySeverity, VulnerabilityStatus } from '@prisma/client';
 import { Job, Queue } from 'bullmq';
 
 import { PrismaService } from '../../../common/prisma.service';
@@ -111,9 +112,9 @@ export class SecurityScanProcessor extends WorkerHost {
           data: {
             ...vuln,
             scanId,
-            severity: vuln.severity as any,
-            status: vuln.status as any,
-          } as any,
+            severity: vuln.severity as VulnerabilitySeverity,
+            status: vuln.status as VulnerabilityStatus,
+          } as Prisma.VulnerabilityUncheckedCreateInput,
         });
       }
 
@@ -122,7 +123,7 @@ export class SecurityScanProcessor extends WorkerHost {
           data: {
             ...target,
             scanId,
-          } as any,
+          } as Prisma.SecurityTargetUncheckedCreateInput,
         });
       }
     } catch (error) {
@@ -170,7 +171,7 @@ export class DependencyScanProcessor extends WorkerHost {
           highCount: results.counts.high,
           mediumCount: results.counts.medium,
           lowCount: results.counts.low,
-          results: results.dependencies as any,
+          results: results.dependencies as unknown as Prisma.InputJsonValue,
         },
       });
     } catch (error) {

@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { Queue, Job } from 'bullmq';
+import { Queue, Job, JobType } from 'bullmq';
 
 import { QUEUES } from './queue.constants';
 
@@ -117,7 +117,7 @@ export class QueueHealthService {
 
   async getJobs(queueName: string, status: string = 'waiting', limit = 50) {
     const queue = this.getQueue(queueName);
-    const jobs = await queue.getJobs(status as any, 0, limit);
+    const jobs = await queue.getJobs(status as JobType, 0, limit);
 
     return Promise.all(jobs.map(async job => ({
       id: job.id,
@@ -139,7 +139,7 @@ export class QueueHealthService {
       return Promise.all(jobs.map(j => this.formatJob(j)));
     }
 
-    const allFailed: any[] = [];
+    const allFailed: unknown[] = [];
     for (const name of Object.values(QUEUES)) {
       if (name === QUEUES.DEAD_LETTER) continue;
       const queue = this.getQueue(name);

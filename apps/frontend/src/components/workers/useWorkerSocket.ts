@@ -27,15 +27,15 @@ export function useWorkerSocket(projectId?: string, callbacks?: WorkerSocketCall
       }
     });
 
-    socketRef.current.on('job:started', (data: any) => {
+    socketRef.current.on('job:started', (data: { jobId: string; queue: string }) => {
       callbacks?.onJobStarted?.(data);
     });
 
-    socketRef.current.on('job:completed', (data: any) => {
+    socketRef.current.on('job:completed', (data: { jobId: string; queue: string }) => {
       callbacks?.onJobCompleted?.(data);
     });
 
-    socketRef.current.on('execution:failed', (data: any) => {
+    socketRef.current.on('execution:failed', (data: { jobId: string; queue: string; error: string }) => {
       callbacks?.onJobFailed?.(data);
     });
   }, [projectId, callbacks]);

@@ -49,7 +49,7 @@ export function ExecutionTable({ data, onRowClick, loading: _loading }: DataTabl
       field: 'status',
       headerName: 'Status',
       width: 120,
-      cellRenderer: (params: any) => (
+      cellRenderer: (params: { value: string }) => (
         <StatusBadge status={params.value} />
       ),
     },
@@ -77,7 +77,7 @@ export function ExecutionTable({ data, onRowClick, loading: _loading }: DataTabl
     {
       headerName: 'Actions',
       width: 100,
-      cellRenderer: (_params: any) => (
+      cellRenderer: (_params: Record<string, unknown>) => (
         <Box>
           <IconButton size="small" onClick={(e) => { e.stopPropagation(); }}>
             <FilterList fontSize="small" />
@@ -153,8 +153,8 @@ export function ExecutionTable({ data, onRowClick, loading: _loading }: DataTabl
 }
 
 interface ReportTableProps {
-  data: any[];
-  onRowClick?: (row: any) => void;
+  data: Record<string, unknown>[];
+  onRowClick?: (row: Record<string, unknown>) => void;
 }
 
 export function ReportTable({ data, onRowClick }: ReportTableProps) {
@@ -165,7 +165,7 @@ export function ReportTable({ data, onRowClick }: ReportTableProps) {
       field: 'status',
       headerName: 'Status',
       width: 120,
-      cellRenderer: (params: any) => <StatusBadge status={params.value} />,
+      cellRenderer: (params: { value: string }) => <StatusBadge status={params.value} />,
     },
     { field: 'generatedAt', headerName: 'Generated', width: 160 },
     { field: 'size', headerName: 'Size', width: 100 },
@@ -185,7 +185,7 @@ export function ReportTable({ data, onRowClick }: ReportTableProps) {
       <AgGridReact
         rowData={data}
         columnDefs={columnDefs}
-        onRowClicked={(e: any) => onRowClick?.(e.data)}
+        onRowClicked={(e: RowClickedEvent) => onRowClick?.(e.data)}
         pagination={true}
         paginationPageSize={10}
       />
@@ -194,8 +194,8 @@ export function ReportTable({ data, onRowClick }: ReportTableProps) {
 }
 
 interface BugsTableProps {
-  data: any[];
-  onRowClick?: (row: any) => void;
+  data: Record<string, unknown>[];
+  onRowClick?: (row: Record<string, unknown>) => void;
 }
 
 export function BugsTable({ data, onRowClick }: BugsTableProps) {
@@ -206,7 +206,7 @@ export function BugsTable({ data, onRowClick }: BugsTableProps) {
       field: 'severity',
       headerName: 'Severity',
       width: 100,
-      cellRenderer: (params: any) => (
+      cellRenderer: (params: { value: string }) => (
         <Chip
           label={params.value}
           size="small"
@@ -220,7 +220,7 @@ export function BugsTable({ data, onRowClick }: BugsTableProps) {
       field: 'status',
       headerName: 'Status',
       width: 100,
-      cellRenderer: (params: any) => <StatusBadge status={params.value} />,
+      cellRenderer: (params: { value: string }) => <StatusBadge status={params.value} />,
     },
     { field: 'createdAt', headerName: 'Created', width: 140 },
   ], []);
@@ -230,7 +230,7 @@ export function BugsTable({ data, onRowClick }: BugsTableProps) {
       <AgGridReact
         rowData={data}
         columnDefs={columnDefs}
-        onRowClicked={(e: any) => onRowClick?.(e.data)}
+        onRowClicked={(e: RowClickedEvent) => onRowClick?.(e.data)}
         pagination={true}
         paginationPageSize={15}
       />

@@ -61,26 +61,27 @@ export class DependencyScanner {
 
       if (audit.vulnerabilities) {
         for (const [name, vuln] of Object.entries(audit.vulnerabilities)) {
-          const v = vuln as any;
+          const v = vuln as Record<string, unknown>;
           deps.push({
             name,
-            version: v.via?.[0]?.split(' ')[0] || '',
+            version: ((v.via as string[])?.[0]?.split(' ')[0]) || '',
             isVulnerable: true,
-            vulnerabilities: (v.via || []).map((item: any) => ({
-              id: typeof item === 'string' ? item : item.source || item.title || 'unknown',
-              severity: v.severity?.toUpperCase() || 'MEDIUM',
-              title: typeof item === 'string' ? item : item.title || item.source || 'Unknown vulnerability',
+            vulnerabilities: ((v.via as string[]) || []).map((item: string | Record<string, unknown>) => ({
+              id: typeof item === 'string' ? item : (item.source as string) || (item.title as string) || 'unknown',
+              severity: String(v.severity ?? '').toUpperCase() || 'MEDIUM',
+              title: typeof item === 'string' ? item : (item.title as string) || (item.source as string) || 'Unknown vulnerability',
             })),
           });
         }
       }
       return deps;
-    } catch (err: any) {
-      if (err.stderr?.includes('ENOAUDIT')) {
+    } catch (err: unknown) {
+      const execErr = err as { stderr?: string; message?: string };
+      if (execErr.stderr?.includes('ENOAUDIT')) {
         this.logger.warn('npm audit not supported (ENOAUDIT), no packages published yet');
         return [];
       }
-      this.logger.error(`npm audit failed: ${err.message}`);
+      this.logger.error(`npm audit failed: ${execErr.message || 'Unknown error'}`);
       return [];
     }
   }
@@ -89,14 +90,14 @@ export class DependencyScanner {
     try {
       const { stdout } = await execAsync('pip-audit --json', { cwd, timeout: 60000 });
       const audit = JSON.parse(stdout);
-      return (audit.dependencies || []).map((dep: any) => ({
+      return (audit.dependencies || []).map((dep: Record<string, unknown>) => ({
         name: dep.name,
         version: dep.version,
-        isVulnerable: (dep.vulnerabilities || []).length > 0,
-        vulnerabilities: (dep.vulnerabilities || []).map((v: any) => ({
-          id: v.id || 'unknown',
-          severity: v.severity?.toUpperCase() || 'MEDIUM',
-          title: v.description || v.id || 'Unknown vulnerability',
+        isVulnerable: ((dep.vulnerabilities as Array<Record<string, unknown>>) || []).length > 0,
+        vulnerabilities: ((dep.vulnerabilities as Array<Record<string, unknown>>) || []).map((v: Record<string, unknown>) => ({
+          id: (v.id as string) || 'unknown',
+          severity: (v.severity as string)?.toUpperCase() || 'MEDIUM',
+          title: (v.description as string) || (v.id as string) || 'Unknown vulnerability',
         })),
       }));
     } catch {
@@ -115,13 +116,13 @@ export class DependencyScanner {
       const fs = await import('fs');
       if (fs.existsSync(reportPath)) {
         const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
-        return (report.dependencies || []).map((dep: any) => ({
+        return (report.dependencies || []).map((dep: Record<string, unknown>) => ({
           name: dep.fileName || dep.packageName || 'unknown',
           version: dep.version || '',
-          isVulnerable: (dep.vulnerabilities || []).length > 0,
-          vulnerabilities: (dep.vulnerabilities || []).map((v: any) => ({
-            id: v.name || v.cve || 'unknown',
-            severity: v.severity?.toUpperCase() || 'MEDIUM',
+          isVulnerable: ((dep.vulnerabilities as Array<Record<string, unknown>>) || []).length > 0,
+        vulnerabilities: ((dep.vulnerabilities as Array<Record<string, unknown>>) || []).map((v: Record<string, unknown>) => ({
+            id: (v.name as string) || (v.cve as string) || 'unknown',
+            severity: String(v.severity ?? '').toUpperCase() || 'MEDIUM',
             title: v.description || v.name || 'Unknown vulnerability',
           })),
         }));

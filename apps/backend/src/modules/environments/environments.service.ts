@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma.service';
 
@@ -19,11 +20,11 @@ export class EnvironmentsService {
   }
 
   async create(data: { name: string; projectId: string; type: string; baseUrl: string; variables?: object }) {
-    return this.prisma.environment.create({ data: { ...data, variables: data.variables as any } });
+    return this.prisma.environment.create({ data: { ...data, variables: data.variables as unknown as Prisma.InputJsonValue } });
   }
 
   async update(id: string, data: Partial<{ name: string; type: string; baseUrl: string; variables: object; isActive: boolean }>) {
-    return this.prisma.environment.update({ where: { id }, data: { ...data, variables: data.variables as any } });
+    return this.prisma.environment.update({ where: { id }, data: { ...data, variables: data.variables as unknown as Prisma.InputJsonValue } });
   }
 
   async delete(id: string) { return this.prisma.environment.delete({ where: { id } }); }

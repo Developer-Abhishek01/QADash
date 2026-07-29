@@ -28,6 +28,7 @@ import { useState, useEffect } from 'react';
 import PageHeader from '@/components/common/PageHeader';
 import { projectsApi } from '@/lib/api/client';
 import { useCreatePerformanceTest, useRunPerformanceTest } from '@/lib/performance/hooks';
+import type { CreateTestDto } from '@/lib/performance/types';
 
 const TEST_TYPES = [
   { value: 'LOAD', label: 'Load Test', description: 'Normal expected load' },
@@ -89,11 +90,11 @@ export default function NewPerformanceTest() {
     http_req_failed: 'rate<0.01',
     http_reqs: 'rate>10',
   });
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    projectsApi.list().then(data => setProjects(Array.isArray(data) ? data : [])).catch(() => {});
+    projectsApi.list().then((data: unknown) => setProjects(Array.isArray(data) ? data as Record<string, unknown>[] : [])).catch(() => {});
   }, []);
 
   const createTest = useCreatePerformanceTest();
@@ -120,7 +121,7 @@ export default function NewPerformanceTest() {
         thresholds: thresholds,
       };
 
-      const result = await createTest.mutateAsync(testData as any);
+      const result = await createTest.mutateAsync(testData as CreateTestDto) as { id: string };
 
       if (runAfterCreate) {
         await runTest.mutateAsync(result.id);
@@ -183,8 +184,8 @@ export default function NewPerformanceTest() {
                       onChange={(e) => handleChange('projectId', e.target.value)}
                       label="Project"
                     >
-                      {projects.map((p: any) => (
-                        <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                      {projects.map((p: Record<string, unknown>) => (
+                        <MenuItem key={String(p.id)} value={String(p.id)}>{String(p.name)}</MenuItem>
                       ))}
                     </Select>
                   </FormControl>

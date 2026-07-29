@@ -124,7 +124,7 @@ export class DashboardIntegration {
           const filePath = report.filePaths['json'];
           if (filePath && fs.existsSync(filePath)) {
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            data.tests?.forEach((test: any) => {
+            data.tests?.forEach((test: { id: string; name: string; status: string }) => {
               if (test.status === 'failed') {
                 if (!testCounts[test.id]) {
                   testCounts[test.id] = { name: test.name, count: 0 };
@@ -205,11 +205,11 @@ export class DashboardIntegration {
   }
 
   async getComparisonReport(executionIds: string[]): Promise<{
-    executions: any[];
+    executions: StoredReport[];
     comparison: { executionId: string; passRate: number; duration: number; changes: string[] }[];
   }> {
-    const executions: any[] = [];
-    const comparison: any[] = [];
+    const executions: StoredReport[] = [];
+    const comparison: { executionId: string; passRate: number; duration: number; changes: string[] }[] = [];
 
     for (const executionId of executionIds) {
       const report = this.reportStorage.getReportByExecution(executionId);

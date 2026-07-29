@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 import { Logger } from '../../utils/logger';
-import { ConnectionManager, DatabaseConfig } from '../connection-manager';
+import { ConnectionManager, DatabaseConfig, DatabaseClient, DatabaseType } from '../connection-manager';
 import { DataComparator, DataValidator } from '../data-comparator';
 import { QueryBuilder } from '../query-builder';
 
@@ -11,7 +11,7 @@ const comparator = new DataComparator(logger);
 const validator = new DataValidator(logger);
 
 const dbConfig: DatabaseConfig = {
-  type: (process.env.DB_TYPE as any) || 'postgresql',
+  type: (process.env.DB_TYPE || 'postgresql') as DatabaseType,
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
   database: process.env.DB_NAME || 'qadash',
@@ -21,7 +21,7 @@ const dbConfig: DatabaseConfig = {
 };
 
 test.describe('PostgreSQL Database Tests', () => {
-  let db: any;
+  let db: DatabaseClient;
 
   test.beforeAll(async () => {
     db = await connectionManager.connect('test-db', dbConfig);
@@ -38,7 +38,7 @@ test.describe('PostgreSQL Database Tests', () => {
   test('should execute query and return results', async () => {
     const result = await db.query('SELECT 1 as num, \'test\' as str');
     expect(result.rows).toHaveLength(1);
-    expect(result.rows[0].num).toBe(1);
+    expect((result.rows[0] as Record<string, unknown>).num).toBe(1);
     expect(result.executionTime).toBeLessThan(1000);
   });
 
@@ -66,7 +66,7 @@ test.describe('PostgreSQL Database Tests', () => {
     
     const selectResult = await db.query('SELECT * FROM test_users WHERE email = $1', [testEmail]);
     expect(selectResult.rows).toHaveLength(1);
-    expect(selectResult.rows[0].name).toBe('Test User');
+    expect((selectResult.rows[0] as Record<string, unknown>).name).toBe('Test User');
     
     await db.execute('DROP TABLE IF EXISTS test_users');
   });
@@ -75,12 +75,12 @@ test.describe('PostgreSQL Database Tests', () => {
     await db.execute(`CREATE TABLE IF NOT EXISTS test_transactions (id SERIAL PRIMARY KEY, value TEXT)`);
     
     const tx = await db.beginTransaction();
-    await tx.execute('INSERT INTO test_transactions (value) VALUES ($1)', ['tx1']);
-    await tx.execute('INSERT INTO test_transactions (value) VALUES ($1)', ['tx2']);
+    await db.execute('INSERT INTO test_transactions (value) VALUES ($1)', ['tx1']);
+    await db.execute('INSERT INTO test_transactions (value) VALUES ($1)', ['tx2']);
     await tx.commit();
     
     const result = await db.query('SELECT COUNT(*) as count FROM test_transactions');
-    expect(result.rows[0].count).toBe(2);
+    expect((result.rows[0] as Record<string, unknown>).count).toBe(2);
     
     await db.execute('DROP TABLE IF EXISTS test_transactions');
   });
@@ -89,11 +89,11 @@ test.describe('PostgreSQL Database Tests', () => {
     await db.execute(`CREATE TABLE IF NOT EXISTS test_rollback (id SERIAL PRIMARY KEY, value TEXT)`);
     
     const tx = await db.beginTransaction();
-    await tx.execute('INSERT INTO test_rollback (value) VALUES ($1)', ['should rollback']);
+    await db.execute('INSERT INTO test_rollback (value) VALUES ($1)', ['should rollback']);
     await tx.rollback();
     
     const result = await db.query('SELECT COUNT(*) as count FROM test_rollback');
-    expect(result.rows[0].count).toBe(0);
+    expect((result.rows[0] as Record<string, unknown>).count).toBe(0);
     
     await db.execute('DROP TABLE IF EXISTS test_rollback');
   });
@@ -155,7 +155,7 @@ test.describe('PostgreSQL Database Tests', () => {
     await db.execute(`CREATE TABLE IF NOT EXISTS test_count (id SERIAL PRIMARY KEY, value TEXT)`);
     await db.execute(`INSERT INTO test_count (value) VALUES ('a'), ('b'), ('c')`);
     
-    const count = await db.count('test_count');
+    const count = await (db as unknown as { count: (table: string) => Promise<number> }).count('test_count');
     expect(count).toBe(3);
     
     await db.execute('DROP TABLE IF EXISTS test_count');
@@ -170,10 +170,10 @@ test.describe('PostgreSQL Database Tests', () => {
       { value: 'bulk3' },
     ];
     
-    const inserted = await db.bulkInsert('test_bulk', data);
+    const inserted = await (db as unknown as { bulkInsert: (table: string, data: Record<string, unknown>[]) => Promise<number> }).bulkInsert('test_bulk', data);
     expect(inserted).toBe(3);
     
-    const count = await db.count('test_bulk');
+    const count = await (db as unknown as { count: (table: string) => Promise<number> }).count('test_bulk');
     expect(count).toBe(3);
     
     await db.execute('DROP TABLE IF EXISTS test_bulk');

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Prisma, ProjectStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma.service';
 
@@ -30,7 +31,7 @@ export class ProjectsService {
       data: {
         name: data.name,
         description: data.description,
-        settings: data.settings as any,
+        settings: data.settings as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -40,8 +41,8 @@ export class ProjectsService {
       where: { id },
       data: {
         ...data,
-        status: data.status as any,
-        settings: data.settings as any,
+        status: data.status as ProjectStatus,
+        settings: data.settings as unknown as Prisma.InputJsonValue,
       },
     });
   }

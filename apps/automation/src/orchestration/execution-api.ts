@@ -1,5 +1,5 @@
-import { EnvironmentMapper } from './environment-mapper';
-import { ExecutionEngine, ExecutionRequest, ExecutionResult, ExecutionStatus, TestExecution } from './execution-engine';
+import { EnvironmentMapper, EnvironmentMapping } from './environment-mapper';
+import { ExecutionEngine, ExecutionRequest, ExecutionResult, ExecutionStatus, TestExecution, BrowserType } from './execution-engine';
 import { WorkerManager } from './execution-engine';
 import { Logger } from '../utils/logger';
 
@@ -73,7 +73,7 @@ export class ExecutionOrchestrator {
       name: request.name,
       testIds: request.testIds,
       environmentId: request.environmentId,
-      browser: request.browser as any,
+      browser: request.browser as unknown as BrowserType,
       parallel: request.parallel,
       maxWorkers: request.maxWorkers,
       retryConfig: {
@@ -128,8 +128,8 @@ export class ExecutionOrchestrator {
         this.activeExecutions.delete(executionId);
       }
       return { success: true, message: 'Execution cancelled successfully' };
-    } catch (error: any) {
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      return { success: false, message: (error as Error).message };
     }
   }
 
@@ -155,7 +155,7 @@ export class ExecutionOrchestrator {
     };
   }
 
-  async getEnvironmentMappings(): Promise<any[]> {
+  async getEnvironmentMappings(): Promise<EnvironmentMapping[]> {
     return this.environmentMapper.getAllMappings();
   }
 

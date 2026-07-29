@@ -7,5 +7,5 @@ export class RunActionDto {
   action: string;
 
   @ApiProperty({ example: { env: 'staging', branch: 'main' }, description: 'Action data payload' })
-  data: any;
+  data: unknown;
 }

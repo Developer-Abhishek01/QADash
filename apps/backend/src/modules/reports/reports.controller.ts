@@ -17,7 +17,7 @@ export class ReportsController {
   @Get(':id')
   findOne(@Param('id') id: string) { return this.reportsService.findById(id); }
   @Post()
-  create(@Body() data: CreateReportDto, @Request() req: any) {
+  create(@Body() data: CreateReportDto, @Request() req: { user: { id: string } }) {
     return this.reportsService.create({ ...data, userId: req.user.id });
   }
   @Delete('bulk')

@@ -3,6 +3,7 @@ import * as path from 'path';
 
 import { HttpService } from '@nestjs/axios';
 import { Injectable, NotFoundException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
+import { Prisma, FileType } from '@prisma/client';
 import { firstValueFrom } from 'rxjs';
 import { v4 as uuid } from 'uuid';
 
@@ -13,10 +14,17 @@ import { MappingService } from './services/mapping.service';
 import { ValidationService } from './validators/validation.service';
 import { PrismaService } from '../../common/prisma.service';
 
+interface TestVersionPrisma {
+  testVersion: {
+    findFirst: (args: { where: { testId: string }; orderBy: { version: 'desc' } }) => Promise<{ version: number } | null>;
+    create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+  };
+}
+
 @Injectable()
 export class ImportService implements OnModuleInit {
   private readonly logger = new Logger(ImportService.name);
-  private readonly AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8002';
+  private readonly AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://127.0.0.1:3002';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -40,7 +48,7 @@ export class ImportService implements OnModuleInit {
         storedFilename: file.filename,
         fileSize: file.size,
         mimeType: file.mimetype,
-        settings: (dto.settings || {}) as any,
+        settings: (dto.settings || {}) as unknown as Prisma.InputJsonValue,
       },
       include: {
         project: { select: { name: true } },
@@ -72,7 +80,7 @@ export class ImportService implements OnModuleInit {
         name: file.originalname.replace(/\.[^/.]+$/, ''),
         projectId,
         userId,
-        fileType: fileType as any,
+        fileType: fileType as FileType,
         status: 'PENDING',
         originalFilename: file.originalname,
         storedFilename: file.filename,
@@ -100,7 +108,7 @@ export class ImportService implements OnModuleInit {
       const uploadsDir = path.join(process.cwd(), 'uploads');
       const filePath = path.join(uploadsDir, fileImport.storedFilename);
 
-      const parsedData = await this.parserService.parse(filePath, fileImport.fileType as any);
+      const parsedData = await this.parserService.parse(filePath, fileImport.fileType);
 
       const schema = this.parserService.extractSchema(parsedData);
       const previewData = parsedData.slice(0, 10);
@@ -109,8 +117,8 @@ export class ImportService implements OnModuleInit {
         where: { id: importId },
         data: {
           totalRows: parsedData.length,
-          previewData: previewData as any,
-          schema: schema as any,
+          previewData: previewData as unknown as Prisma.InputJsonValue,
+          schema: schema as unknown as Prisma.InputJsonValue,
           status: 'PENDING',
         },
       });
@@ -225,7 +233,7 @@ export class ImportService implements OnModuleInit {
       const uploadsDir = path.join(process.cwd(), 'uploads');
       const filePath = path.join(uploadsDir, fileImport.storedFilename);
 
-      const parsedData = await this.parserService.parse(filePath, fileImport.fileType as any);
+      const parsedData = await this.parserService.parse(filePath, fileImport.fileType);
 
       const transformedData = this.mappingService.applyMappings(parsedData, fileImport.mappings);
 
@@ -287,7 +295,7 @@ export class ImportService implements OnModuleInit {
     }
   }
 
-  async processImportWithAI(importId: string, userId: string): Promise<any> {
+  async processImportWithAI(importId: string, userId: string): Promise<unknown> {
     const fileImport = await this.prisma.fileImport.findUnique({
       where: { id: importId },
       include: { mappings: true, project: true },
@@ -302,9 +310,9 @@ export class ImportService implements OnModuleInit {
     try {
       const uploadsDir = path.join(process.cwd(), 'uploads');
       const filePath = path.join(uploadsDir, fileImport.storedFilename);
-      const parsedData = await this.parserService.parse(filePath, fileImport.fileType as any);
+      const parsedData = await this.parserService.parse(filePath, fileImport.fileType);
 
-      const apiKey = process.env.AI_ENGINE_API_KEY || 'qadash-ai-dev-key';
+      const apiKey = process.env.AI_ENGINE_API_KEY;
       const response = await firstValueFrom(
         this.httpService.post(`${this.AI_ENGINE_URL}/api/ai/pipeline/excel-to-tests`,
           { rows: parsedData },
@@ -332,7 +340,7 @@ export class ImportService implements OnModuleInit {
         const tc = pipelineResult.test_cases[i];
         if (tc.validation?.is_valid && tc.generated_code) {
           try {
-            const steps = (tc.steps || []).map((s: any) => ({
+            const steps = (tc.steps || []).map((s: Record<string, unknown>) => ({
               ...s,
               type: s.type || s.action,
             }));
@@ -346,23 +354,23 @@ export class ImportService implements OnModuleInit {
                   url: tc.url || '',
                   steps,
                   _sourceFileData: tc.test_data || {},
-                } as any,
+                } as unknown as Prisma.InputJsonValue,
                 code: tc.generated_code,
                 tags: tc.tags || [],
                 status: 'ACTIVE',
               },
             });
 
-            const lastVersion = await (this.prisma as any).testVersion.findFirst({
+            const lastVersion = await (this.prisma as unknown as TestVersionPrisma).testVersion.findFirst({
               where: { testId: test.id },
               orderBy: { version: 'desc' },
             });
-            await (this.prisma as any).testVersion.create({
+            await (this.prisma as unknown as TestVersionPrisma).testVersion.create({
               data: {
                 testId: test.id,
                 version: (lastVersion?.version || 0) + 1,
                 code: tc.generated_code,
-                config: { url: tc.url || '', steps } as any,
+                config: { url: tc.url || '', steps } as Record<string, unknown>,
                 changes: 'Imported via AI pipeline',
                 createdBy: userId,
               },
@@ -387,7 +395,7 @@ export class ImportService implements OnModuleInit {
         } else {
           const validationErrors = tc.validation?.errors || [];
           const errorMsg = validationErrors.length > 0
-            ? validationErrors.map((e: any) => e.message).join('; ')
+            ? validationErrors.map((e: { message: string }) => e.message).join('; ')
             : 'Validation failed or no generated code';
           await this.prisma.importError.create({
             data: {
@@ -458,14 +466,14 @@ export class ImportService implements OnModuleInit {
     if (!fileImport) throw new NotFoundException('Import not found');
 
     if (fileImport.previewData) {
-      const data = fileImport.previewData as any[];
+      const data = fileImport.previewData as unknown[];
       return data.slice(offset, offset + limit);
     }
 
     const uploadsDir = path.join(process.cwd(), 'uploads');
     const filePath = path.join(uploadsDir, fileImport.storedFilename);
 
-    const parsedData = await this.parserService.parse(filePath, fileImport.fileType as any);
+    const parsedData = await this.parserService.parse(filePath, fileImport.fileType);
     return parsedData.slice(offset, offset + limit);
   }
 
@@ -495,8 +503,8 @@ export class ImportService implements OnModuleInit {
       data: {
         name: dto.name,
         projectId: dto.projectId,
-        fileType: dto.fileType as any,
-        fields: (dto.fields || []) as any,
+        fileType: dto.fileType as FileType,
+        fields: (dto.fields || []) as unknown as Prisma.InputJsonValue,
       },
     });
   }

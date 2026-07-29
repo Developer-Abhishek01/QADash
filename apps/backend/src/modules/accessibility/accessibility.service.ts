@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as cronParser from 'cron-parser';
 
 import { CreateAccessibilityTestDto, UpdateAccessibilityTestDto, AccessibilityTestFilterDto, IssueFilterDto, ResolveIssueDto, CreateBaselineDto } from './dto/accessibility.dto';
@@ -28,7 +29,7 @@ export class AccessibilityService implements OnModuleInit {
         userId,
         urls: dto.urls,
         wcagLevel: dto.wcagLevel || 'AA',
-        config: (dto.config || {}) as any,
+        config: (dto.config || {}) as unknown as Prisma.InputJsonValue,
         isScheduled: dto.isScheduled || false,
         schedule: dto.schedule,
         status: 'PENDING',
@@ -65,7 +66,7 @@ export class AccessibilityService implements OnModuleInit {
       data: { status: 'QUEUED', startedAt: new Date() },
     });
 
-    await this.axeService.executeAccessibilityScan(test);
+    await this.axeService.executeAccessibilityScan(test as unknown as { id: string; name: string; urls: string[]; wcagLevel: string; config: Record<string, unknown>; environment: { baseUrl: string }; project: { id: string; name: string } });
     return { message: 'Test queued successfully', testId };
   }
 
@@ -129,7 +130,7 @@ export class AccessibilityService implements OnModuleInit {
         description: dto.description,
         urls: dto.urls,
         wcagLevel: dto.wcagLevel,
-        config: dto.config as any,
+        config: dto.config as unknown as Prisma.InputJsonValue,
       },
     });
   }

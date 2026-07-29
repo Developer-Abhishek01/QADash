@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma.service';
 
@@ -11,7 +12,7 @@ export class SettingsService {
     return { integrations: [], notifications: { email: true, slack: false }, general: { timezone: 'UTC', language: 'en' } };
   }
 
-  async updateSettings(data: any) {
+  async updateSettings(data: Record<string, unknown>) {
     this.logger.log('Settings updated');
     return { ...data, updatedAt: new Date().toISOString() };
   }
@@ -22,7 +23,7 @@ export class SettingsService {
 
   async updateTeam(data: { userId: string; role: string }[]) {
     for (const item of data) {
-      await this.prisma.user.update({ where: { id: item.userId }, data: { role: item.role as any } });
+      await this.prisma.user.update({ where: { id: item.userId }, data: { role: item.role as UserRole } });
     }
     return this.getTeam();
   }
@@ -31,7 +32,7 @@ export class SettingsService {
     return { jira: false, slack: false, github: false };
   }
 
-  async updateIntegrations(data: any) {
+  async updateIntegrations(data: Record<string, unknown>) {
     this.logger.log('Integrations updated');
     return { ...data, updatedAt: new Date().toISOString() };
   }

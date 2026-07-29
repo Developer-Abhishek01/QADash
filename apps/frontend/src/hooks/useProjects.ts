@@ -16,7 +16,7 @@ export function useProjects() {
 
   const fetchProjects = React.useCallback(async () => {
     try {
-      const data = await projectsApi.list();
+      const data = await projectsApi.list() as Project[];
       setProjects(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch projects', err);

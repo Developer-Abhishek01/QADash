@@ -39,7 +39,7 @@ export class LoggerService implements NestLoggerService {
     @Optional() @Inject(WINSTON_MODULE_PROVIDER) logger?: Logger,
   ) {
     this.correlationId = this.generateCorrelationId();
-    this.logger = (logger && typeof (logger as any).info === 'function') ? logger : this.createDefaultLogger();
+    this.logger = (logger && typeof (logger as unknown as Logger).info === 'function') ? logger : this.createDefaultLogger();
   }
 
   private createDefaultLogger(): Logger {

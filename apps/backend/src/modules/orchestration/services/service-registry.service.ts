@@ -113,7 +113,7 @@ export class ServiceRegistryService {
 
   onModuleDestroy(): void {
     if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval as any);
+      clearInterval(this.healthCheckInterval as unknown as NodeJS.Timeout);
     }
     this.redis.disconnect();
   }

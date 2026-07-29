@@ -37,6 +37,7 @@ import Loading from '@/components/feedback/Loading';
 import { PerformanceStatusChip, TestTypeChip, MetricCard, MetricChart, RealtimeMetrics } from '@/components/performance';
 import { usePerfSocket } from '@/components/performance/usePerfSocket';
 import { usePerformanceTest, useRunPerformanceTest, useCancelPerformanceTest, useTestMetrics, useRealtimeMetrics } from '@/lib/performance/hooks';
+import type { PerformanceMetric } from '@/lib/performance/types';
 
 export default function TestDetailPage() {
   const params = useParams();
@@ -54,19 +55,20 @@ export default function TestDetailPage() {
   const [reportFormat, setReportFormat] = useState('html');
   const [reportType, setReportType] = useState('executive');
 
-  const [liveMetrics, setLiveMetrics] = useState<any>(null);
+  const [liveMetrics, setLiveMetrics] = useState<PerformanceMetric[] | null>(null);
 
-  const onRealtimeMetrics = useCallback((data: any) => {
-    setLiveMetrics(data.metrics);
-    if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+  const onRealtimeMetrics = useCallback((data: unknown) => {
+    const d = data as { metrics: unknown; status: string };
+    setLiveMetrics(d.metrics as unknown as PerformanceMetric[]);
+    if (d.status === 'COMPLETED' || d.status === 'FAILED') {
       refetch();
     }
   }, [refetch]);
 
   usePerfSocket(test?.projectId, testId, {
     onRealtimeMetrics,
-    onCompleted: (data) => {
-      if (data.testId === testId) refetch();
+    onCompleted: (data: unknown) => {
+      if ((data as { testId: string }).testId === testId) refetch();
     },
   });
 
@@ -74,25 +76,26 @@ export default function TestDetailPage() {
   if (!test) return <Typography>Test not found</Typography>;
 
   const isRunning = test.status === 'RUNNING' || test.status === 'QUEUED';
-  const displayRealtime = liveMetrics || realtimeData;
+  const displayRealtime = (liveMetrics || realtimeData) as unknown as Parameters<typeof RealtimeMetrics>[0]['data'];
 
-  const responseTimeData = (metrics || []).filter((m: any) => m.metricType === 'HTTP_REQ_DURATION');
-  const throughputData = (metrics || []).filter((m: any) => m.metricName === 'http_reqs');
-  const errorData = (metrics || []).filter((m: any) => m.metricName === 'http_req_failed');
+  const metricsList = (metrics || []) as PerformanceMetric[];
+  const responseTimeData = metricsList.filter((m) => m.metricType === 'HTTP_REQ_DURATION');
+  const throughputData = metricsList.filter((m) => m.metricName === 'http_reqs');
+  const errorData = metricsList.filter((m) => m.metricName === 'http_req_failed');
 
-  const rtChartData = responseTimeData.slice(-50).map((m: any) => ({
-    time: new Date(m.timestamp).toLocaleTimeString(),
-    value: m.value,
+  const rtChartData = responseTimeData.slice(-50).map((m) => ({
+    time: new Date(m.timestamp as string).toLocaleTimeString(),
+    value: m.value as number,
   }));
 
-  const tpChartData = throughputData.slice(-50).map((m: any) => ({
-    time: new Date(m.timestamp).toLocaleTimeString(),
-    value: m.value,
+  const tpChartData = throughputData.slice(-50).map((m) => ({
+    time: new Date(m.timestamp as string).toLocaleTimeString(),
+    value: m.value as number,
   }));
 
-  const erChartData = errorData.slice(-50).map((m: any) => ({
-    time: new Date(m.timestamp).toLocaleTimeString(),
-    value: m.value * 100,
+  const erChartData = errorData.slice(-50).map((m) => ({
+    time: new Date(m.timestamp as string).toLocaleTimeString(),
+    value: (m.value as number) * 100,
   }));
 
   const handleGenerateReport = () => {
@@ -188,7 +191,7 @@ export default function TestDetailPage() {
         </Grid>
 
         <Grid item xs={12}>
-          <RealtimeMetrics data={displayRealtime as any} isRunning={isRunning} />
+          <RealtimeMetrics data={displayRealtime} isRunning={isRunning} />
         </Grid>
 
         <Grid item xs={6} md={3}>

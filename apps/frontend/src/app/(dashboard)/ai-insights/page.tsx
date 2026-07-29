@@ -71,7 +71,8 @@ export default function AIInsightsPage() {
     setError(null);
     try {
       const res = await aiApi.analyze('default', input);
-      setResults(prev => ({ ...prev, [key]: res && typeof res === 'object' ? JSON.stringify(res) : res || 'OK' }));
+      const resultValue = res && typeof res === 'object' ? JSON.stringify(res) : String(res ?? 'OK');
+      setResults(prev => ({ ...prev, [key]: resultValue }));
     } catch {
       setError('AI action failed. Please try again.');
     }

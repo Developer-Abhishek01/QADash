@@ -55,7 +55,7 @@ export class OrchestrationController {
     @Param('executionId') executionId: string,
     @Body() options: ExecuteOptionsDto,
   ) {
-    const result = await this.orchestrationService.orchestrateExecution(executionId, options as any);
+    const result = await this.orchestrationService.orchestrateExecution(executionId, options as { tests?: boolean; security?: boolean; performance?: boolean; accessibility?: boolean; aiAnalysis?: boolean; priority?: 'critical' | 'high' | 'medium' | 'low' });
     return result;
   }
 

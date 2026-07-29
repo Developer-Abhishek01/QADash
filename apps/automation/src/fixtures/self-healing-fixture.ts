@@ -1,4 +1,4 @@
-import { test as base, Page } from '@playwright/test';
+import { test as base, Page, type Locator } from '@playwright/test';
 
 import { LocatorHealer, type HealingResult } from '../self-healing';
 
@@ -92,7 +92,7 @@ export class SelfHealingPage {
     return this.healer.page.getByText(text, options);
   }
 
-  async getByRole(role: any, options?: { name?: string | RegExp; exact?: boolean }) {
+  async getByRole(role: Parameters<Locator['getByRole']>[0], options?: { name?: string | RegExp; exact?: boolean }) {
     return this.healer.page.getByRole(role, options);
   }
 }

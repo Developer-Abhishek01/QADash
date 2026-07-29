@@ -1,3 +1,4 @@
+import { TrendData, DefectData, HeatmapCell, AiInsight } from './analytics-client';
 import { AnalyticsService } from './analytics-service';
 import { ChartGenerator } from './chart-components';
 import { Logger } from '../utils/logger';
@@ -14,7 +15,7 @@ export interface WidgetConfig {
   title: string;
   size: 'small' | 'medium' | 'large' | 'full';
   position?: { x: number; y: number };
-  config: any;
+  config: Record<string, unknown>;
 }
 
 export type WidgetType = 
@@ -36,7 +37,7 @@ export class DashboardVisualization {
     this.chartGenerator = new ChartGenerator();
   }
 
-  async buildDashboard(projectId: string, config?: Partial<DashboardConfig>): Promise<any> {
+  async buildDashboard(projectId: string, config?: Partial<DashboardConfig>): Promise<{ widgets: (WidgetConfig & { data: unknown })[]; layout: 'grid' | 'masonry' | 'full'; lastUpdated: string }> {
     const widgets = config?.widgets || this.getDefaultWidgets();
 
     const widgetData = await Promise.all(
@@ -66,15 +67,15 @@ export class DashboardVisualization {
     ];
   }
 
-  private async getWidgetData(projectId: string, widget: WidgetConfig): Promise<any> {
+  private async getWidgetData(projectId: string, widget: WidgetConfig): Promise<unknown> {
     switch (widget.type) {
       case 'trend-line':
         return this.chartGenerator.generatePassFailTrendChart(
-          await this.analyticsService.query({ type: 'trends', filters: { projectId } })
+          await this.analyticsService.query({ type: 'trends', filters: { projectId } }) as unknown as TrendData[]
         );
       case 'bar-chart':
         return this.chartGenerator.generateDefectDensityChart(
-          await this.analyticsService.query({ type: 'defects', filters: { projectId } })
+          await this.analyticsService.query({ type: 'defects', filters: { projectId } }) as unknown as DefectData[]
         );
       case 'pie-chart':
         return this.chartGenerator.generatePieChart('Test Status', [
@@ -86,18 +87,18 @@ export class DashboardVisualization {
         return this.chartGenerator.generateReliabilityGauge(82);
       case 'heatmap':
         return this.chartGenerator.generateHeatmapChart(
-          await this.analyticsService.query({ type: 'heatmap', filters: { projectId } })
+          await this.analyticsService.query({ type: 'heatmap', filters: { projectId } }) as unknown as HeatmapCell[]
         );
       case 'ai-insights':
         return this.chartGenerator.generateAiInsightsChart(
-          await this.analyticsService.query({ type: 'ai', filters: { projectId } })
+          await this.analyticsService.query({ type: 'ai', filters: { projectId } }) as unknown as AiInsight[]
         );
       default:
         return {};
     }
   }
 
-  async renderWidget(widget: WidgetConfig, data: any): Promise<string> {
+  async renderWidget(widget: WidgetConfig, data: unknown): Promise<string> {
     return `<div id="${widget.id}" class="widget widget-${widget.size}">${JSON.stringify(data)}</div>`;
   }
 }

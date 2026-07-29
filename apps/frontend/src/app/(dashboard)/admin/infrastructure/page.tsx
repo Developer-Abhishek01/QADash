@@ -145,8 +145,8 @@ export default function InfrastructurePage() {
                         secondary={
                           check.latency != null
                             ? `Latency: ${check.latency}ms`
-                            : key === 'cpu' && 'load' in check && Array.isArray((check as any).load)
-                            ? `Load: ${(check as any).load.join(', ')}`
+                            : key === 'cpu' && 'load' in check && Array.isArray((check as { load?: number[] }).load)
+                            ? `Load: ${(check as { load?: number[] }).load!.join(', ')}`
                             : check.error
                             ? `Error: ${check.error}`
                             : undefined

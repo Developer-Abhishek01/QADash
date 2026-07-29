@@ -108,20 +108,20 @@ export class AlertService {
     }
   }
 
-  private getMetricValue(test: any, metricType: string): number | null {
+  private getMetricValue(test: Record<string, unknown>, metricType: string): number | null {
     switch (metricType) {
       case 'avg_response_time':
-        return test.avgResponseTime;
+        return test['avgResponseTime'] as number;
       case 'p95_response_time':
-        return test.p95ResponseTime;
+        return test['p95ResponseTime'] as number;
       case 'p99_response_time':
-        return test.p99ResponseTime;
+        return test['p99ResponseTime'] as number;
       case 'error_rate':
-        return test.errorRate;
+        return test['errorRate'] as number;
       case 'avg_throughput':
-        return test.avgThroughput;
+        return test['avgThroughput'] as number;
       case 'max_vus':
-        return test.maxVus;
+        return test['maxVus'] as number;
       default:
         return null;
     }
@@ -149,7 +149,7 @@ export class AlertService {
     }
   }
 
-  private async triggerAlert(alert: any, test: any, metricValue: number): Promise<void> {
+  private async triggerAlert(alert: Record<string, unknown>, test: Record<string, unknown>, metricValue: number): Promise<void> {
     const severityLabels: Record<string, string> = {
       INFO: 'info',
       WARNING: 'warning',
@@ -158,16 +158,16 @@ export class AlertService {
 
     const event = await this.prisma.alertEvent.create({
       data: {
-        alertId: alert.id,
-        testId: test.id,
-        projectId: test.projectId,
+        alertId: alert['id'] as string,
+        testId: test['id'] as string,
+        projectId: test['projectId'] as string,
         metricValue,
-        message: `Threshold exceeded: ${alert.metricType} = ${metricValue.toFixed(2)} (threshold: ${alert.threshold})`,
+        message: `Threshold exceeded: ${alert['metricType'] as string} = ${metricValue.toFixed(2)} (threshold: ${alert['threshold'] as number})`,
       },
     });
 
     await this.prisma.thresholdAlert.update({
-      where: { id: alert.id },
+      where: { id: alert['id'] as string },
       data: {
         lastTriggered: new Date(),
         triggeredCount: { increment: 1 },
@@ -175,15 +175,15 @@ export class AlertService {
     });
 
     this.eventEmitter.emit('performance.alert', {
-      alertId: alert.id,
-      testId: test.id,
-      projectId: test.projectId,
-      severity: severityLabels[alert.severity] || 'warning',
-      title: alert.name,
-      message: `Threshold exceeded in test "${test.name}": ${alert.metricType} = ${metricValue.toFixed(2)} (threshold: ${alert.threshold})`,
-      metricType: alert.metricType,
+      alertId: alert['id'] as string,
+      testId: test['id'] as string,
+      projectId: test['projectId'] as string,
+      severity: severityLabels[alert['severity'] as string] || 'warning',
+      title: alert['name'] as string,
+      message: `Threshold exceeded in test "${test['name'] as string}": ${alert['metricType'] as string} = ${metricValue.toFixed(2)} (threshold: ${alert['threshold'] as number})`,
+      metricType: alert['metricType'] as string,
       metricValue,
-      threshold: alert.threshold,
+      threshold: alert['threshold'] as number,
     });
 
     this.logger.warn(`Alert triggered: ${alert.name} for test ${test.id} (value: ${metricValue}, threshold: ${alert.threshold})`);

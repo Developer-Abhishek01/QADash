@@ -98,7 +98,7 @@ export function ExecutionProgress({
           <LinearProgress
             variant="determinate"
             value={progress}
-            color={statusColors[status] as any}
+            color={statusColors[status] as 'primary' | 'success' | 'error' | 'warning'}
             sx={{ height: 8, borderRadius: 4 }}
           />
         </Box>
@@ -192,7 +192,7 @@ export function LogsViewer({
             label={l}
             size="small"
             variant={levelFilter === l.toLowerCase() ? 'filled' : 'outlined'}
-            onClick={() => setLevelFilter(l.toLowerCase() as any)}
+            onClick={() => setLevelFilter(l.toLowerCase() as 'all' | 'info' | 'warn' | 'error')}
           />
         ))}
         <IconButton size="small" onClick={() => setAutoScroll(!autoScroll)}>

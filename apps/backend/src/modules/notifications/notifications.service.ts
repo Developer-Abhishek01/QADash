@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma, NotificationType } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma.service';
 
@@ -13,7 +14,7 @@ export class NotificationsService {
   }
 
   async create(data: { userId: string; type: string; title: string; message: string; link?: string }) {
-    return this.prisma.notification.create({ data: { ...data, type: data.type as any } });
+    return this.prisma.notification.create({ data: { ...data, type: data.type as NotificationType } });
   }
 
   async markAsRead(id: string) { return this.prisma.notification.update({ where: { id }, data: { read: true } }); }

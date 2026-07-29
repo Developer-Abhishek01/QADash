@@ -8,7 +8,7 @@ export interface OrchestrationJob {
   startedAt?: string;
   completedAt?: string;
   dependencies?: string[];
-  result?: any;
+  result?: unknown;
   error?: string;
   attemptsMade?: number;
 }
@@ -34,7 +34,7 @@ export interface QueueStats {
 export interface EventMessage {
   id: string;
   channel: string;
-  payload: any;
+  payload: unknown;
   timestamp: string;
 }
 

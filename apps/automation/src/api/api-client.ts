@@ -138,10 +138,10 @@ export class ApiClient {
     headers: Record<string, string>,
     body?: unknown,
     formData?: Record<string, string>,
-    multipart?: any,
+    multipart?: Record<string, unknown>,
     timeout?: number
   ): Promise<{ status: number; statusText: string; headers: Record<string, string>; body: T; rawBody?: string }> {
-    const requestOptions: any = {
+    const requestOptions: Record<string, unknown> = {
       method,
       headers,
       timeout,

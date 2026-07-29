@@ -4,7 +4,7 @@ import { Logger } from '../utils/logger';
 export interface ChartConfig {
   title: string;
   type: ChartType;
-  data: any;
+  data: unknown;
   options?: ChartOptions;
 }
 

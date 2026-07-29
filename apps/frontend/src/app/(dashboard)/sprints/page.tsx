@@ -20,10 +20,21 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Loading } from '@/components/feedback/Loading';
 import { apiClient } from '@/lib/api/client';
 
+interface Sprint {
+  id: string;
+  name: string;
+  status: string;
+  start: string;
+  end: string;
+  progress: number;
+  tests: number;
+  bugs: number;
+}
+
 export default function SprintsPage() {
   const { data: sprints, isLoading } = useQuery({
     queryKey: ['sprints'],
-    queryFn: () => apiClient.get<any[]>('sprints'),
+    queryFn: () => apiClient.get<Sprint[]>('sprints'),
   });
 
   if (isLoading) return <Loading />;
@@ -41,7 +52,7 @@ export default function SprintsPage() {
       />
 
       <Grid container spacing={3}>
-        {sprints && sprints.length > 0 ? sprints.map((sprint: any) => (
+        {sprints && sprints.length > 0 ? sprints.map((sprint: Sprint) => (
           <Grid item xs={12} md={6} key={sprint.id}>
             <Card>
               <CardContent>

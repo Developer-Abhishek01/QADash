@@ -35,12 +35,13 @@ import { useState, useRef, useEffect } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { importApi } from '@/lib/api/client';
+import type { FileImport } from '@/lib/import/types';
 
 export default function ImportPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [projectId] = useState('');
-  const [imports, setImports] = useState<any[]>([]);
+  const [imports, setImports] = useState<FileImport[]>([]);
   const [_total, setTotal] = useState(0);
   const [_isLoading, setIsLoading] = useState(true);
   const { enqueueSnackbar } = useSnackbar();
@@ -52,7 +53,7 @@ export default function ImportPage() {
   const fetchImports = async () => {
     try {
       setIsLoading(true);
-      const data = await importApi.list({ projectId });
+      const data = await importApi.list({ projectId }) as { imports: FileImport[]; total: number };
       setImports(data.imports || []);
       setTotal(data.total || 0);
     } catch (error) {

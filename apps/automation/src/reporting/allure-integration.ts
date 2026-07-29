@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { ReportData } from './report-generator';
+import { ReportData, TestReport } from './report-generator';
 import { Logger } from '../utils/logger';
 
 export interface AllureConfig {
@@ -124,7 +124,7 @@ export class AllureIntegration {
   }
 
   private generateAttachmentsJson(report: ReportData): void {
-    const attachments: any[] = [];
+    const attachments: { name: string; type: string; source: string; testCaseId: string }[] = [];
 
     report.tests.forEach(test => {
       if (test.screenshots && test.screenshots.length > 0) {
@@ -164,8 +164,8 @@ export class AllureIntegration {
     }
   }
 
-  private getTestAttachments(test: any): any[] {
-    const attachments: any[] = [];
+  private getTestAttachments(test: TestReport): { name: string; type: string; source: string }[] {
+    const attachments: { name: string; type: string; source: string }[] = [];
 
     if (test.error) {
       attachments.push({

@@ -30,7 +30,7 @@ export function useUploadDocument() {
 
 export function useGenerateTests() {
   return useMutation({
-    mutationFn: (data: { requirements: any[]; framework?: string }) =>
+    mutationFn: (data: { requirements: unknown[]; framework?: string; documentId?: string }) =>
       requirementsApi.generateTests(data),
   });
 }

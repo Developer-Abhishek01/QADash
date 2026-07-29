@@ -50,7 +50,7 @@ export function ChartContainer({ title, subtitle, children, actions }: ChartCont
 }
 
 interface LineChartProps {
-  data: any[];
+  data: Record<string, unknown>[];
   lines: { dataKey: string; color: string; name?: string }[];
   xAxisKey?: string;
   height?: number;
@@ -90,7 +90,7 @@ export function TrendLineChart({ data, lines, xAxisKey = 'name', height = 300 }:
 }
 
 interface AreaChartProps {
-  data: any[];
+  data: Record<string, unknown>[];
   areas: { dataKey: string; color: string; name?: string }[];
   xAxisKey?: string;
   height?: number;
@@ -130,7 +130,7 @@ export function TrendAreaChart({ data, areas, xAxisKey = 'name', height = 300, s
 }
 
 interface BarChartProps {
-  data: any[];
+  data: Record<string, unknown>[];
   bars: { dataKey: string; color: string; name?: string }[];
   xAxisKey?: string;
   height?: number;

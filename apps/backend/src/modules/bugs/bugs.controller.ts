@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req,
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { BugsService } from './bugs.service';
+import { BugsService, BugCreateInput, BugUpdateInput, BugStatus, BugSeverity } from './bugs.service';
 import { AddAttachmentDto } from './dto/add-attachment.dto';
 import { AssignBugDto } from './dto/assign-bug.dto';
 import { CheckDuplicateDto } from './dto/check-duplicate.dto';
@@ -31,15 +31,15 @@ export class BugsController {
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER)
   @ApiOperation({ summary: 'Create a new bug' })
-  async create(@Body() createBugDto: CreateBugDto, @Req() req: any) {
-    return this.bugsService.create({ ...createBugDto, userId: req.user.id } as any);
+  async create(@Body() createBugDto: CreateBugDto, @Req() req: { user: { id: string } }) {
+    return this.bugsService.create({ ...createBugDto, userId: req.user.id } as BugCreateInput);
   }
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER, UserRole.DEVELOPER)
   @ApiOperation({ summary: 'Get all bugs' })
-  async findAll(@Query() query: any) {
-    return this.bugsService.findAll(query);
+  async findAll(@Query() query: Record<string, unknown>) {
+    return this.bugsService.findAll(query as unknown as string | undefined);
   }
 
   @Get(':id')
@@ -60,14 +60,14 @@ export class BugsController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER, UserRole.DEVELOPER)
   @ApiOperation({ summary: 'Update bug' })
   async update(@Param('id') id: string, @Body() updateBugDto: UpdateBugDto) {
-    return this.bugsService.update(id, updateBugDto as any);
+    return this.bugsService.update(id, updateBugDto as unknown as BugUpdateInput);
   }
 
   @Put(':id/status')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.QA_ENGINEER, UserRole.DEVELOPER)
   @ApiOperation({ summary: 'Update bug status' })
   async updateStatus(@Param('id') id: string, @Body() body: UpdateBugStatusDto) {
-    return this.bugsService.updateStatus(id, body.status as any);
+    return this.bugsService.updateStatus(id, body.status as BugStatus);
   }
 
   @Post(':id/assign')
@@ -94,8 +94,8 @@ export class BugsController {
   @Post('export/excel')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Export bugs to Excel' })
-  async exportExcel(@Query() query: any, @Res() res: any) {
-    const bugs = await this.bugsService.findAll(query.projectId, query);
+  async exportExcel(@Query() query: Record<string, unknown>, @Res() res: Response) {
+    const bugs = await this.bugsService.findAll(query.projectId as string | undefined, query as unknown as { status?: BugStatus; severity?: BugSeverity; assigneeId?: string });
     const buffer = this.excelIntegration.exportToExcel(bugs);
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -122,7 +122,7 @@ export class BugsController {
   @Get('export/csv/:projectId')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Export bugs to CSV' })
-  async exportCsv(@Param('projectId') projectId: string, @Res() res: any) {
+  async exportCsv(@Param('projectId') projectId: string, @Res() res: Response) {
     const bugs = await this.bugsService.findAll(projectId);
     const csv = this.excelIntegration.exportToCsv(bugs);
     res.set({

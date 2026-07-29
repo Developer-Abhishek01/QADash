@@ -231,7 +231,7 @@ export class HealthService {
       return {
         workers: workers || [],
         totalWorkers: workers?.length || 0,
-        activeWorkers: workers?.filter((w: any) => w.status === 'active').length || 0,
+        activeWorkers: workers?.filter((w: { status: string }) => w.status === 'active').length || 0,
         timestamp: new Date().toISOString(),
       };
     } catch {

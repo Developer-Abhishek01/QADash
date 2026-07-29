@@ -84,7 +84,10 @@ export class SecurityScannerService {
   }
 
   private getActiveScanners(scanType: string, config: Record<string, unknown>) {
-    const scannerMap: Record<string, any> = {
+    interface SecurityScanner {
+      scan(scanId: string, baseUrl: string, config: Record<string, unknown>): Promise<{ vulnerabilities: VulnerabilityResult[]; targets: TargetResult[] }>;
+    }
+    const scannerMap: Record<string, SecurityScanner> = {
       SQL_INJECTION: this.sqlInjectionScanner,
       XSS: this.xssScanner,
       AUTH: this.authScanner,

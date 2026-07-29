@@ -6,7 +6,7 @@ import * as vm from 'vm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { chromium, Browser, BrowserContext, CDPSession } from 'playwright';
+import { chromium, Browser, BrowserContext, CDPSession, Page } from 'playwright';
 
 import { PrismaService } from '../../common/prisma.service';
 import { EventsGateway } from '../gateway/events.gateway';
@@ -210,10 +210,10 @@ export class ExecutionsService implements OnModuleInit {
   }
 
   async updateStatus(id: string, status: string) {
-    const data: any = { status };
+    const data: { status: string; startedAt?: Date; completedAt?: Date } = { status };
     if (status === 'RUNNING') data.startedAt = new Date();
     if (['PASSED', 'FAILED', 'CANCELLED'].includes(status)) data.completedAt = new Date();
-    await this.prisma.execution.update({ where: { id }, data });
+    await this.prisma.execution.update({ where: { id }, data: data as never });
   }
 
   async executeTestsInline(
@@ -310,8 +310,8 @@ export class ExecutionsService implements OnModuleInit {
               duration: run.duration,
               error: run.error,
               logs: run.logs,
-              screenshotUrl: (run.metadata as any)?.screenshot,
-              videoUrl: (run.metadata as any)?.video,
+              screenshotUrl: (run.metadata as Record<string, unknown>)?.screenshot as string | undefined,
+              videoUrl: (run.metadata as Record<string, unknown>)?.video as string | undefined,
               completedAt: run.completedAt,
             })),
           },
@@ -407,12 +407,12 @@ export class ExecutionsService implements OnModuleInit {
       const page = await context.newPage();
 
       // ─── Inject JS event capture for mouse/input tracking ────────
-      await page.exposeFunction('__qadash_onAction', (_actionType: string, data: any) => {
+      await page.exposeFunction('__qadash_onAction', (_actionType: string, data: { selector?: string; tagName?: string; rect?: { x: number; y: number; width: number; height: number }; action?: string }) => {
         const actionEvent: ElementHighlight = {
           selector: data.selector || '',
           tagName: data.tagName || '',
           rect: data.rect || { x: 0, y: 0, width: 0, height: 0 },
-          action: data.action || 'hover',
+          action: (data.action || 'hover') as 'click' | 'type' | 'hover',
           timestamp: Date.now(),
         };
         try { this.eventsGateway.emitToAll('element-highlight', { executionId, ...actionEvent }); } catch {}
@@ -434,7 +434,7 @@ export class ExecutionsService implements OnModuleInit {
       // ─── Console / API / Network event listeners ─────────────────
       page.on('console', (msg) => {
         const consoleEvent: ConsoleEvent = {
-          type: msg.type() as any,
+          type: msg.type() as ConsoleEvent['type'],
           message: msg.text(),
           timestamp: Date.now(),
         };
@@ -474,19 +474,19 @@ export class ExecutionsService implements OnModuleInit {
           maxWidth: 1280,
           maxHeight: 720,
           everyNthFrame: 1,
-        }).then(() => true).catch((e: any) => {
-          this.logger.warn(`[LIVEPREVIEW] startScreencast FAILED: ${e.message} — Chrome 85+ removed this API`);
+        }).then(() => true).catch((e: unknown) => {
+          this.logger.warn(`[LIVEPREVIEW] startScreencast FAILED: ${(e as Error).message} — Chrome 85+ removed this API`);
           return false;
         });
 
         if (screencastResult) {
-          cdpSession.on('Page.screencastFrame', (frame: any) => {
+          cdpSession.on('Page.screencastFrame', (frame: { data?: string; sessionId?: number }) => {
             if (!streaming) return;
             const b64 = frame?.data;
             screencastFrameCount++;
             if (!b64 || !this.shouldEmitFrame(executionId, b64)) {
               if (frame?.sessionId && cdpSession) {
-                cdpSession.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => {});
+                cdpSession.send('Page.screencastFrameAck', { sessionId: frame.sessionId as number }).catch(() => {});
               }
               return;
             }
@@ -496,7 +496,7 @@ export class ExecutionsService implements OnModuleInit {
             this.setLivePreview(executionId, { screenshot: b64, step: '', timestamp: Date.now() });
             try { this.eventsGateway.emitToAll('live-preview', { executionId, screenshot: b64, step: '', timestamp: Date.now() }); } catch {}
             if (frame?.sessionId && cdpSession) {
-              cdpSession.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => {});
+              cdpSession.send('Page.screencastFrameAck', { sessionId: frame.sessionId as number }).catch(() => {});
             }
           });
         } else {
@@ -532,7 +532,7 @@ export class ExecutionsService implements OnModuleInit {
       const rawConfig = typeof test.config === 'string' ? JSON.parse(test.config) : test.config;
       const testConfig = rawConfig || {};
       const targetUrl = testConfig?.url;
-      const steps = testConfig?.steps || (test as any).steps;
+      const steps = testConfig?.steps || (test as Record<string, unknown>).steps as unknown[] | undefined;
       if (steps && Array.isArray(steps)) {
         for (const step of steps) {
           if (step.action && !step.type) {
@@ -574,7 +574,7 @@ export class ExecutionsService implements OnModuleInit {
 
       const renderedSteps = (steps && Array.isArray(steps))
         ? steps.map(s => {
-            const rendered: any = { ...s };
+            const rendered: Record<string, unknown> = { ...s };
             for (const key of Object.keys(rendered)) {
               if (typeof rendered[key] === 'string') {
                 rendered[key] = resolveTemplates(rendered[key]);
@@ -589,7 +589,7 @@ export class ExecutionsService implements OnModuleInit {
         await this.captureAndEmit(page, emitLive, 'About to run test code');
         const sandbox = {
           page, browser, context,
-          console: { log: (...args: any[]) => this.logger.log(`[test.code] ${args.join(' ')}`) },
+          console: { log: (...args: unknown[]) => this.logger.log(`[test.code] ${args.join(' ')}`) },
         };
         vm.createContext(sandbox);
         const script = new vm.Script(`(async () => { ${test.code} })()`);
@@ -617,7 +617,7 @@ export class ExecutionsService implements OnModuleInit {
         title = await page.title();
         await this.captureAndEmit(page, emitLive, `Page title: ${title}`);
       } else {
-        const specRun = await this.runPlaywrightSpec(test, emitLive);
+        const specRun = await this.runPlaywrightSpec(test as unknown as { config?: string | Record<string, unknown>; specFile?: string; name?: string; tags?: string[]; id?: string }, emitLive);
         if (specRun) {
           return specRun;
         }
@@ -711,14 +711,14 @@ export class ExecutionsService implements OnModuleInit {
   }
 
   private async runPlaywrightSpec(
-    test: any,
+    test: { config?: Record<string, unknown> | string; specFile?: string; name?: string; tags?: string[]; id?: string },
     emitLive: (step: string, screenshotBase64: string) => void,
   ): Promise<TestResult | null> {
     const automationDir = path.resolve(process.cwd(), '..', 'automation');
-    const testConfig = (test.config || {}) as any;
+    const testConfig = (test.config || {}) as Record<string, unknown>;
     let matchedSpec = test.specFile || testConfig.specFile || '';
     if (matchedSpec) {
-      matchedSpec = path.basename(matchedSpec);
+      matchedSpec = path.basename(matchedSpec as string);
     }
     if (!matchedSpec) {
       const specName = test.name?.toLowerCase().replace(/\s+/g, '-') || '';
@@ -749,9 +749,10 @@ export class ExecutionsService implements OnModuleInit {
           stdio: 'pipe',
         },
       );
-    } catch (e: any) {
-      const stdout = e.stdout?.toString() || '';
-      const stderr = e.stderr?.toString() || '';
+    } catch (e: unknown) {
+      const execErr = e as { stdout?: Buffer; stderr?: Buffer; message?: string };
+      const stdout = execErr.stdout?.toString() || '';
+      const stderr = execErr.stderr?.toString() || '';
       this.logger.warn(`Playwright spec exit code non-zero: ${stderr.substring(0, 200)}`);
     }
 
@@ -777,12 +778,12 @@ export class ExecutionsService implements OnModuleInit {
           const reportData = JSON.parse(fs.readFileSync(reportFile, 'utf-8'));
           const suites = reportData.suites || reportData;
           const allTests = this.flattenTests(suites);
-          const failedTests = allTests.filter((t: any) => t.status === 'failed' || t.status === 'timedOut');
-          const passedTests = allTests.filter((t: any) => t.status === 'passed' || t.status === 'expected');
+          const failedTests = allTests.filter((t: { status: string }) => t.status === 'failed' || t.status === 'timedOut');
+          const passedTests = allTests.filter((t: { status: string }) => t.status === 'passed' || t.status === 'expected');
           testPassed = failedTests.length === 0 && passedTests.length > 0;
           testLogs = `${passedTests.length} passed, ${failedTests.length} failed`;
           if (failedTests.length > 0) {
-            testError = failedTests.map((t: any) => t.errors?.map((e: any) => e.message).join('; ')).join('; ');
+            testError = failedTests.map((t: { errors?: { message?: string }[] }) => t.errors?.map((e: { message?: string }) => e.message).join('; ')).join('; ');
           }
         } catch (parseErr) {
           this.logger.warn(`Failed to parse report JSON: ${parseErr}`);
@@ -849,21 +850,21 @@ export class ExecutionsService implements OnModuleInit {
     return result;
   }
 
-  private flattenTests(suite: any): any[] {
-    const tests: any[] = [];
-    if (suite.suites) for (const s of suite.suites) tests.push(...this.flattenTests(s));
-    if (suite.specs) for (const s of suite.specs) tests.push(...(s.tests || [s]));
-    if (suite.tests) tests.push(...suite.tests);
+  private flattenTests(suite: Record<string, unknown>): { status: string; errors?: { message?: string }[] }[] {
+    const tests: { status: string; errors?: { message?: string }[] }[] = [];
+    if (suite.suites) for (const s of suite.suites as Record<string, unknown>[]) tests.push(...this.flattenTests(s));
+    if (suite.specs) for (const s of suite.specs as Record<string, unknown>[]) tests.push(...((s.tests as { status: string; errors?: { message?: string }[] }[]) || [s as unknown as { status: string; errors?: { message?: string }[] }]));
+    if (suite.tests) tests.push(...suite.tests as { status: string; errors?: { message?: string }[] }[]);
     return tests;
   }
 
   private async captureAndEmit(
-    page: any,
+    page: Page,
     emitLive: (step: string, screenshotBase64: string) => void,
     step: string,
   ) {
     try {
-      let screenshotBuffer: any;
+      let screenshotBuffer: unknown;
       try {
         screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false });
       } catch {
@@ -898,8 +899,8 @@ export class ExecutionsService implements OnModuleInit {
   }
 
   private async executeSteps(
-    steps: any[],
-    page: any,
+    steps: { type: string; selector?: string; url?: string; value?: string; ms?: number; waitFor?: string; description?: string }[],
+    page: Page,
     emitLive: (step: string, screenshotBase64: string) => void,
     emitAction?: (action: Omit<ActionEvent, 'timestamp'>) => void,
   ) {
@@ -968,7 +969,7 @@ export class ExecutionsService implements OnModuleInit {
           this.logger.log(`Step ${i + 1}: waiting ${step.ms || 1000}ms`);
           if (emitAction) emitAction({ type: 'wait', value: `${step.ms || 1000}ms`, status: 'running' });
           if (step.waitFor) {
-            await page.waitForLoadState(step.waitFor, { timeout: step.ms || 30000 });
+            await page.waitForLoadState(step.waitFor as 'load' | 'domcontentloaded' | 'networkidle', { timeout: step.ms || 30000 });
           } else {
             await page.waitForTimeout(step.ms || 1000);
           }

@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userStr = localStorage.getItem('user');
       const token = localStorage.getItem('accessToken');
       if (userStr && token) {
-        const user = JSON.parse(userStr);
+        const user = JSON.parse(userStr) as User;
         setState({ user, isAuthenticated: true, isLoading: false, error: null });
       } else {
         setState((prev) => ({ ...prev, isLoading: false }));
@@ -100,14 +100,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
-      const response = await authApi.login(email, password);
+      const response = await authApi.login(email, password) as { user: Record<string, unknown>; accessToken: string; refreshToken: string } | null;
       
       if (!response || !response.user) {
         throw new Error('Invalid response from server: Missing user data');
       }
 
       const user: User = {
-        ...response.user,
+        ...response.user as unknown as User,
         permissions: ROLE_PERMISSIONS[response.user.role as UserRole] || [],
       };
 
@@ -121,33 +121,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => {
         router.replace('/dashboard');
       }, 100);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message: string; code?: string; response?: { data?: { message?: string | string[] }; status?: number }; config?: { url?: string; method?: string; baseURL?: string } };
       console.error('Production-Level Login Error:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        code: error.code,
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        code: err.code,
         config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          baseURL: error.config?.baseURL
+          url: err.config?.url,
+          method: err.config?.method,
+          baseURL: err.config?.baseURL
         }
       });
       
       let message = 'Login failed. Please try again.';
       
-      if (error.code === 'ERR_NETWORK') {
+      if (err.code === 'ERR_NETWORK') {
         message = 'Connection Refused: Backend server is not responding. Please ensure "run.bat" is running and the Backend window says "Nest application successfully started".';
-      } else if (error.code === 'ECONNABORTED') {
+      } else if (err.code === 'ECONNABORTED') {
         message = 'Request Timeout: The server is taking too long to respond. Check your database connection.';
-      } else if (error.response?.status === 404) {
+      } else if (err.response?.status === 404) {
         message = 'API Endpoint not found. Verify backend routing configuration.';
-      } else if (error.response?.status === 401) {
+      } else if (err.response?.status === 401) {
         message = 'Invalid email or password.';
-      } else if (error.response?.data?.message) {
-        message = Array.isArray(error.response.data.message) 
-          ? error.response.data.message[0] 
-          : error.response.data.message;
+      } else if (err.response?.data?.message) {
+        message = Array.isArray(err.response.data.message) 
+          ? err.response.data.message[0] 
+          : err.response.data.message;
       }
       
       setState((prev) => ({ ...prev, isLoading: false, error: message }));
@@ -160,8 +161,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.register(data);
       await login(data.email, data.password);
-    } catch (error: any) {
-      const message = error.response?.data?.message || error.message || 'Registration failed';
+    } catch (error: unknown) {
+      const err = error as { message: string; response?: { data?: { message?: string } } };
+      const message = err.response?.data?.message || err.message || 'Registration failed';
       setState((prev) => ({ ...prev, isLoading: false, error: message }));
       throw new Error(message);
     }

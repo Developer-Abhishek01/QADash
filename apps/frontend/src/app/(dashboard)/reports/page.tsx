@@ -195,7 +195,7 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const data = await reportsApi.list();
+      const data = await reportsApi.list() as Report[];
       setReports(data);
     } catch (error) {
       console.error('Failed to fetch reports:', error);

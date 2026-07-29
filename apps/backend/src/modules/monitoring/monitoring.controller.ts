@@ -20,7 +20,7 @@ export class MonitoringController {
   }
 
   @Get('metrics/json')
-  async getMetricsJSON(): Promise<Record<string, unknown>> {
+  async getMetricsJSON(): Promise<Record<string, unknown>[]> {
     return this.metricsService.getMetricsAsJSON();
   }
 

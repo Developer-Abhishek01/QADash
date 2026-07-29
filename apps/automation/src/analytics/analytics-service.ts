@@ -1,4 +1,4 @@
-import { AnalyticsDataClient, TrendData } from './analytics-client';
+import { AnalyticsDataClient, TrendData, DefectData, BrowserAnalytics, EnvironmentAnalytics, HeatmapCell, AiInsight, ExecutionMetrics } from './analytics-client';
 import { Logger } from '../utils/logger';
 
 export interface FilterOptions {
@@ -28,7 +28,7 @@ export interface AnalyticsQuery {
 export class AnalyticsService {
   private logger: Logger;
   private dataClient: AnalyticsDataClient;
-  private cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private cache: Map<string, { data: unknown; timestamp: number }> = new Map();
   private cacheTimeout = 5 * 60 * 1000;
 
   constructor(logger?: Logger) {
@@ -36,7 +36,7 @@ export class AnalyticsService {
     this.dataClient = new AnalyticsDataClient();
   }
 
-  async query(analyticsQuery: AnalyticsQuery): Promise<any> {
+  async query(analyticsQuery: AnalyticsQuery): Promise<unknown> {
     const cacheKey = JSON.stringify(analyticsQuery);
     const cached = this.cache.get(cacheKey);
     
@@ -50,7 +50,7 @@ export class AnalyticsService {
     return result;
   }
 
-  private async executeQuery(query: AnalyticsQuery): Promise<any> {
+  private async executeQuery(query: AnalyticsQuery): Promise<unknown> {
     const filters = query.filters || {};
 
     switch (query.type) {
@@ -80,36 +80,36 @@ export class AnalyticsService {
     return limit ? trends.slice(-limit) : trends;
   }
 
-  private async getDefects(filters: FilterOptions, limit?: number): Promise<any> {
+  private async getDefects(filters: FilterOptions, limit?: number): Promise<DefectData[]> {
     const defects = await this.dataClient.getDefectDensity(filters.projectId || '', 30);
     return limit ? defects.slice(0, limit) : defects;
   }
 
-  private async getBrowserAnalytics(filters: FilterOptions): Promise<any> {
+  private async getBrowserAnalytics(filters: FilterOptions): Promise<BrowserAnalytics[]> {
     return this.dataClient.getBrowserAnalytics(filters.projectId || '');
   }
 
-  private async getEnvironmentAnalytics(filters: FilterOptions): Promise<any> {
+  private async getEnvironmentAnalytics(filters: FilterOptions): Promise<EnvironmentAnalytics[]> {
     return this.dataClient.getEnvironmentAnalytics(filters.projectId || '');
   }
 
-  private async getHeatmap(filters: FilterOptions): Promise<any> {
+  private async getHeatmap(filters: FilterOptions): Promise<HeatmapCell[]> {
     return this.dataClient.getExecutionHeatmap(filters.projectId || '');
   }
 
-  private async getAiInsights(filters: FilterOptions): Promise<any> {
+  private async getAiInsights(filters: FilterOptions): Promise<AiInsight[]> {
     return this.dataClient.getAiInsights(filters.projectId || '');
   }
 
-  private async getCoverage(filters: FilterOptions): Promise<any> {
+  private async getCoverage(filters: FilterOptions): Promise<{ feature: string; covered: number; total: number; percentage: number }[]> {
     return this.dataClient.getTestCoverage(filters.projectId || '');
   }
 
-  private async getReliability(filters: FilterOptions): Promise<any> {
+  private async getReliability(filters: FilterOptions): Promise<{ score: number; grade: string; factors: { name: string; impact: number }[] }> {
     return this.dataClient.getReliabilityScore(filters.projectId || '');
   }
 
-  async drillDown(params: DrillDownParams): Promise<any> {
+  async drillDown(params: DrillDownParams): Promise<unknown> {
     this.logger.info(`Drilling down: ${params.level} - ${params.parentId}`);
 
     switch (params.level) {
@@ -124,7 +124,7 @@ export class AnalyticsService {
     }
   }
 
-  private async getProjectDrillDown(projectId: string, _filters?: FilterOptions): Promise<any> {
+  private async getProjectDrillDown(projectId: string, _filters?: FilterOptions): Promise<unknown> {
     const [trends, browsers, environments, defects] = await Promise.all([
       this.query({ type: 'trends', filters: { projectId } }),
       this.query({ type: 'browsers', filters: { projectId } }),
@@ -134,23 +134,23 @@ export class AnalyticsService {
 
     return {
       summary: {
-        totalExecutions: trends?.length || 0,
+        totalExecutions: Array.isArray(trends) ? trends.length : 0,
         totalTests: 0,
         avgPassRate: 0,
       },
       trends,
       browsers,
       environments,
-      topDefects: defects.slice(0, 10),
+      topDefects: Array.isArray(defects) ? defects.slice(0, 10) : [],
     };
   }
 
-  private async getExecutionDrillDown(executionId: string): Promise<any> {
+  private async getExecutionDrillDown(executionId: string): Promise<ExecutionMetrics | null> {
     const execution = await this.dataClient.getExecutionDetails(executionId);
     return execution;
   }
 
-  private async getTestDrillDown(testId: string): Promise<any> {
+  private async getTestDrillDown(testId: string): Promise<{ testId: string; name: string; recentRuns: unknown[]; errorHistory: unknown[] }> {
     return {
       testId,
       name: `Test ${testId}`,
@@ -159,29 +159,29 @@ export class AnalyticsService {
     };
   }
 
-  filterResults(data: any[], filters: FilterOptions): any[] {
+  filterResults(data: Record<string, unknown>[], filters: FilterOptions): Record<string, unknown>[] {
     let filtered = [...data];
 
     if (filters.browser) {
-      filtered = filtered.filter((item: any) => item.browser === filters.browser);
+      filtered = filtered.filter((item) => item.browser === filters.browser);
     }
 
     if (filters.environment) {
-      filtered = filtered.filter((item: any) => item.environment === filters.environment);
+      filtered = filtered.filter((item) => item.environment === filters.environment);
     }
 
     if (filters.testStatus) {
-      filtered = filtered.filter((item: any) => item.status === filters.testStatus);
+      filtered = filtered.filter((item) => item.status === filters.testStatus);
     }
 
     if (filters.startDate) {
       const start = new Date(filters.startDate);
-      filtered = filtered.filter((item: any) => new Date(item.date) >= start);
+      filtered = filtered.filter((item) => new Date(item.date as string) >= start);
     }
 
     if (filters.endDate) {
       const end = new Date(filters.endDate);
-      filtered = filtered.filter((item: any) => new Date(item.date) <= end);
+      filtered = filtered.filter((item) => new Date(item.date as string) <= end);
     }
 
     return filtered;
@@ -202,10 +202,13 @@ export class AnalyticsService {
     }
   }
 
-  private convertToCsv(data: any): string {
+  private convertToCsv(data: unknown): string {
     if (Array.isArray(data) && data.length > 0) {
-      const headers = Object.keys(data[0]);
-      const rows = data.map(item => headers.map(h => JSON.stringify(item[h] || '')).join(','));
+      const first = data[0] as Record<string, unknown>;
+      const headers = Object.keys(first);
+      const rows = (data as Record<string, unknown>[]).map(item =>
+        headers.map(h => JSON.stringify(item[h] || '')).join(',')
+      );
       return [headers.join(','), ...rows].join('\n');
     }
     return '';
@@ -216,7 +219,7 @@ export class AnalyticsService {
     this.logger.info('Analytics cache cleared');
   }
 
-  optimizeForLargeDataset(data: any[], limit = 1000, page = 1): { data: any[]; total: number; pageCount: number } {
+  optimizeForLargeDataset(data: unknown[], limit = 1000, page = 1): { data: unknown[]; total: number; pageCount: number } {
     const total = data.length;
     const pageCount = Math.ceil(total / limit);
     const start = (page - 1) * limit;
@@ -229,7 +232,7 @@ export class AnalyticsService {
     };
   }
 
-  async getRealTimeUpdates(_projectId: string): Promise<any> {
+  async getRealTimeUpdates(_projectId: string): Promise<unknown> {
     try {
       return await this.dataClient.getExecutionDetails('latest');
     } catch {

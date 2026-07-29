@@ -39,6 +39,7 @@ import PageHeader from '@/components/common/PageHeader';
 import Loading from '@/components/feedback/Loading';
 import { SeverityChip, VulnDetailDialog } from '@/components/security';
 import { useVulnerabilities, useUpdateVulnerability } from '@/lib/security/hooks';
+import type { Vulnerability } from '@/lib/security/types';
 
 const STATUS_OPTIONS = [
   { value: 'OPEN', label: 'Open' },
@@ -57,7 +58,7 @@ export default function VulnerabilitiesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [selectedVulnId, setSelectedVulnId] = useState<string | null>(null);
-  const [selectedVulnForDetail, setSelectedVulnForDetail] = useState<any>(null);
+  const [selectedVulnForDetail, setSelectedVulnForDetail] = useState<Vulnerability | null>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [vulnDetailOpen, setVulnDetailOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');

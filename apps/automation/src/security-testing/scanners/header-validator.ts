@@ -1,6 +1,6 @@
 import { Page } from '@playwright/test';
 
-import { Vulnerability } from '../types';
+import { Vulnerability, VulnerabilitySeverity } from '../types';
 
 export class HeaderValidator {
   constructor(private page: Page) {}
@@ -10,7 +10,7 @@ export class HeaderValidator {
     try {
       const response = await this.page.goto(url);
       const headers = response?.headers() || {};
-      const requiredHeaders: Record<string, { severity: any; solution: string }> = {
+      const requiredHeaders: Record<string, { severity: VulnerabilitySeverity; solution: string }> = {
         'X-Content-Type-Options': { severity: 'medium', solution: 'Add X-Content-Type-Options: nosniff' },
         'X-Frame-Options': { severity: 'medium', solution: 'Add X-Frame-Options: DENY' },
         'Content-Security-Policy': { severity: 'high', solution: 'Add Content-Security-Policy header' },

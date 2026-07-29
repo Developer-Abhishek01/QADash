@@ -1,10 +1,10 @@
 import { Controller, Post, Get, Delete, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiConsumes, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
 
 import { RequirementsService } from './requirements.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ParseDocumentDto, GenerateTestsDto, RequirementsListDto } from './dto/requirements.dto';
+import { ParseDocumentDto, GenerateTestsDto, RequirementsListDto, RequirementAnalysisDto } from './dto/requirements.dto';
 
 @ApiTags('requirements')
 @ApiBearerAuth()
@@ -26,8 +26,15 @@ export class RequirementsController {
     return this.requirementsService.parseDocument(dto);
   }
 
+  @Get(':id/analysis')
+  @ApiOperation({ summary: 'Get full document analysis with all extracted entities' })
+  @ApiOkResponse({ type: RequirementAnalysisDto })
+  getDocumentAnalysis(@Param('id') id: string) {
+    return this.requirementsService.getDocumentAnalysis(id);
+  }
+
   @Post('generate-tests')
-  generateTests(@Body() dto: GenerateTestsDto) {
+  generateTests(@Body() dto: GenerateTestsDto): Promise<Record<string, unknown>> {
     return this.requirementsService.generateTests(dto);
   }
 

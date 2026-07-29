@@ -10,10 +10,10 @@ interface UseSocketOptions {
   userId?: string;
   onConnect?: () => void;
   onDisconnect?: () => void;
-  onExecutionUpdate?: (data: any) => void;
-  onJobUpdate?: (data: any) => void;
-  onAlert?: (data: any) => void;
-  onAnalyticsUpdate?: (data: any) => void;
+  onExecutionUpdate?: (data: unknown) => void;
+  onJobUpdate?: (data: unknown) => void;
+  onAlert?: (data: unknown) => void;
+  onAnalyticsUpdate?: (data: unknown) => void;
 }
 
 export function useSocket(options: UseSocketOptions = {}) {
@@ -100,7 +100,7 @@ export function useSocket(options: UseSocketOptions = {}) {
     }
   }, []);
 
-  const emit = useCallback((event: string, data: any) => {
+  const emit = useCallback((event: string, data: unknown) => {
     socketRef.current?.emit(event, data);
   }, []);
 
@@ -133,10 +133,10 @@ export function useSocket(options: UseSocketOptions = {}) {
   };
 }
 
-export function useExecutionSocket(executionId: string, onUpdate?: (data: any) => void) {
+export function useExecutionSocket(executionId: string, onUpdate?: (data: unknown) => void) {
   const { emit, subscribe, unsubscribe } = useSocket({
     onExecutionUpdate: (data) => {
-      if (data.executionId === executionId) {
+      if ((data as Record<string, unknown>).executionId === executionId) {
         onUpdate?.(data);
       }
     },
@@ -154,10 +154,10 @@ export function useExecutionSocket(executionId: string, onUpdate?: (data: any) =
   return { emit, subscribe, unsubscribe };
 }
 
-export function useJobSocket(jobId: string, onUpdate?: (data: any) => void) {
+export function useJobSocket(jobId: string, onUpdate?: (data: unknown) => void) {
   const { emit, subscribe, unsubscribe } = useSocket({
     onJobUpdate: (data) => {
-      if (data.jobId === jobId) {
+      if ((data as Record<string, unknown>).jobId === jobId) {
         onUpdate?.(data);
       }
     },

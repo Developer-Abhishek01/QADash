@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { parseExpression } from 'cron-parser';
 
 import { CreateScanDto, UpdateScanDto, VulnerabilityFilterDto, ScanFilterDto } from './dto/security.dto';
@@ -24,7 +25,7 @@ export class SecurityService implements OnModuleInit {
         environmentId: dto.environmentId,
         userId,
         scanType: dto.scanType || 'QUICK',
-        config: (dto.config || {}) as any,
+        config: (dto.config || {}) as unknown as Prisma.InputJsonValue,
         schedule: dto.schedule,
         isScheduled: dto.isScheduled || false,
         status: 'PENDING',
@@ -51,7 +52,7 @@ export class SecurityService implements OnModuleInit {
   async startScan(scanId: string) {
     const scan = await this.prisma.securityScan.findUnique({
       where: { id: scanId },
-      include: { environment: true } as any,
+      include: { environment: true },
     });
     if (!scan) throw new NotFoundException('Scan not found');
 
@@ -59,8 +60,8 @@ export class SecurityService implements OnModuleInit {
       scanId: scan.id,
       projectId: scan.projectId,
       environmentId: scan.environmentId,
-      baseUrl: (scan as any).environment.baseUrl,
-      config: (scan.config as any) || {},
+      baseUrl: (scan.environment as Record<string, unknown>).baseUrl as string,
+      config: (scan.config as unknown as Record<string, unknown>) || {},
       scanType: scan.scanType,
     });
 
@@ -98,15 +99,15 @@ export class SecurityService implements OnModuleInit {
         project: { select: { id: true, name: true } },
         environment: { select: { id: true, name: true, baseUrl: true } },
         vulnerabilities: true,
-      } as any,
+      } as unknown,
     });
     if (!scan) throw new NotFoundException('Scan not found');
     return scan;
   }
 
   async updateScan(scanId: string, dto: UpdateScanDto) {
-    const data: any = { ...dto };
-    if (dto.config) data.config = dto.config as any;
+    const data: Record<string, unknown> = { ...dto };
+    if (dto.config) data.config = dto.config as unknown;
     
     return this.prisma.securityScan.update({
       where: { id: scanId },
@@ -280,7 +281,7 @@ export class SecurityService implements OnModuleInit {
         message: data.message,
         scanId: data.scanId,
         vulnerabilityId: data.vulnerabilityId,
-        metadata: data.metadata as any,
+        metadata: data.metadata as unknown as Prisma.InputJsonValue,
       },
     });
   }

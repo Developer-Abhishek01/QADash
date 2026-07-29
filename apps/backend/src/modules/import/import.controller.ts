@@ -49,7 +49,7 @@ export class ImportController {
     @Body() dto: CreateImportDto,
     @Request() req: { user: { id: string } },
   ) {
-    return this.importService.createImport(dto, req.user.id, { filename: '', originalname: '', mimetype: '', size: 0 } as any);
+    return this.importService.createImport(dto, req.user.id, { filename: '', originalname: '', mimetype: '', size: 0 } as Express.Multer.File);
   }
 
   @Post(':id/parse')
@@ -84,7 +84,7 @@ export class ImportController {
 
   @Post(':id/process-ai')
   @ApiOperation({ summary: 'Process import with AI pipeline - auto generate test cases' })
-  async processImportWithAI(@Param('id') id: string, @Request() req: any) {
+  async processImportWithAI(@Param('id') id: string, @Request() req: { user: { id: string } }) {
     return this.importService.processImportWithAI(id, req.user.id);
   }
 

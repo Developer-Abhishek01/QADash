@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma.service';
 
@@ -53,7 +54,7 @@ export class BugsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(projectId?: string, filters?: { status?: BugStatus; severity?: BugSeverity; assigneeId?: string }) {
-    const where: any = projectId ? { projectId } : {};
+    const where: Record<string, unknown> = projectId ? { projectId } : {};
     if (filters?.status) where.status = filters.status;
     if (filters?.severity) where.severity = filters.severity;
     if (filters?.assigneeId) where.assigneeId = filters.assigneeId;
@@ -107,7 +108,7 @@ export class BugsService {
         browser: input.browser,
         tags: input.tags || [],
         status: 'OPEN',
-        aiPrediction: aiPrediction as any,
+        aiPrediction: aiPrediction as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -141,7 +142,7 @@ export class BugsService {
 
   async addAttachment(id: string, type: 'screenshot' | 'video' | 'log', url: string) {
     const bug = await this.findById(id);
-    const update: any = {};
+    const update: Record<string, unknown> = {};
 
     if (type === 'screenshot') update.screenshots = [...bug.screenshots, url];
     else if (type === 'video') update.videos = [...bug.videos, url];

@@ -46,8 +46,8 @@ export default function ForgotPasswordPage() {
     try {
       await apiClient.post('/auth/forgot-password', { email: data.email });
       setMessage({ type: 'success', text: 'If the email exists, a reset link has been sent.' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Something went wrong' });
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Something went wrong' });
     } finally {
       setIsLoading(false);
     }

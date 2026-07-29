@@ -134,8 +134,7 @@ export class BusinessValidator {
         name: 'projectNameRequired',
         description: 'Project name is required',
         condition: (row) => {
-          const rowData = row as any;
-          return Boolean(rowData.name && String(rowData.name).trim().length > 0);
+          return Boolean(row.name && String(row.name).trim().length > 0);
         },
         errorMessage: 'Project name is required',
         errorCode: 'PROJECT_NAME_REQUIRED',

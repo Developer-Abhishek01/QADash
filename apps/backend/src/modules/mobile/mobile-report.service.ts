@@ -75,7 +75,7 @@ export interface ReportMetadata {
 @Injectable()
 export class MobileReportService {
   private reports: Map<string, MobileReport> = new Map();
-  private readonly logger = new LoggerService({} as any);
+  private readonly logger = new LoggerService();
 
   constructor() {}
 

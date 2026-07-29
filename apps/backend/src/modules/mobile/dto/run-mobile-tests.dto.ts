@@ -41,5 +41,5 @@ export class RunMobileTestsDto {
 
   @ApiPropertyOptional({ example: { locale: 'en_US' }, description: 'Additional capabilities' })
   @IsOptional()
-  capabilities?: Record<string, any>;
+  capabilities?: Record<string, unknown>;
 }

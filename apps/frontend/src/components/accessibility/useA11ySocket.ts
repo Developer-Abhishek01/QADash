@@ -26,13 +26,13 @@ export function useA11ySocket(projectId?: string, testId?: string, callbacks?: A
       }
     });
 
-    socketRef.current.on('accessibility.page-scanned', (data: any) => {
+    socketRef.current.on('accessibility.page-scanned', (data: { testId: string; scannedPages: number; totalPages: number; issuesFound: number }) => {
       if ((!testId || data.testId === testId) && callbacks?.onProgress) {
         callbacks.onProgress(data);
       }
     });
 
-    socketRef.current.on('accessibility.completed', (data: any) => {
+    socketRef.current.on('accessibility.completed', (data: { testId: string; status: string }) => {
       if (callbacks?.onCompleted) {
         callbacks.onCompleted(data);
       }

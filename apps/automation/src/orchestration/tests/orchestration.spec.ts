@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import { Logger } from '../../utils/logger';
 import { EnvironmentMapper } from '../environment-mapper';
 import { ExecutionOrchestrator, CreateExecutionRequest } from '../execution-api';
-import { WorkerManager } from '../execution-engine';
+import { WorkerManager, BrowserType } from '../execution-engine';
 
 const logger = new Logger('OrchestrationTest');
 const orchestrator = new ExecutionOrchestrator(logger);
@@ -127,7 +127,7 @@ test.describe('Worker Manager Tests', () => {
       name: 'Test',
       testIds: ['t1', 't2', 't3'],
       environmentId: 'env-001',
-      browser: 'chromium' as any,
+      browser: 'chromium' as unknown as BrowserType,
       parallel: true,
       maxWorkers: 3,
       retryConfig: { enabled: false, maxAttempts: 1, strategy: 'fixed', delayMs: 1000, backoffMultiplier: 2, maxDelayMs: 10000 },

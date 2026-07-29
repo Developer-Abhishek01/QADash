@@ -87,10 +87,10 @@ export class OwaspZapScanner {
     try {
       const spiderUrl = this.buildZapUrl('/JSON/spider/action/scan', { url: targetUrl });
       const response = await fetch(spiderUrl, { signal: AbortSignal.timeout(30000) });
-      const data = await response.json() as any;
+      const data = await response.json() as Record<string, unknown>;
 
       if (data.scan) {
-        await this.waitForSpiderComplete(data.scan);
+        await this.waitForSpiderComplete(data.scan as string);
         const spiderResults = await this.getSpiderResults(targetUrl);
         targets.push(...spiderResults);
       }
@@ -107,10 +107,10 @@ export class OwaspZapScanner {
     try {
       const ascanUrl = this.buildZapUrl('/JSON/ascan/action/scan/', { url: targetUrl });
       const response = await this.zapFetch(ascanUrl, 60000);
-      const data = await response.json() as any;
+      const data = await response.json() as Record<string, unknown>;
 
       if (data.scan) {
-        await this.waitForActiveScanComplete(data.scan);
+        await this.waitForActiveScanComplete(data.scan as string);
       }
     } catch (error) {
       this.logger.warn(`Active scan error: ${error}`);
@@ -130,12 +130,12 @@ export class OwaspZapScanner {
 
       const resultsUrl = this.buildZapUrl('/JSON/ajaxSpider/view/results/');
       const response = await this.zapFetch(resultsUrl, 10000);
-      const data = await response.json() as any;
+      const data = await response.json() as Record<string, unknown>;
 
       if (data.results) {
-        for (const result of data.results) {
+        for (const result of data.results as Array<Record<string, unknown>>) {
           targets.push({
-            url: result.url,
+            url: result.url as string,
             method: 'GET',
             isSecure: true,
           });
@@ -152,8 +152,8 @@ export class OwaspZapScanner {
     try {
       const alertsUrl = this.buildZapUrl('/JSON/alerts/view/alerts/', { url: targetUrl });
       const response = await this.zapFetch(alertsUrl, 10000);
-      const data = await response.json() as any;
-      return (data.alerts || []) as Record<string, unknown>[];
+      const data = await response.json() as Record<string, unknown>;
+      return (data.alerts as Record<string, unknown>[]) || [];
     } catch {
       return [];
     }
@@ -224,9 +224,9 @@ export class OwaspZapScanner {
     try {
       const resultsUrl = this.buildZapUrl('/JSON/spider/view/results/', { url: targetUrl });
       const response = await this.zapFetch(resultsUrl, 10000);
-      const data = await response.json() as any;
+      const data = await response.json() as Record<string, unknown>;
     if (data && data.results) {
-      for (const url of data.results) {
+      for (const url of data.results as string[]) {
           targets.push({
             url,
             method: 'GET',
@@ -247,7 +247,7 @@ export class OwaspZapScanner {
       try {
         const statusUrl = this.buildZapUrl(`/JSON/spider/view/status/${scanId}`);
         const response = await this.zapFetch(statusUrl, 5000);
-        const data = await response.json() as any;
+        const data = await response.json() as Record<string, unknown>;
 
         if (data.status === '100') break;
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -263,7 +263,7 @@ export class OwaspZapScanner {
       try {
         const statusUrl = this.buildZapUrl(`/JSON/ascan/view/status/${scanId}`);
         const response = await this.zapFetch(statusUrl, 5000);
-        const data = await response.json() as any;
+        const data = await response.json() as Record<string, unknown>;
 
         if (data.status === '100') break;
         await new Promise((resolve) => setTimeout(resolve, 2000));

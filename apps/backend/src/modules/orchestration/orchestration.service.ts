@@ -10,7 +10,7 @@ export interface OrchestrationJob {
   id: string;
   type: 'test' | 'security' | 'performance' | 'accessibility' | 'ai-analysis' | 'report' | 'bug-sync';
   priority: 'critical' | 'high' | 'medium' | 'low';
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   dependencies?: string[];
   callback?: string;
 }
@@ -207,7 +207,7 @@ export class OrchestrationService implements OnModuleInit {
     }
   }
 
-  private async executeCallback(callback: string, data: Record<string, any>) {
+  private async executeCallback(callback: string, data: Record<string, unknown>) {
     try {
       // Callback execution logic
       this.eventEmitter.emit(callback, data);

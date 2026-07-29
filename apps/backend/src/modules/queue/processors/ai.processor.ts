@@ -22,11 +22,11 @@ export class AiProcessor extends WorkerHost {
     this.aiEngineUrl = this.configService.get<string>('AI_ENGINE_URL', 'http://localhost:8002');
   }
 
-  async process(job: Job<AiJobData>): Promise<any> {
+  async process(job: Job<AiJobData>): Promise<unknown> {
     const { jobId, type, projectId, payload } = job.data;
     this.logger.log(`Processing AI job ${jobId} type: ${type}`);
 
-    let result: any;
+    let result: unknown;
     switch (type) {
       case 'ANALYZE_TEST':
         result = await this.callAiEngine('/api/ai/analyze-test', payload);
@@ -63,11 +63,11 @@ export class AiProcessor extends WorkerHost {
     return result;
   }
 
-  private async callAiEngine(path: string, payload: any, method: string = 'POST'): Promise<any> {
+  private async callAiEngine(path: string, payload: unknown, method: string = 'POST'): Promise<unknown> {
     const url = `${this.aiEngineUrl}${path}`;
     const options: RequestInit = {
       method,
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': 'qadash-ai-dev-key' },
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': process.env.AI_ENGINE_API_KEY },
     };
     if (method === 'POST') {
       options.body = JSON.stringify(payload);

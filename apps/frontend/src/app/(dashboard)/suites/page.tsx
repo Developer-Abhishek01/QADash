@@ -8,10 +8,21 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Loading } from '@/components/feedback/Loading';
 import { apiClient } from '@/lib/api/client';
 
+interface Suite {
+  id: string;
+  name: string;
+  status?: string;
+  description?: string;
+  testCount?: number;
+  tests?: number;
+  passed?: number;
+  failed?: number;
+}
+
 export default function TestSuitesPage() {
   const { data: suites, isLoading } = useQuery({
     queryKey: ['suites'],
-    queryFn: () => apiClient.get<any[]>('suites'),
+    queryFn: () => apiClient.get<Suite[]>('suites'),
   });
 
   if (isLoading) return <Loading />;
@@ -27,7 +38,7 @@ export default function TestSuitesPage() {
       />
 
       <Grid container spacing={3}>
-        {suites && suites.length > 0 ? suites.map((suite: any) => (
+        {suites && suites.length > 0 ? suites.map((suite: Suite) => (
           <Grid item xs={12} md={6} lg={4} key={suite.id}>
             <Card sx={{ height: '100%' }}>
               <CardContent>

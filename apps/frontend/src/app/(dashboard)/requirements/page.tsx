@@ -9,10 +9,67 @@ import { alpha } from '@mui/material/styles';
 import {
   FileText, Upload, Download, FileCode, Loader2,
   Sparkles, BookOpen, ListChecks, Beaker, Eye,
+  ChevronDown, ChevronRight, Copy,
 } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 import { useParseDocument, useUploadDocument, useGenerateTests } from '@/lib/requirements/hooks';
+
+interface Requirement {
+  id: string;
+  title: string;
+  module: string;
+  priority: string;
+}
+
+interface TestCase {
+  test_case_id: string;
+  module: string;
+  requirement_ref: string;
+  test_scenario: string;
+  test_type: string;
+  positive_negative: string;
+  preconditions: string;
+  test_steps: string[];
+  action: string;
+  test_data: string;
+  expected_result: string;
+  priority: string;
+  severity: string;
+  role: string;
+  status?: string;
+}
+
+interface TestGroup {
+  display_name?: string;
+  count: number;
+  test_cases: TestCase[];
+}
+
+interface ParsedResult {
+  id?: string;
+  file_url?: string;
+  document_type?: string;
+  functional_requirements?: Requirement[];
+  summary?: {
+    total_sections: number;
+    total_functional_requirements: number;
+    total_use_cases: number;
+    total_constraints: number;
+  };
+  business_objectives?: { description: string }[];
+  error?: boolean;
+  message?: string;
+}
+
+interface GeneratedTests {
+  test_cases: TestCase[];
+  groups?: Record<string, TestGroup>;
+  empty_reqs?: boolean;
+  message?: string;
+}
+
+const NO_REQS_ERROR = 'No functional requirements found in parsed document. Try re-parsing with a different format or ensure the document contains requirement statements (e.g., "The system shall...").';
 
 
 
@@ -20,11 +77,19 @@ export default function RequirementsPage() {
   const [documentText, setDocumentText] = useState('');
   const [inputMode, setInputMode] = useState<'paste' | 'upload'>('paste');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [parsedResult, setParsedResult] = useState<any>(null);
-  const [generatedTests, setGeneratedTests] = useState<any>(null);
+  const [parsedResult, setParsedResult] = useState<ParsedResult | null>(null);
+  const [generatedTests, setGeneratedTests] = useState<GeneratedTests | null>(null);
   const [selectedFramework, setSelectedFramework] = useState('playwright');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const expandAll = () => {
+    if (!groups) return;
+    const all: Record<string, boolean> = {};
+    for (const key of Object.keys(groups)) all[key] = true;
+    setExpandedGroups(all);
+  };
+  const collapseAll = () => setExpandedGroups({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseMutation = useParseDocument();
@@ -35,10 +100,8 @@ export default function RequirementsPage() {
     if (!documentText.trim()) return;
     setParsedResult(null);
     setGeneratedTests(null);
-    try {
-      const res = await parseMutation.mutateAsync({ document: documentText });
-      setParsedResult(res);
-    } catch {}
+    const result = await parseMutation.mutateAsync({ document: documentText }) as ParsedResult;
+    setParsedResult(result);
   };
 
   const handleFileUpload = async () => {
@@ -47,10 +110,13 @@ export default function RequirementsPage() {
     setGeneratedTests(null);
     const docType = /\.brd/i.test(uploadedFile.name) ? 'BRD' : 'FRD';
     try {
-      const res = await uploadMutation.mutateAsync({ file: uploadedFile, documentType: docType });
+      const res = await uploadMutation.mutateAsync({ file: uploadedFile, documentType: docType }) as ParsedResult;
       setParsedResult(res);
-    } catch (err) {
-      console.error('Upload failed:', err);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e?.response?.data?.message || e?.message || 'File upload failed';
+      setParsedResult({ error: true, message: msg });
+      console.error('upload error:', err);
     }
   };
 
@@ -73,55 +139,86 @@ export default function RequirementsPage() {
 
   const handleGenerateTests = async () => {
     if (!parsedResult) return;
+    const reqs = parsedResult.functional_requirements || [];
+    if (!reqs.length) {
+      setGeneratedTests({ empty_reqs: true, message: NO_REQS_ERROR, test_cases: [] });
+      return;
+    }
     setGeneratedTests(null);
     try {
-      const reqs = parsedResult.functional_requirements || [];
       const res = await generateMutation.mutateAsync({
         requirements: reqs,
         framework: selectedFramework,
-      });
+        documentId: parsedResult.id,
+      }) as GeneratedTests;
+      console.log('generateTests response:', res);
+      if (!res || !res.test_cases) {
+        console.error('generateTests: missing test_cases in response', res);
+        setGeneratedTests({ empty_reqs: true, message: 'Server returned empty test cases', test_cases: [] });
+        return;
+      }
       setGeneratedTests(res);
-    } catch {}
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e?.response?.data?.message || e?.message || 'Test generation failed';
+      setGeneratedTests({ empty_reqs: true, message: msg, test_cases: [] });
+      console.error('generateTests error:', err);
+    }
   };
 
   const handleCopy = (text: string) => {
     navigator.clipboard?.writeText(text);
   };
 
-  const downloadExcel = async (tests: any[]) => {
+  const downloadExcel = async (tests: TestCase[], groupName?: string) => {
     const XLSX = await import('xlsx');
-    const rows = tests.map((tc: any) => ({
-      'ID': tc.id || '',
-      'Title': tc.title || '',
-      'Description': tc.description || '',
+    const rows = tests.map((tc: TestCase) => ({
+      'Test Case ID': tc.test_case_id || '',
       'Module': tc.module || '',
+      'Requirement/User Story Ref': tc.requirement_ref || '',
+      'Test Scenario': tc.test_scenario || '',
+      'Test Type': tc.test_type || '',
+      'Positive/Negative': tc.positive_negative || '',
+      'Preconditions': tc.preconditions || '',
+      'Test Steps': (tc.test_steps || []).join('\n'),
+      'Action': tc.action || '',
+      'Test Data': tc.test_data || '',
+      'Expected Result': tc.expected_result || '',
       'Priority': tc.priority || '',
       'Severity': tc.severity || '',
-      'Type': tc.type || '',
-      'Preconditions': tc.preconditions || '',
-      'Test Data': tc.test_data || '',
-      'Steps': (tc.steps || []).join('; '),
-      'Expected Result': tc.expected || '',
-      'Automation': tc.automation_candidate ? 'Yes' : 'No',
-      'Framework': tc.framework || '',
+      'Role': tc.role || '',
+      'Status': tc.status || 'Draft',
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     const colWidths = [
-      { wch: 12 }, { wch: 40 }, { wch: 40 }, { wch: 18 },
-      { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 30 },
-      { wch: 25 }, { wch: 60 }, { wch: 40 }, { wch: 12 }, { wch: 12 },
+      { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 40 },
+      { wch: 14 }, { wch: 14 }, { wch: 30 }, { wch: 50 },
+      { wch: 30 }, { wch: 30 }, { wch: 40 }, { wch: 10 },
+      { wch: 10 }, { wch: 16 }, { wch: 10 },
     ];
     ws['!cols'] = colWidths;
-    XLSX.utils.book_append_sheet(wb, ws, 'Test Cases');
+    const sheetName = groupName ? groupName.slice(0, 31) : 'Test Cases';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     const date = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `test_cases_${date}.xlsx`);
+    const suffix = groupName ? `_${groupName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}` : '';
+    XLSX.writeFile(wb, `test_cases${suffix}_${date}.xlsx`);
   };
 
   const requirementsList = parsedResult?.functional_requirements || [];
   const testCases = generatedTests?.test_cases || [];
+  const groups = generatedTests?.groups || null;
+  const groupEntries = groups ? Object.entries(groups) : [];
   const isParsing = parseMutation.isPending || uploadMutation.isPending;
   const isGenerating = generateMutation.isPending;
+
+  useEffect(() => {
+    if (groups) expandAll();
+  }, [generatedTests]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   return (
     <Box sx={{ bgcolor: '#F8FAFC', minHeight: '100vh', pb: 6 }}>
@@ -262,7 +359,7 @@ export default function RequirementsPage() {
                     <Box sx={{ mb: 2.5 }}>
                       <Typography sx={{ fontWeight: 600, color: '#0F172A', fontSize: '0.8rem', mb: 1 }}>Business Objectives</Typography>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                        {parsedResult.business_objectives.map((obj: any, i: number) => (
+                        {parsedResult.business_objectives.map((obj: { description: string }, i: number) => (
                           <Chip key={i} label={obj.description} size="small" sx={{ borderRadius: 1, height: 24, fontSize: '0.68rem', bgcolor: alpha('#8B5CF6', 0.06), color: '#6D28D9', border: '1px solid', borderColor: alpha('#8B5CF6', 0.1) }} />
                         ))}
                       </Box>
@@ -280,7 +377,7 @@ export default function RequirementsPage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {(requirementsList as any[]).slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((req: any, i: number) => (
+                        {requirementsList.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((req: Requirement, i: number) => (
                           <TableRow key={req.id || i} sx={{ '&:hover': { bgcolor: alpha('#F8FAFC', 0.5) } }}>
                             <TableCell><Chip label={req.id} size="small" sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#4F46E5', 0.08), color: '#4F46E5' }} /></TableCell>
                             <TableCell sx={{ fontSize: '0.75rem', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{req.title}</TableCell>
@@ -317,7 +414,13 @@ export default function RequirementsPage() {
         </Grid>
       </Grid>
 
-      {generatedTests && (
+      {generatedTests && generatedTests.empty_reqs && (
+        <Alert severity="warning" sx={{ mt: 3, borderRadius: 2 }}>
+          {generatedTests.message}
+        </Alert>
+      )}
+
+      {generatedTests && !generatedTests.empty_reqs && (
         <Card sx={{ borderRadius: 2.5, bgcolor: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.04)', mt: 3 }}>
           <CardContent sx={{ p: '24px', '&:last-child': { pb: '24px' } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
@@ -327,54 +430,126 @@ export default function RequirementsPage() {
                   <Typography sx={{ color: '#94A3B8', fontWeight: 400, fontSize: '0.78rem', mt: 0.15 }}>AI-generated test cases from your requirements using {selectedFramework}</Typography>
                 </Box>
                 <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+                  {groupEntries.length > 1 && (
+                    <>
+                      <Button size="small" disableElevation startIcon={<ChevronDown size={14} />} onClick={expandAll}
+                        sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.68rem', height: 28, px: 1.5, color: '#4F46E5', bgcolor: alpha('#4F46E5', 0.06), '&:hover': { bgcolor: alpha('#4F46E5', 0.12) } }}>
+                        Expand All
+                      </Button>
+                      <Button size="small" disableElevation startIcon={<ChevronRight size={14} />} onClick={collapseAll}
+                        sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.68rem', height: 28, px: 1.5, color: '#64748B', bgcolor: alpha('#94A3B8', 0.06), '&:hover': { bgcolor: alpha('#94A3B8', 0.12) } }}>
+                        Collapse All
+                      </Button>
+                    </>
+                  )}
                   <Button size="small" disableElevation startIcon={<Download size={14} />} onClick={() => downloadExcel(testCases)}
                     sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', height: 32, px: 2, color: '#059669', bgcolor: alpha('#059669', 0.08), '&:hover': { bgcolor: alpha('#059669', 0.15) } }}>
                     Export Excel
                   </Button>
-                  <Button size="small" disableElevation startIcon={<Download size={14} />} onClick={() => handleCopy(JSON.stringify(generatedTests, null, 2))}
+                  <Button size="small" disableElevation startIcon={<Copy size={14} />} onClick={() => handleCopy(JSON.stringify(generatedTests, null, 2))}
                     sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', height: 32, px: 2, color: '#64748B', bgcolor: alpha('#94A3B8', 0.08) }}>
                     Export JSON
                   </Button>
                 </Box>
               </Box>
 
-            <Box sx={{ maxHeight: 480, overflow: 'auto', border: '1px solid', borderColor: alpha('#E2E8F0', 0.6), borderRadius: 1.5 }}>
-              <Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { borderColor: alpha('#E2E8F0', 0.6), fontSize: '0.72rem', py: 1, px: 1.2, whiteSpace: 'normal', wordBreak: 'break-word' } }}>
-                <TableHead>
-                  <TableRow>
-                    {['ID','Title','Description','Module','Priority','Severity','Type','Preconditions','Test Data','Steps','Expected','Automation','Framework'].map(h => (
-                      <TableCell key={h} sx={{ fontWeight: 700, color: '#fff', bgcolor: '#4F46E5', position: 'sticky', top: 0, zIndex: 2, minWidth: h === 'Steps' || h === 'Expected' || h === 'Description' || h === 'Test Data' || h === 'Preconditions' ? 160 : h === 'Title' ? 180 : 100, whiteSpace: 'nowrap' }}>{h}</TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {testCases.map((tc: any, i: number) => (
-                    <TableRow key={tc.id || i} sx={{ '&:hover': { bgcolor: alpha('#EEF2FF', 0.5) }, '&:nth-of-type(even)': { bgcolor: alpha('#F8FAFC', 0.5) } }}>
-                      <TableCell sx={{ fontWeight: 600, color: '#4F46E5' }}>{tc.id}</TableCell>
-                      <TableCell sx={{ fontWeight: 500, color: '#0F172A' }}>{tc.title}</TableCell>
-                      <TableCell sx={{ color: '#64748B' }}>{tc.description}</TableCell>
-                      <TableCell sx={{ color: '#64748B' }}>{tc.module}</TableCell>
-                      <TableCell><Chip label={tc.priority} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: tc.priority === 'CRITICAL' || tc.priority === 'HIGH' ? alpha('#EF4444', 0.08) : alpha('#F59E0B', 0.08), color: tc.priority === 'CRITICAL' || tc.priority === 'HIGH' ? '#DC2626' : '#D97706' }} /></TableCell>
-                      <TableCell><Chip label={tc.severity} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: tc.severity === 'CRITICAL' || tc.severity === 'HIGH' ? alpha('#EF4444', 0.08) : alpha('#F59E0B', 0.08), color: tc.severity === 'CRITICAL' || tc.severity === 'HIGH' ? '#DC2626' : '#D97706' }} /></TableCell>
-                      <TableCell><Chip label={tc.type} size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: alpha('#6366F1', 0.06), color: '#4F46E5' }} /></TableCell>
-                      <TableCell sx={{ color: '#64748B' }}>{tc.preconditions || '-'}</TableCell>
-                      <TableCell sx={{ color: '#64748B' }}>{tc.test_data || '-'}</TableCell>
-                      <TableCell sx={{ color: '#64748B' }}>{(tc.steps || []).join('; ')}</TableCell>
-                      <TableCell sx={{ color: '#64748B' }}>{tc.expected}</TableCell>
-                      <TableCell sx={{ color: '#64748B' }}>{tc.automation_candidate ? 'Yes' : 'No'}</TableCell>
-                      <TableCell><Chip label={tc.framework} size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: alpha('#6366F1', 0.06), color: '#4F46E5' }} /></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <Box sx={{ border: '1px solid', borderColor: alpha('#E2E8F0', 0.6), borderRadius: 1.5, overflow: 'hidden' }}>
+              {groupEntries.length > 0 ? (
+                groupEntries.map(([key, group]: [string, TestGroup]) => {
+                  const isExpanded = expandedGroups[key];
+                  const rawName = group.display_name || key || 'General';
+                  const displayName = rawName.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+                  return (
+                    <Box key={key} sx={{ '&:not(:last-child)': { borderBottom: '2px solid', borderColor: alpha('#E2E8F0', 0.7) } }}>
+                      <Box onClick={() => toggleGroup(key)} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2.5, py: 2, cursor: 'pointer', bgcolor: isExpanded ? alpha('#EEF2FF', 0.3) : '#fff', '&:hover': { bgcolor: alpha('#EEF2FF', 0.5) }, userSelect: 'none', transition: 'all 0.15s' }}>
+                        <Box sx={{ width: 32, height: 32, borderRadius: 1.5, bgcolor: alpha('#4F46E5', 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>
+                          <ChevronRight size={18} color="#4F46E5" />
+                        </Box>
+                        <Box>
+                          <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '0.88rem', lineHeight: 1.3 }}>{displayName}</Typography>
+                          <Typography sx={{ color: '#94A3B8', fontSize: '0.68rem', mt: 0.2 }}>
+                            <Box component="span" sx={{ fontWeight: 600, color: '#4F46E5' }}>{group.count}</Box> test case{group.count !== 1 ? 's' : ''}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
+                          <Button size="small" disableElevation startIcon={<Download size={12} />} onClick={(e) => { e.stopPropagation(); downloadExcel(group.test_cases, displayName); }}
+                            sx={{ borderRadius: 1, textTransform: 'none', fontWeight: 600, fontSize: '0.63rem', height: 26, px: 1, color: '#059669', bgcolor: alpha('#059669', 0.08), '&:hover': { bgcolor: alpha('#059669', 0.15) }, minWidth: 0 }}>
+                            Export
+                          </Button>
+                          <Chip label={isExpanded ? 'Hide' : 'View'} size="small" icon={<Eye size={12} />} onClick={(e) => { e.stopPropagation(); toggleGroup(key); }}
+                            sx={{ height: 26, fontSize: '0.65rem', fontWeight: 600, borderRadius: 1, bgcolor: isExpanded ? alpha('#4F46E5', 0.1) : alpha('#E2E8F0', 0.5), color: isExpanded ? '#4F46E5' : '#64748B' }} />
+                        </Box>
+                      </Box>
+                      {isExpanded && (
+                        <Box sx={{ borderTop: '1px solid', borderColor: alpha('#E2E8F0', 0.4), bgcolor: '#fff' }}>
+                          <Box sx={{ overflow: 'auto', maxHeight: 400 }}>
+                            <Table size="small" sx={{ '& .MuiTableCell-root': { borderColor: alpha('#E2E8F0', 0.3), fontSize: '0.65rem', py: 0.6, px: 1.2, whiteSpace: 'normal', wordBreak: 'break-word' } }}>
+                              <TableHead>
+                                <TableRow>
+                                  {[
+                                    { label: 'Test Case ID', minW: 110 },
+                                    { label: 'Module', minW: 100 },
+                                    { label: 'Req Ref', minW: 80 },
+                                    { label: 'Test Scenario', minW: 200 },
+                                    { label: 'Test Type', minW: 80 },
+                                    { label: 'Pos/Neg', minW: 70 },
+                                    { label: 'Preconditions', minW: 160 },
+                                    { label: 'Test Steps', minW: 220 },
+                                    { label: 'Action', minW: 140 },
+                                    { label: 'Test Data', minW: 150 },
+                                    { label: 'Expected Result', minW: 200 },
+                                    { label: 'Priority', minW: 70 },
+                                    { label: 'Severity', minW: 70 },
+                                    { label: 'Role', minW: 90 },
+                                    { label: 'Status', minW: 70 },
+                                  ].map(h => (
+                                    <TableCell key={h.label} sx={{ fontWeight: 700, color: '#475569', bgcolor: '#F1F5F9', fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.04em', minWidth: h.minW, whiteSpace: 'nowrap' }}>{h.label}</TableCell>
+                                  ))}
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {group.test_cases.map((tc: TestCase, i: number) => (
+                                  <TableRow key={tc.test_case_id || i} sx={{ '&:hover': { bgcolor: alpha('#F8FAFC', 0.8) }, '&:nth-of-type(even)': { bgcolor: alpha('#FAFAFA', 0.4) } }}>
+                                    <TableCell sx={{ fontWeight: 600, color: '#4F46E5', fontSize: '0.6rem', fontFamily: 'monospace' }}>{tc.test_case_id}</TableCell>
+                                    <TableCell sx={{ color: '#0F172A', fontSize: '0.63rem' }}>{tc.module}</TableCell>
+                                    <TableCell sx={{ color: '#64748B', fontSize: '0.6rem' }}>{tc.requirement_ref}</TableCell>
+                                    <TableCell sx={{ color: '#0F172A', fontSize: '0.63rem', fontWeight: 500, maxWidth: 200 }}>{tc.test_scenario}</TableCell>
+                                    <TableCell><Chip label={tc.test_type} size="small" sx={{ height: 18, fontSize: '0.55rem', bgcolor: alpha('#6366F1', 0.06), color: '#4F46E5', fontWeight: 600 }} /></TableCell>
+                                    <TableCell><Chip label={tc.positive_negative} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: tc.positive_negative === 'Positive' ? alpha('#059669', 0.08) : tc.positive_negative === 'Negative' ? alpha('#DC2626', 0.08) : alpha('#F59E0B', 0.08), color: tc.positive_negative === 'Positive' ? '#059669' : tc.positive_negative === 'Negative' ? '#DC2626' : '#D97706' }} /></TableCell>
+                                    <TableCell sx={{ color: '#475569', fontSize: '0.6rem', maxWidth: 160 }}>{tc.preconditions}</TableCell>
+                                    <TableCell sx={{ color: '#475569', fontSize: '0.6rem', lineHeight: 1.3 }}>{(tc.test_steps || []).map((s: string, si: number) => <div key={si}>{si+1}. {s}</div>)}</TableCell>
+                                    <TableCell sx={{ color: '#475569', fontSize: '0.6rem', maxWidth: 140 }}>{tc.action}</TableCell>
+                                    <TableCell sx={{ color: '#475569', fontSize: '0.6rem', maxWidth: 150 }}>{tc.test_data}</TableCell>
+                                    <TableCell sx={{ color: '#475569', fontSize: '0.6rem', maxWidth: 200 }}>{tc.expected_result}</TableCell>
+                                    <TableCell><Chip label={tc.priority} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: (tc.priority||'').match(/CRITICAL|HIGH/) ? alpha('#EF4444', 0.1) : alpha('#F59E0B', 0.1), color: (tc.priority||'').match(/CRITICAL|HIGH/) ? '#DC2626' : '#D97706' }} /></TableCell>
+                                    <TableCell><Chip label={tc.severity} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: (tc.severity||'').match(/CRITICAL|HIGH/) ? alpha('#EF4444', 0.1) : alpha('#F59E0B', 0.1), color: (tc.severity||'').match(/CRITICAL|HIGH/) ? '#DC2626' : '#D97706' }} /></TableCell>
+                                    <TableCell sx={{ color: '#0F172A', fontSize: '0.63rem', fontWeight: 500 }}>{tc.role}</TableCell>
+                                    <TableCell><Chip label={tc.status || 'Draft'} size="small" sx={{ height: 18, fontSize: '0.55rem', bgcolor: alpha('#6366F1', 0.06), color: '#4F46E5' }} /></TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })
+              ) : (
+                <Box sx={{ p: 5, textAlign: 'center', color: '#94A3B8' }}>
+                  <ListChecks size={40} strokeWidth={1.5} style={{ marginBottom: 8, opacity: 0.4 }} />
+                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 500 }}>No test cases generated</Typography>
+                  <Typography sx={{ fontSize: '0.72rem', mt: 0.5 }}>Parse a document first, then click &quot;Generate Test Cases&quot;</Typography>
+                </Box>
+              )}
             </Box>
           </CardContent>
         </Card>
       )}
 
-      {(parseMutation.isError || uploadMutation.isError) && (
-        <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }} onClose={() => { parseMutation.reset(); uploadMutation.reset(); }}>
-          {(parseMutation.error?.message || uploadMutation.error?.message)?.includes('500') ? 'Server error parsing document. Make sure AI Engine is running on port 3002.' : (parseMutation.error?.message || uploadMutation.error?.message)}
+      {(parseMutation.isError || uploadMutation.isError || parsedResult?.error) && (
+        <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }} onClose={() => { parseMutation.reset(); uploadMutation.reset(); setParsedResult(null); }}>
+          {parsedResult?.error ? parsedResult.message : (parseMutation.error?.message || uploadMutation.error?.message)?.includes('500') ? 'Server error parsing document. Make sure AI Engine is running on port 3002.' : (parseMutation.error?.message || uploadMutation.error?.message)}
         </Alert>
       )}
 

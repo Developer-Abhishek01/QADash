@@ -46,11 +46,11 @@ export default function NewSecurityScan() {
     isScheduled: false,
     schedule: '',
   });
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    projectsApi.list().then(data => setProjects(Array.isArray(data) ? data : [])).catch(() => {});
+    projectsApi.list().then((data: unknown) => setProjects(Array.isArray(data) ? data as Record<string, unknown>[] : [])).catch(() => {});
   }, []);
 
   const createScan = useCreateSecurityScan();
@@ -63,9 +63,9 @@ export default function NewSecurityScan() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const result = await createScan.mutateAsync(formData as any);
+      const result = await createScan.mutateAsync(formData as never) as { id: string };
       if (!formData.isScheduled) {
-        await startScan.mutateAsync((result as any).data.id);
+        await startScan.mutateAsync(result.id);
       }
       router.push('/security/scans');
     } catch (error) {
@@ -124,8 +124,8 @@ export default function NewSecurityScan() {
                       onChange={(e) => handleChange('projectId', e.target.value)}
                       label="Project"
                     >
-                      {projects.map((p: any) => (
-                        <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                      {projects.map((p: Record<string, unknown>) => (
+                        <MenuItem key={String(p.id)} value={String(p.id)}>{String(p.name)}</MenuItem>
                       ))}
                     </Select>
                   </FormControl>

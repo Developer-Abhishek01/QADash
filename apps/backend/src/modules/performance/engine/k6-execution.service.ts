@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { v4 as uuid } from 'uuid';
 
 import { PrismaService } from '../../../common/prisma.service';
@@ -19,7 +20,7 @@ interface K6TestConfig {
   thresholds?: Record<string, unknown>;
 }
 
-interface PerformanceTest {
+export interface PerformanceTest {
   id: string;
   name: string;
   script: string;
@@ -259,8 +260,8 @@ export class K6ExecutionService {
           avgThroughput,
           errorRate,
           maxVus,
-          summary: summary as any,
-          metrics: metrics as any,
+          summary: summary as unknown as Prisma.InputJsonValue,
+          metrics: metrics as unknown,
         },
       });
 

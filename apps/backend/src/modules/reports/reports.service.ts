@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma.service';
 
@@ -23,10 +24,10 @@ export class ReportsService {
     return this.prisma.report.create({ 
       data: { 
         ...data, 
-        type: data.type as any,
-        summary: data.summary as any, 
-        data: data.data as any 
-      } as any 
+        type: data.type as unknown as 'TEST_SUMMARY' | 'COVERAGE' | 'PERFORMANCE' | 'FLAKY_TESTS',
+        summary: data.summary as unknown as Prisma.InputJsonValue,
+        data: data.data as unknown as Prisma.InputJsonValue,
+      }, 
     });
   }
 

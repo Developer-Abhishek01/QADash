@@ -27,7 +27,7 @@ async function bootstrap() {
   const expressApp = app.getHttpAdapter().getInstance();
 
   // Force lazy-router to init so _router.stack exists
-  expressApp.use((_req: any, _res: any, next: any) => next());
+  expressApp.use((_req: express.Request, _res: express.Response, next: express.NextFunction) => next());
 
   if (expressApp._router?.stack) {
     const router = express.Router();
@@ -117,14 +117,14 @@ async function bootstrap() {
     try {
       await new Promise<void>((resolve, reject) => {
         const server = app.getHttpServer();
-        server.once('error', (err: any) => {
+        server.once('error', (err: Error) => {
           reject(err);
         });
         app.listen(port, '0.0.0.0').then(() => resolve()).catch(reject);
       });
       break;
-    } catch (err: any) {
-      if (err.code === 'EADDRINUSE' && attempt < maxPortAttempts - 1) {
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE' && attempt < maxPortAttempts - 1) {
         logger.warn(`Port ${port} in use, trying ${port + 1}`);
         port++;
       } else {

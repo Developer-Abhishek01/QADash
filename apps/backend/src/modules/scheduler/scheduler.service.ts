@@ -1,5 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 
 import { PrismaService } from '../../common/prisma.service';
@@ -21,7 +22,7 @@ export class SchedulerService {
   }
 
   async create(data: { name: string; projectId: string; userId: string; type: string; schedule?: string; config?: object }) {
-    const job = await this.prisma.job.create({ data: { ...data, config: data.config as any } });
+    const job = await this.prisma.job.create({ data: { ...data, config: data.config as unknown as Prisma.InputJsonValue } });
     if (data.schedule) await this.scheduleJob(job);
     return job;
   }
@@ -31,9 +32,9 @@ export class SchedulerService {
       where: { id }, 
       data: { 
         ...data, 
-        status: data.status as any,
-        config: data.config as any 
-      } 
+        status: data.status as unknown as 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED',
+        config: data.config as unknown as Prisma.InputJsonValue,
+      }, 
     });
     if (data.schedule) await this.scheduleJob(job);
     return job;
@@ -41,7 +42,7 @@ export class SchedulerService {
 
   async delete(id: string) { return this.prisma.job.delete({ where: { id } }); }
 
-  private async scheduleJob(job: any) {
+  private async scheduleJob(job: { id: string; schedule: string | null }) {
     await this.schedulerQueue.add('scheduled-job', { jobId: job.id }, { repeat: { pattern: job.schedule } });
   }
 }

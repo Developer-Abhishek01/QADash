@@ -247,7 +247,7 @@ const LivePreviewPanel = memo<Props>(function LivePreviewPanel({ livePreview, ac
             ].map(t => (
               <Box
                 key={t.key}
-                onClick={() => setTab(t.key as any)}
+                onClick={() => setTab(t.key as 'actions' | 'console')}
                 sx={{
                   flex: 1,
                   display: 'flex',

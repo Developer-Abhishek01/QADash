@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 export interface EventMessage {
   id: string;
   channel: string;
-  payload: any;
+  payload: unknown;
   timestamp: Date;
 }
 
@@ -20,7 +20,7 @@ export class EventHubService {
     this.socketServer = server;
   }
 
-  async publish(channel: string, payload: any): Promise<void> {
+  async publish(channel: string, payload: unknown): Promise<void> {
     const event: EventMessage = {
       id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       channel,
@@ -41,14 +41,14 @@ export class EventHubService {
     this.logger.debug(`Event published to ${channel}`);
   }
 
-  async publishToUser(userId: string, channel: string, payload: any): Promise<void> {
+  async publishToUser(userId: string, channel: string, payload: unknown): Promise<void> {
     if (this.socketServer) {
       this.socketServer.to(`user:${userId}`).emit(channel, payload);
     }
     this.logger.debug(`Event published to user ${userId} on ${channel}`);
   }
 
-  async publishToRoom(room: string, channel: string, payload: any): Promise<void> {
+  async publishToRoom(room: string, channel: string, payload: unknown): Promise<void> {
     if (this.socketServer) {
       this.socketServer.to(`room:${room}`).emit(channel, payload);
     }
@@ -65,21 +65,21 @@ export class EventHubService {
       .slice(-limit);
   }
 
-  async broadcastExecutionUpdate(executionId: string, data: any): Promise<void> {
+  async broadcastExecutionUpdate(executionId: string, data: Record<string, unknown>): Promise<void> {
     await this.publish(`execution:${executionId}`, {
       executionId,
       ...data,
     });
   }
 
-  async broadcastJobUpdate(jobId: string, data: any): Promise<void> {
+  async broadcastJobUpdate(jobId: string, data: Record<string, unknown>): Promise<void> {
     await this.publish(`job:${jobId}`, {
       jobId,
       ...data,
     });
   }
 
-  async broadcastServiceStatus(service: string, status: any): Promise<void> {
+  async broadcastServiceStatus(service: string, status: unknown): Promise<void> {
     await this.publish(`service:${service}`, {
       service,
       status,
@@ -87,7 +87,7 @@ export class EventHubService {
     });
   }
 
-  async broadcastAlert(severity: 'info' | 'warning' | 'critical', message: string, metadata?: any): Promise<void> {
+  async broadcastAlert(severity: 'info' | 'warning' | 'critical', message: string, metadata?: unknown): Promise<void> {
     await this.publish('alerts', {
       severity,
       message,
@@ -96,7 +96,7 @@ export class EventHubService {
     });
   }
 
-  async broadcastAnalytics(data: any): Promise<void> {
+  async broadcastAnalytics(data: unknown): Promise<void> {
     await this.publish('analytics', data);
   }
 

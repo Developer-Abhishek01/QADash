@@ -28,13 +28,12 @@ interface JobQueueTableProps {
 }
 
 export function JobQueueTable({ jobs, onCancel, onRetry, loading }: JobQueueTableProps) {
-  const getPriorityColor = (p: string) => {
+  const getPriorityColor = (p: OrchestrationJob['priority']): 'error' | 'warning' | 'info' | 'default' => {
     switch (p) {
       case 'critical': return 'error';
       case 'high': return 'warning';
       case 'medium': return 'info';
       case 'low': return 'default';
-      default: return 'default';
     }
   };
 
@@ -72,7 +71,7 @@ export function JobQueueTable({ jobs, onCancel, onRetry, loading }: JobQueueTabl
               </TableCell>
               <TableCell><Chip label={job.type} size="small" variant="outlined" /></TableCell>
               <TableCell>
-                <Chip label={job.priority} size="small" color={getPriorityColor(job.priority) as any} />
+                <Chip label={job.priority} size="small" color={getPriorityColor(job.priority)} />
               </TableCell>
               <TableCell><StatusBadge status={job.status} /></TableCell>
               <TableCell sx={{ minWidth: 150 }}>

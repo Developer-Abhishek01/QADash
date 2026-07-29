@@ -1,7 +1,16 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Prisma, TestStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 import { PrismaService } from '../../common/prisma.service';
+
+interface TestVersionPrisma {
+  testVersion: {
+    findFirst: (args: { where: { testId: string }; orderBy: { version: 'desc' } }) => Promise<{ version: number } | null>;
+    create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+    findMany: (args: { where: { testId: string }; orderBy: { version: 'desc' } }) => Promise<unknown[]>;
+  };
+}
 
 @Injectable()
 export class TestsService {
@@ -55,11 +64,11 @@ export class TestsService {
         description: data.description,
         projectId: resolvedProjectId,
         userId: data.userId,
-        config: (data.config || {}) as any,
+        config: (data.config || {}) as unknown as Prisma.InputJsonValue,
         code: data.code,
         specFile: data.specFile,
         tags: data.tags || [],
-        status: data.status as any,
+        status: data.status as TestStatus,
       },
     });
 
@@ -81,8 +90,8 @@ export class TestsService {
       where: { id },
       data: {
         ...data,
-        status: data.status as any,
-        config: data.config as any,
+        status: data.status as TestStatus,
+        config: data.config as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -93,7 +102,7 @@ export class TestsService {
     return test;
   }
 
-  async saveCode(id: string, code: string, userId: string): Promise<any> {
+  async saveCode(id: string, code: string, userId: string): Promise<unknown> {
     const existing = await this.prisma.test.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Test not found');
 
@@ -107,16 +116,16 @@ export class TestsService {
   }
 
   private async createVersion(testId: string, code: string, config: object, changes: string, createdBy: string) {
-    const lastVersion = await (this.prisma as any).testVersion.findFirst({
+    const lastVersion = await (this.prisma as unknown as TestVersionPrisma).testVersion.findFirst({
       where: { testId },
       orderBy: { version: 'desc' },
     });
-    await (this.prisma as any).testVersion.create({
+    await (this.prisma as unknown as TestVersionPrisma).testVersion.create({
       data: {
         testId,
         version: (lastVersion?.version || 0) + 1,
         code,
-        config: config as any,
+        config: config as Record<string, unknown>,
         changes,
         createdBy,
       },
@@ -124,7 +133,7 @@ export class TestsService {
   }
 
   async getVersions(testId: string) {
-    return (this.prisma as any).testVersion.findMany({
+    return (this.prisma as unknown as TestVersionPrisma).testVersion.findMany({
       where: { testId },
       orderBy: { version: 'desc' },
     });
@@ -134,7 +143,7 @@ export class TestsService {
     try {
       await this.prisma.test.delete({ where: { id } });
     } catch (error) {
-      if ((error as any)?.code === 'P2025') {
+      if ((error as { code?: string })?.code === 'P2025') {
         throw new NotFoundException('Test not found');
       }
       throw error;

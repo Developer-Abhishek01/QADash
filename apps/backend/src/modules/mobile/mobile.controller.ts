@@ -30,12 +30,12 @@ export class MobileController {
   }
 
   @Get('execution/:id')
-  async getExecutionStatus(@Param('id') executionId: string): Promise<Record<string, unknown>> {
+  async getExecutionStatus(@Param('id') executionId: string): Promise<unknown> {
     return this.mobileService.getExecutionStatus(executionId);
   }
 
   @Get('devices')
-  async getDevices(@Query('platform') platform?: string): Promise<any[]> {
+  async getDevices(@Query('platform') platform?: string): Promise<unknown[]> {
     return this.mobileService.getDeviceList(platform);
   }
 
@@ -48,7 +48,7 @@ export class MobileController {
   async getAvailableDevices(
     @Query('platform') platform: 'android' | 'ios',
     @Query('osVersion') osVersion?: string,
-  ): Promise<any[]> {
+  ): Promise<unknown[]> {
     return this.mobileService.getAvailableDevices(platform, osVersion);
   }
 
@@ -63,12 +63,12 @@ export class MobileController {
   }
 
   @Get('devices/:id')
-  async getDevice(@Param('id') deviceId: string): Promise<any | null> {
+  async getDevice(@Param('id') deviceId: string): Promise<unknown | null> {
     return this.deviceManager.getDeviceById(deviceId);
   }
 
   @Get('reports/:executionId')
-  async getReport(@Param('executionId') executionId: string): Promise<any> {
+  async getReport(@Param('executionId') executionId: string): Promise<unknown> {
     return this.mobileService.getTestReports(executionId);
   }
 
@@ -119,12 +119,12 @@ export class MobileController {
   }
 
   @Get('emulators')
-  async getEmulators(@Query('platform') platform: 'android' | 'ios'): Promise<any[]> {
+  async getEmulators(@Query('platform') platform: 'android' | 'ios'): Promise<unknown[]> {
     return this.deviceManager.getEmulators(platform);
   }
 
   @Get('real-devices')
-  async getRealDevices(@Query('platform') platform: 'android' | 'ios'): Promise<any[]> {
+  async getRealDevices(@Query('platform') platform: 'android' | 'ios'): Promise<unknown[]> {
     return this.deviceManager.getRealDevices(platform);
   }
 }

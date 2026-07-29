@@ -34,7 +34,7 @@ export default function ManagerDashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const executions = await executionsApi.list();
+        const executions = await executionsApi.list() as { status: string }[];
         const passed = executions.filter(e => e.status === 'passed').length;
         const total = executions.length;
         setStats(prev => ({

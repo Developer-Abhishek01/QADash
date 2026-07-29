@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { importApi } from './api';
+import type { FieldMapping } from './types';
 
 export const importKeys = {
   imports: {
@@ -62,7 +63,7 @@ export function useSaveMappings() {
 
   return useMutation({
     mutationFn: ({ importId, mappings }: { importId: string; mappings: unknown[] }) =>
-      importApi.saveMappings(importId, mappings as any),
+      importApi.saveMappings(importId, mappings as Partial<FieldMapping>[]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: importKeys.imports.all });
     },

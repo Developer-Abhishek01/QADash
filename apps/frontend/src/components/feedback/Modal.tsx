@@ -48,7 +48,7 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onClose={onCancel} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Info color={type as any} />
+        <Info color={type} />
         {title}
       </DialogTitle>
       <DialogContent>

@@ -135,7 +135,7 @@ export class ApiValidator {
         if (!Array.isArray(value)) {
           return { valid: false, message: 'must be an array' };
         }
-        const valArray = value as any[];
+        const valArray = value as unknown[];
         if (param === 'min' && valArray.length < Number(options?.minItems || 1)) {
           return { valid: false, message: `must have at least ${options?.minItems} items` };
         }

@@ -7,13 +7,13 @@ import { EventHubService } from '../orchestration/services/event-hub.service';
 
 export interface AIAnalysisRequest {
   type: 'code' | 'execution' | 'bug' | 'locator' | 'nlp';
-  data: any;
-  options?: Record<string, any>;
+  data: unknown;
+  options?: Record<string, unknown>;
 }
 
 export interface AIAnalysisResponse {
   success: boolean;
-  result: any;
+  result: unknown;
   confidence?: number;
   processingTime?: number;
 }
@@ -36,19 +36,19 @@ export class AIIntegrationService {
 
       switch (request.type) {
         case 'code':
-          result = await this.analyzeCode(request.data);
+          result = await this.analyzeCode(request.data as Record<string, unknown>);
           break;
         case 'execution':
-          result = await this.analyzeExecution(request.data);
+          result = await this.analyzeExecution(request.data as Record<string, unknown>);
           break;
         case 'bug':
-          result = await this.analyzeBug(request.data);
+          result = await this.analyzeBug(request.data as Record<string, unknown>);
           break;
         case 'locator':
-          result = await this.analyzeLocator(request.data);
+          result = await this.analyzeLocator(request.data as Record<string, unknown>);
           break;
         case 'nlp':
-          result = await this.parseNLP(request.data);
+          result = await this.parseNLP(request.data as Record<string, unknown>);
           break;
         default:
           throw new HttpException(`Unknown analysis type: ${request.type}`, HttpStatus.BAD_REQUEST);
@@ -65,8 +65,8 @@ export class AIIntegrationService {
     }
   }
 
-  private async postToAI(path: string, data: any): Promise<any> {
-    const apiKey = process.env.AI_ENGINE_API_KEY || 'qadash-ai-dev-key';
+  private async postToAI(path: string, data: unknown): Promise<unknown> {
+    const apiKey = process.env.AI_ENGINE_API_KEY;
     const response = await firstValueFrom(
       this.httpService.post(`${this.AI_ENGINE_URL}${path}`, data, {
         timeout: 30000,
@@ -76,7 +76,7 @@ export class AIIntegrationService {
     return response.data;
   }
 
-  private async analyzeCode(data: any): Promise<AIAnalysisResponse> {
+  private async analyzeCode(data: Record<string, unknown>): Promise<AIAnalysisResponse> {
     try {
       const result = await this.postToAI('/api/ai/test-generator/optimize', { test_code: data.code });
       return { success: true, result, confidence: 85 };
@@ -86,7 +86,7 @@ export class AIIntegrationService {
     }
   }
 
-  private async analyzeExecution(data: any): Promise<AIAnalysisResponse> {
+  private async analyzeExecution(data: Record<string, unknown>): Promise<AIAnalysisResponse> {
     try {
       const result = await this.postToAI('/api/ai/failure/analyze', {
         failure: { executionId: data.executionId, ...data },
@@ -94,12 +94,12 @@ export class AIIntegrationService {
       });
       return { success: true, result, confidence: 90 };
     } catch (error) {
-      const localResult = await this.aiService.analyzeExecution(data.projectId, data.executionId);
+      const localResult = await this.aiService.analyzeExecution(data.projectId as string, data.executionId as string);
       return { success: true, result: localResult, confidence: 70 };
     }
   }
 
-  private async analyzeBug(data: any): Promise<AIAnalysisResponse> {
+  private async analyzeBug(data: Record<string, unknown>): Promise<AIAnalysisResponse> {
     try {
       const result = await this.postToAI('/api/ai/failure/analyze', {
         failure: { bugId: data.bugId, stack: data.errorStack, ...data },
@@ -107,12 +107,12 @@ export class AIIntegrationService {
       });
       return { success: true, result, confidence: 85 };
     } catch (error) {
-      const localResult = await this.aiService.suggestFixes(data.bugId, data.errorStack);
+      const localResult = await this.aiService.suggestFixes(data.bugId as string, data.errorStack as string);
       return { success: true, result: localResult, confidence: 70 };
     }
   }
 
-  private async analyzeLocator(data: any): Promise<AIAnalysisResponse> {
+  private async analyzeLocator(data: Record<string, unknown>): Promise<AIAnalysisResponse> {
     try {
       const result = await this.postToAI('/api/ai/locator/find', {
         description: data.description || data.locator || '',
@@ -124,7 +124,7 @@ export class AIIntegrationService {
     }
   }
 
-  private async parseNLP(data: any): Promise<AIAnalysisResponse> {
+  private async parseNLP(data: Record<string, unknown>): Promise<AIAnalysisResponse> {
     try {
       const result = await this.postToAI('/api/ai/nlp/parse', {
         text: data.text || data.query || '',
@@ -136,8 +136,8 @@ export class AIIntegrationService {
     }
   }
 
-  private async fallbackToLocalAnalysis(data: any): Promise<AIAnalysisResponse> {
-    const localResult = await this.aiService.analyzeTest(data.projectId, data.code);
+  private async fallbackToLocalAnalysis(data: Record<string, unknown>): Promise<AIAnalysisResponse> {
+    const localResult = await this.aiService.analyzeTest(data.projectId as string, data.code as string);
     return { success: true, result: localResult, confidence: 60 };
   }
 
@@ -153,9 +153,9 @@ export class AIIntegrationService {
     }
   }
 
-  async triggerSelfHealing(executionId: string, failedTestId: string): Promise<any> {
+  async triggerSelfHealing(executionId: string, failedTestId: string): Promise<unknown> {
     try {
-      const apiKey = process.env.AI_ENGINE_API_KEY || 'qadash-ai-dev-key';
+      const apiKey = process.env.AI_ENGINE_API_KEY;
       const response = await firstValueFrom(
         this.httpService.post(`${this.AI_ENGINE_URL}/api/ai/self-healing/heal`, {
           error: { executionId, failedTestId },
@@ -174,20 +174,21 @@ export class AIIntegrationService {
     }
   }
 
-  async generateTests(projectId: string, description: string, count: number = 5): Promise<any> {
+  async generateTests(projectId: string, description: string, count: number = 5): Promise<unknown> {
     try {
       const result = await this.postToAI('/api/ai/pipeline/nlp-to-test', {
         text: description,
         context: { projectId, name: `AI Generated Tests - ${projectId}` },
       });
-      if (result?.success && result?.test_case?.generated_code) {
+      const typedResult = result as { success?: boolean; test_case?: { name?: string; generated_code?: string; confidence?: number } } | null;
+      if (typedResult?.success && typedResult?.test_case?.generated_code) {
         return {
           testCases: [{
             id: 'TC-001',
-            name: result.test_case.name || 'AI Generated Test',
+            name: typedResult.test_case.name || 'AI Generated Test',
             description,
-            code: result.test_case.generated_code,
-            confidence: result.test_case.confidence || 0.85,
+            code: typedResult.test_case.generated_code,
+            confidence: typedResult.test_case.confidence || 0.85,
           }],
           testCasesCount: 1,
         };
@@ -199,7 +200,7 @@ export class AIIntegrationService {
     }
   }
 
-  async getPredictions(projectId: string, executionId: string): Promise<any> {
+  async getPredictions(projectId: string, executionId: string): Promise<unknown> {
     try {
       const result = await this.postToAI('/api/predictions', {
         test_history: [{ projectId, executionId }],

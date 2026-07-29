@@ -72,7 +72,7 @@ test.describe('Authentication API', () => {
       password: adminPass,
     });
 
-    const refreshToken = (loginResponse.body as any).refreshToken;
+    const refreshToken = (loginResponse.body as Record<string, unknown>).refreshToken;
     
     const refreshResponse = await api.post('/auth/refresh', {
       refreshToken,
@@ -88,7 +88,7 @@ test.describe('Authentication API', () => {
       password: adminPass,
     });
 
-    const token = (loginResponse.body as any).accessToken;
+    const token = (loginResponse.body as Record<string, unknown>).accessToken as string;
     await api.setAuthToken(token);
 
     const logoutResponse = await api.post('/auth/logout', {});
@@ -106,7 +106,7 @@ test.describe('User API', () => {
       email: adminEmail,
       password: adminPass,
     });
-    authToken = (loginResponse.body as any).accessToken;
+    authToken = (loginResponse.body as Record<string, unknown>).accessToken as string;
     await api.setAuthToken(authToken);
   });
 
@@ -159,7 +159,7 @@ test.describe('Projects API', () => {
       email: adminEmail,
       password: adminPass,
     });
-    authToken = (loginResponse.body as any).accessToken;
+    authToken = (loginResponse.body as Record<string, unknown>).accessToken as string;
     await api.setAuthToken(authToken);
   });
 
@@ -187,7 +187,7 @@ test.describe('Projects API', () => {
     const createResponse = await api.post('/projects', {
       name: 'Project for GET',
     });
-    const projectId = (createResponse.body as any).id;
+    const projectId = (createResponse.body as Record<string, unknown>).id as string;
 
     const response = await api.get(`/projects/${projectId}`);
 
@@ -199,7 +199,7 @@ test.describe('Projects API', () => {
     const createResponse = await api.post('/projects', {
       name: 'Project to Update',
     });
-    const projectId = (createResponse.body as any).id;
+    const projectId = (createResponse.body as Record<string, unknown>).id as string;
 
     const response = await api.put(`/projects/${projectId}`, {
       name: 'Updated Project Name',
@@ -213,7 +213,7 @@ test.describe('Projects API', () => {
     const createResponse = await api.post('/projects', {
       name: 'Project to Delete',
     });
-    const projectId = (createResponse.body as any).id;
+    const projectId = (createResponse.body as Record<string, unknown>).id as string;
 
     const response = await api.delete(`/projects/${projectId}`);
 

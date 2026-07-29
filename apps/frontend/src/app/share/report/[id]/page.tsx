@@ -75,11 +75,12 @@ export default function SharedReportPage() {
     setLoading(true);
     setError(null);
     reportsApi.get(reportId)
-      .then((data) => {
-        setReport(data);
+      .then((data: unknown) => {
+        setReport(data as Report);
       })
-      .catch((err: any) => {
-        const msg = err?.response?.data?.message || err?.message || 'Report not found';
+      .catch((err: unknown) => {
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        const msg = e?.response?.data?.message || e?.message || 'Report not found';
         setError(msg);
       })
       .finally(() => setLoading(false));

@@ -16,11 +16,26 @@ export interface BugExportRow {
   updatedAt: string;
 }
 
+interface BugRecord {
+  id: string;
+  title: string;
+  description?: string;
+  severity: string;
+  priority: string;
+  status: string;
+  assignee?: { name: string };
+  user?: { name: string };
+  project?: { name: string };
+  tags?: string[];
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
 @Injectable()
 export class ExcelIntegration {
   private readonly logger = new Logger(ExcelIntegration.name);
 
-  exportToExcel(bugs: any[]): Buffer {
+  exportToExcel(bugs: BugRecord[]): Buffer {
     const rows: BugExportRow[] = bugs.map(b => ({
       id: b.id,
       title: b.title,
@@ -31,7 +46,7 @@ export class ExcelIntegration {
       assignee: b.assignee?.name || 'Unassigned',
       reporter: b.user?.name || '',
       project: b.project?.name || '',
-      tags: (b.tags || []).join(', '),
+      tags: (b.tags || []),
       createdAt: new Date(b.createdAt).toISOString(),
       updatedAt: new Date(b.updatedAt).toISOString(),
     }));
@@ -43,7 +58,7 @@ export class ExcelIntegration {
     return Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }));
   }
 
-  exportToCsv(bugs: any[]): string {
+  exportToCsv(bugs: BugRecord[]): string {
     const rows = bugs.map(b => ({
       ID: b.id,
       Title: b.title,
@@ -67,15 +82,15 @@ export class ExcelIntegration {
   async importFromExcel(buffer: Buffer, projectId: string): Promise<Partial<BugExportRow>[]> {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(sheet) as any[];
+    const data = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
 
     return data.map(row => ({
-      title: row.Title || row.title || 'Imported Bug',
-      description: row.Description || row.description || '',
-      severity: this.mapSeverity(row.Severity || row.severity),
-      priority: this.mapPriority(row.Priority || row.priority),
-      status: row.Status || row.status || 'OPEN',
-      tags: (row.Tags || row.tags || '').split(/[;,]/).filter(Boolean),
+      title: String(row.Title ?? row.title ?? 'Imported Bug'),
+      description: String(row.Description ?? row.description ?? ''),
+      severity: this.mapSeverity(String(row.Severity ?? row.severity ?? '')),
+      priority: this.mapPriority(String(row.Priority ?? row.priority ?? '')),
+      status: String(row.Status ?? row.status ?? 'OPEN'),
+      tags: (String(row.Tags ?? row.tags ?? '')).split(/[;,]/).filter(Boolean),
       projectId,
     }));
   }
@@ -87,16 +102,16 @@ export class ExcelIntegration {
 
     return rows.map(line => {
       const values = line.match(/("([^"]*)"|[^,]+)/g)?.map(v => v.replace(/^"|"$/g, '').trim()) || [];
-      const obj: any = {};
+      const obj: Record<string, unknown> = {};
       headers.forEach((h, i) => { obj[h] = values[i]; });
 
       return {
-        title: obj.title || obj.summary || 'Imported Bug',
-        description: obj.description || '',
-        severity: this.mapSeverity(obj.severity),
-        priority: this.mapPriority(obj.priority),
-        status: obj.status || 'OPEN',
-        tags: (obj.tags || '').split(/[;,]/).filter(Boolean),
+        title: String(obj.title ?? obj.summary ?? 'Imported Bug'),
+        description: String(obj.description ?? ''),
+        severity: this.mapSeverity(String(obj.severity ?? '')),
+        priority: this.mapPriority(String(obj.priority ?? '')),
+        status: String(obj.status ?? 'OPEN'),
+        tags: (String(obj.tags ?? '')).split(/[;,]/).filter(Boolean),
         projectId,
       };
     });

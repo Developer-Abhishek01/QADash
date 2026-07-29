@@ -1,3 +1,5 @@
+import type { Socket } from 'socket.io-client';
+
 import { Logger } from '../utils/logger';
 
 export interface SocketConfig {
@@ -44,10 +46,10 @@ export interface QueueStatus {
 }
 
 export class RealtimeClient {
-  private socket: any = null;
+  private socket: Socket | null = null;
   private logger: Logger;
   private config: SocketConfig;
-  private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
+  private eventHandlers: Map<string, ((data: unknown) => void)[]> = new Map();
   private connected = false;
   private connectionAttempts = 0;
 
@@ -99,23 +101,23 @@ export class RealtimeClient {
       this.logger.error(`Connection error (attempt ${this.connectionAttempts}): ${error.message}`);
     });
 
-    this.socket.on('execution:started', (data: any) => this.emit('execution:started', data));
-    this.socket.on('execution:progress', (data: any) => this.emit('execution:progress', data));
-    this.socket.on('execution:completed', (data: any) => this.emit('execution:completed', data));
-    this.socket.on('execution:failed', (data: any) => this.emit('execution:failed', data));
+    this.socket.on('execution:started', (data: unknown) => this.emit('execution:started', data));
+    this.socket.on('execution:progress', (data: unknown) => this.emit('execution:progress', data));
+    this.socket.on('execution:completed', (data: unknown) => this.emit('execution:completed', data));
+    this.socket.on('execution:failed', (data: unknown) => this.emit('execution:failed', data));
     
-    this.socket.on('test:started', (data: any) => this.emit('test:started', data));
-    this.socket.on('test:passed', (data: any) => this.emit('test:passed', data));
-    this.socket.on('test:failed', (data: any) => this.emit('test:failed', data));
-    this.socket.on('test:skipped', (data: any) => this.emit('test:skipped', data));
+    this.socket.on('test:started', (data: unknown) => this.emit('test:started', data));
+    this.socket.on('test:passed', (data: unknown) => this.emit('test:passed', data));
+    this.socket.on('test:failed', (data: unknown) => this.emit('test:failed', data));
+    this.socket.on('test:skipped', (data: unknown) => this.emit('test:skipped', data));
     
-    this.socket.on('worker:status', (data: any) => this.emit('worker:status', data));
-    this.socket.on('queue:status', (data: any) => this.emit('queue:status', data));
-    this.socket.on('logs:stream', (data: any) => this.emit('logs:stream', data));
-    this.socket.on('screenshot:captured', (data: any) => this.emit('screenshot:captured', data));
+    this.socket.on('worker:status', (data: unknown) => this.emit('worker:status', data));
+    this.socket.on('queue:status', (data: unknown) => this.emit('queue:status', data));
+    this.socket.on('logs:stream', (data: unknown) => this.emit('logs:stream', data));
+    this.socket.on('screenshot:captured', (data: unknown) => this.emit('screenshot:captured', data));
   }
 
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     const handlers = this.eventHandlers.get(event);
     if (handlers) {
       handlers.forEach(handler => {
@@ -128,14 +130,14 @@ export class RealtimeClient {
     }
   }
 
-  on(event: string, handler: (data: any) => void): void {
+  on(event: string, handler: (data: unknown) => void): void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, []);
     }
     this.eventHandlers.get(event)!.push(handler);
   }
 
-  off(event: string, handler?: (data: any) => void): void {
+  off(event: string, handler?: (data: unknown) => void): void {
     if (!handler) {
       this.eventHandlers.delete(event);
       return;
@@ -200,51 +202,57 @@ export class ExecutionMonitor {
     await this.client.connect();
     this.client.subscribeToExecution(executionId);
     
-    this.client.on('execution:progress', (data) => {
+    this.client.on('execution:progress', (data: unknown) => {
       if (this.progressCallback) {
-        this.progressCallback(data.payload);
+        this.progressCallback((data as { payload: ExecutionProgress }).payload);
       }
     });
 
-    this.client.on('test:started', (data) => {
+    this.client.on('test:started', (data: unknown) => {
       if (this.testCallback) {
+        const d = data as { testId: string; payload: { testName: string }; timestamp: string };
         this.testCallback({
-          testId: data.testId,
-          testName: data.payload.testName,
+          testId: d.testId,
+          testName: d.payload.testName,
           status: 'started',
-          timestamp: data.timestamp,
+          timestamp: d.timestamp,
         });
       }
     });
 
-    this.client.on('test:passed', (data) => {
+    this.client.on('test:passed', (data: unknown) => {
       if (this.testCallback) {
+        const d = data as { testId: string; payload: { duration: number }; timestamp: string };
         this.testCallback({
-          testId: data.testId,
+          testId: d.testId,
           testName: '',
           status: 'passed',
-          duration: data.payload.duration,
-          timestamp: data.timestamp,
+          duration: d.payload.duration,
+          timestamp: d.timestamp,
         });
       }
     });
 
-    this.client.on('test:failed', (data) => {
+    this.client.on('test:failed', (data: unknown) => {
       if (this.testCallback) {
+        const d = data as { testId: string; payload: { duration: number; error: string }; timestamp: string };
         this.testCallback({
-          testId: data.testId,
+          testId: d.testId,
           testName: '',
           status: 'failed',
-          duration: data.payload.duration,
-          error: data.payload.error,
-          timestamp: data.timestamp,
+          duration: d.payload.duration,
+          error: d.payload.error,
+          timestamp: d.timestamp,
         });
       }
     });
 
-    this.client.on('logs:stream', (data) => {
-      if (this.logCallback && data.testId) {
-        this.logCallback(data.testId, data.payload.logs);
+    this.client.on('logs:stream', (data: unknown) => {
+      if (this.logCallback) {
+        const d = data as { testId: string; payload: { logs: string } };
+        if (d.testId) {
+          this.logCallback(d.testId, d.payload.logs);
+        }
       }
     });
 

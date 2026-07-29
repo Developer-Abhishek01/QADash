@@ -75,7 +75,7 @@ export default function WorkerManagementPage() {
     refetchHealth();
   };
 
-  const handleQueueAction = async (name: string, action: string, apiCall: () => Promise<any>) => {
+  const handleQueueAction = async (name: string, action: string, apiCall: () => Promise<unknown>) => {
     try {
       await apiCall();
       setSnackbar({ message: `${name} ${action}`, severity: 'success' });

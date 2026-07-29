@@ -30,6 +30,18 @@ import { OrchestrationJob, ServiceHealth, QueueStats, EventMessage } from '@/com
 import { useSocket } from '@/hooks/useSocket';
 import { orchestrationApi } from '@/lib/api/client';
 
+interface ExecutionUpdatePayload {
+  executionId: string;
+  status: string;
+  progress?: number;
+}
+
+interface JobUpdatePayload {
+  jobId: string;
+  status: string;
+  progress?: number;
+}
+
 export default function OrchestrationPage() {
   const [jobs, setJobs] = useState<OrchestrationJob[]>([]);
   const [services, setServices] = useState<ServiceHealth[]>([]);
@@ -45,17 +57,19 @@ export default function OrchestrationPage() {
   const [scaleService, setScaleService] = useState('');
 
   const { isConnected } = useSocket({
-    onExecutionUpdate: useCallback((data: any) => {
-      setJobs((prev) => prev.map((j) =>
-        j.id === data.executionId ? { ...j, status: data.status, progress: data.progress ?? j.progress } : j
+    onExecutionUpdate: useCallback((data: unknown) => {
+      const d = data as ExecutionUpdatePayload;
+      setJobs((prev) => prev.map((j): OrchestrationJob =>
+        j.id === d.executionId ? { ...j, status: d.status as OrchestrationJob['status'], progress: d.progress ?? j.progress } : j
       ));
     }, []),
-    onJobUpdate: useCallback((data: any) => {
-      setJobs((prev) => prev.map((j) =>
-        j.id === data.jobId ? { ...j, status: data.status, progress: data.progress ?? j.progress } : j
+    onJobUpdate: useCallback((data: unknown) => {
+      const d = data as JobUpdatePayload;
+      setJobs((prev) => prev.map((j): OrchestrationJob =>
+        j.id === d.jobId ? { ...j, status: d.status as OrchestrationJob['status'], progress: d.progress ?? j.progress } : j
       ));
     }, []),
-    onAlert: useCallback((data: any) => {
+    onAlert: useCallback((data: unknown) => {
       setEvents((prev) => [{
         id: `evt-${Date.now()}`,
         channel: 'alerts',
@@ -68,7 +82,7 @@ export default function OrchestrationPage() {
   const fetchServices = useCallback(async () => {
     setLoading((l) => ({ ...l, services: true }));
     try {
-      const data = await orchestrationApi.getServiceHealth();
+      const data = await orchestrationApi.getServiceHealth() as ServiceHealth[];
       setServices(data || []);
     } catch {
       console.warn('Service health not available');
@@ -80,7 +94,7 @@ export default function OrchestrationPage() {
   const fetchQueueStats = useCallback(async () => {
     setLoading((l) => ({ ...l, stats: true }));
     try {
-      const data = await orchestrationApi.getQueueStats();
+      const data = await orchestrationApi.getQueueStats() as QueueStats;
       setStats(data);
     } catch {
       console.warn('Queue stats not available');
@@ -92,7 +106,7 @@ export default function OrchestrationPage() {
   const fetchEvents = useCallback(async () => {
     setLoading((l) => ({ ...l, events: true }));
     try {
-      const data = await orchestrationApi.getEvents(50);
+      const data = await orchestrationApi.getEvents(50) as EventMessage[];
       setEvents(data || []);
     } catch {
       console.warn('Events not available');
@@ -109,9 +123,9 @@ export default function OrchestrationPage() {
       if (filters.priority) params.priority = filters.priority;
       if (filters.status) params.status = filters.status;
 
-      const data = await orchestrationApi.listJobs?.(params);
+      const data = await orchestrationApi.listJobs?.(params) as OrchestrationJob[] | { data: OrchestrationJob[] };
       if (data) {
-        setJobs(Array.isArray(data) ? data : data.data || []);
+        setJobs(Array.isArray(data) ? data as OrchestrationJob[] : (data as { data: OrchestrationJob[] }).data || []);
       }
     } catch (err) {
       console.error('Failed to fetch jobs:', err);
@@ -133,8 +147,8 @@ export default function OrchestrationPage() {
   const handleSubmitJob = async (data: { type: string; priority: string; callback?: string }) => {
     const newJob: OrchestrationJob = {
       id: `job-${Date.now()}`,
-      type: data.type as any,
-      priority: data.priority as any,
+      type: data.type as OrchestrationJob['type'],
+      priority: data.priority as OrchestrationJob['priority'],
       status: 'queued',
       progress: 0,
       createdAt: new Date().toISOString(),
@@ -146,7 +160,7 @@ export default function OrchestrationPage() {
         priority: data.priority,
         payload: {},
         callback: data.callback,
-      });
+      }) as { jobId: string };
       newJob.id = result.jobId || newJob.id;
     } catch {
       console.warn('Job submission to API failed — using local');
@@ -158,8 +172,8 @@ export default function OrchestrationPage() {
   const handleSubmitBatch = async (batchJobs: { type: string; priority: string }[]) => {
     const newJobs: OrchestrationJob[] = batchJobs.map((bj) => ({
       id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      type: bj.type as any,
-      priority: bj.priority as any,
+      type: bj.type as OrchestrationJob['type'],
+      priority: bj.priority as OrchestrationJob['priority'],
       status: 'queued' as const,
       progress: 0,
       createdAt: new Date().toISOString(),
@@ -179,7 +193,17 @@ export default function OrchestrationPage() {
     setJobs([...newJobs, ...jobs]);
   };
 
-  const handleOrchestrateExecution = async (data: any) => {
+  const handleOrchestrateExecution = async (data: {
+    tests: boolean;
+    security: boolean;
+    performance: boolean;
+    accessibility: boolean;
+    aiAnalysis: boolean;
+    priority: string;
+    parallel: boolean;
+    maxRetries: number;
+    timeout: number;
+  }) => {
     const executionId = `exec-${Date.now()}`;
     try {
       await orchestrationApi.orchestrateExecution(executionId, data);
@@ -196,8 +220,8 @@ export default function OrchestrationPage() {
 
     const newJobs: OrchestrationJob[] = typeLabels.map((type, i) => ({
       id: `${executionId}-${type}`,
-      type: type as any,
-      priority: data.priority as any,
+      type: type as OrchestrationJob['type'],
+      priority: data.priority as OrchestrationJob['priority'],
       status: 'queued',
       progress: 0,
       createdAt: new Date().toISOString(),

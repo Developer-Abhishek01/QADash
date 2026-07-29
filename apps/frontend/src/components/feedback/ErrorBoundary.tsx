@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: Record<string, unknown>) {
     console.error('ErrorBoundary caught:', error, errorInfo);
   }
 
@@ -86,7 +86,7 @@ export class AsyncErrorBoundary extends Component<Props & { children: (error: Er
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: Record<string, unknown>) {
     console.error('AsyncErrorBoundary caught:', error, errorInfo);
   }
 

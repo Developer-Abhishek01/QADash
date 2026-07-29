@@ -1,8 +1,10 @@
+import type { Pool } from 'pg';
+
 import { DatabaseClient, DatabaseConfig, QueryResult, Transaction, FieldInfo } from './connection-manager';
 import { Logger } from '../utils/logger';
 
 export class PostgresClient extends DatabaseClient {
-  private pool: any = null;
+  private pool: Pool | null = null;
 
   constructor(config: DatabaseConfig, logger?: Logger) {
     super(config, logger);
@@ -43,12 +45,12 @@ export class PostgresClient extends DatabaseClient {
     const startTime = Date.now();
     
     try {
-      const result = await this.pool.query(sql, params);
+      const result = await this.pool!.query(sql, params);
       
       return {
         rows: result.rows as T[],
         rowCount: result.rowCount || 0,
-        fields: result.fields?.map((f: any) => ({
+        fields: result.fields?.map((f: { name: string; dataTypeID: number; notNull?: boolean }) => ({
           name: f.name,
           dataType: f.dataTypeID.toString(),
           nullable: !f.notNull,
@@ -67,7 +69,7 @@ export class PostgresClient extends DatabaseClient {
   }
 
   async beginTransaction(): Promise<Transaction> {
-    const client = await this.pool.connect();
+    const client = await this.pool!.connect();
     
     try {
       await client.query('BEGIN');
@@ -92,7 +94,7 @@ export class PostgresClient extends DatabaseClient {
     const result = await this.query(
       "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema')"
     );
-    return result.rows.map((r: any) => r.schema_name);
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => r.schema_name as string);
   }
 
   async getTables(): Promise<string[]> {
@@ -101,7 +103,7 @@ export class PostgresClient extends DatabaseClient {
       FROM information_schema.tables 
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
     `);
-    return result.rows.map((r: any) => r.table_name);
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => r.table_name as string);
   }
 
   async getColumns(table: string): Promise<FieldInfo[]> {
@@ -111,9 +113,9 @@ export class PostgresClient extends DatabaseClient {
        WHERE table_name = $1`,
       [table]
     );
-    return result.rows.map((r: any) => ({
-      name: r.column_name,
-      dataType: r.data_type,
+    return (result.rows as Record<string, unknown>[]).map((r: Record<string, unknown>) => ({
+      name: r.column_name as string,
+      dataType: r.data_type as string,
       nullable: r.is_nullable === 'YES',
     }));
   }

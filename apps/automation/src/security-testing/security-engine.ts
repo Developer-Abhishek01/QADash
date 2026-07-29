@@ -1,6 +1,6 @@
 import { Page } from '@playwright/test';
 
-import { Vulnerability, SecurityScanResult, ScanSummary, SecurityConfig } from './types';
+import { Vulnerability, SecurityScanResult, ScanSummary, SecurityConfig, VulnerabilityCategory, DependencyVulnerability } from './types';
 
 export class SecurityEngine {
   private page: Page;
@@ -125,16 +125,19 @@ export class SecurityEngine {
     } catch (e) { return { scanId, target, startTime, endTime: Date.now(), duration: 0, vulnerabilities: [], summary: { critical: 0, high: 0, medium: 0, low: 0, info: 0, total: 0, riskScore: 0 }, spiderUrls: 0, alertsCount: 0 }; }
   }
 
-  private parseZAPAlerts(alerts: any): Vulnerability[] {
+  private parseZAPAlerts(alerts: Record<string, unknown>): Vulnerability[] {
     const severityMap: Record<string, string> = { HIGH: 'high', MEDIUM: 'medium', LOW: 'low' };
-    return (alerts?.alerts || []).map((a: any) => ({ id: `zap_${Date.now()}`, name: a.name || '', description: a.description || '', category: (/sql/i.test(a.name || '') ? 'sql_injection' : /xss/i.test(a.name || '') ? 'xss' : /header/i.test(a.name || '') ? 'headers' : 'other') as any, severity: severityMap[a.risk] || 'medium', confidence: severityMap[a.confidence] || 'medium', url: a.url || '', parameter: a.param, evidence: a.evidence || '', solution: a.solution || '', cwe: a.cweid, foundAt: Date.now() }));
+    const confidenceMap: Record<string, Vulnerability['confidence']> = { HIGH: 'high', MEDIUM: 'medium', LOW: 'low' };
+    return ((alerts?.alerts as Record<string, unknown>[]) || []).map((a: Record<string, unknown>) => ({ id: `zap_${Date.now()}`, name: (a.name as string) || '', description: (a.description as string) || '', category: (/sql/i.test(a.name as string || '') ? 'sql_injection' : /xss/i.test(a.name as string || '') ? 'xss' : /header/i.test(a.name as string || '') ? 'headers' : 'other') as unknown as VulnerabilityCategory, severity: (severityMap[a.risk as string] as Vulnerability['severity']) || 'medium', confidence: confidenceMap[a.confidence as string] || 'medium', url: (a.url as string) || '', parameter: a.param as string, evidence: (a.evidence as string) || '', solution: (a.solution as string) || '', cwe: a.cweid as string, foundAt: Date.now() }));
   }
 
-  async scanDependencies(pkg: any): Promise<any[]> {
-    const vulns: any[] = [];
-    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  async scanDependencies(pkg: Record<string, unknown>): Promise<DependencyVulnerability[]> {
+    const vulns: DependencyVulnerability[] = [];
+    const pkgDeps = pkg.dependencies as Record<string, string> | undefined;
+    const pkgDevDeps = pkg.devDependencies as Record<string, string> | undefined;
+    const deps = { ...pkgDeps, ...pkgDevDeps };
     for (const [name, version] of Object.entries(deps)) {
-      if (/lodash|axios|express|react|vue/.test(name as string) && version === '*') {
+      if (/lodash|axios|express|react|vue/.test(name) && version === '*') {
         vulns.push({ library: name, version: 'latest', severity: 'medium', vulnerabilities: [{ id: 'CVE-UNKNOWN', title: 'Unknown version', severity: 'medium', description: 'Using wildcard version', recommendation: 'Pin specific version' }] });
       }
     }

@@ -239,7 +239,7 @@ export class AuthService {
     return ROLE_PERMISSIONS[role] || [];
   }
 
-  private async generateTokens(user: any) {
+  private async generateTokens(user: { id: string; email: string; role: string }) {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -265,8 +265,8 @@ export class AuthService {
     });
   }
 
-  private sanitizeUser(user: any) {
+  private sanitizeUser(user: Record<string, unknown>) {
     const { password, ...result } = user;
-    return { ...result, permissions: this.getPermissions(user.role) };
+    return { ...result, permissions: this.getPermissions(user.role as UserRole) };
   }
 }

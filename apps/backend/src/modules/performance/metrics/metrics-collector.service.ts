@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { MetricType } from '@prisma/client';
 
 import { PrismaService } from '../../../common/prisma.service';
 
@@ -28,7 +29,7 @@ export class MetricsCollectorService {
         data: {
           testId,
           timestamp: data.timestamp || new Date(),
-          metricType: data.metricType as any,
+          metricType: data.metricType as MetricType,
           metricName: data.metricName,
           value: data.value,
           tags: data.tags || {},
@@ -53,7 +54,7 @@ export class MetricsCollectorService {
       const data = metrics.map((m) => ({
         testId,
         timestamp: m.timestamp || new Date(),
-        metricType: m.metricType as any,
+        metricType: m.metricType as MetricType,
         metricName: m.metricName,
         value: m.value,
         tags: m.tags || {},

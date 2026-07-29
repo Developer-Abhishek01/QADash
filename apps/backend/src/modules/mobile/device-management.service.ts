@@ -32,7 +32,7 @@ export interface DeviceReservation {
 export class DeviceManagementService {
   private devices: Map<string, Device> = new Map();
   private reservations: Map<string, DeviceReservation> = new Map();
-  private readonly logger = new LoggerService({} as any);
+  private readonly logger = new LoggerService();
   private appiumUrl: string;
 
   constructor() {
@@ -46,19 +46,19 @@ export class DeviceManagementService {
         signal: AbortSignal.timeout(5000),
       });
       if (!response.ok) return;
-      const sessions: { value?: any[] } = await response.json();
+      const sessions: { value?: unknown[] } = await response.json();
       if (sessions?.value) {
-        for (const session of sessions.value) {
+        for (const session of sessions.value as { capabilities?: Record<string, unknown>; id?: string }[]) {
           const caps = session.capabilities || {};
-          this.devices.set(session.id, {
-            id: session.id,
-            name: caps.deviceName || caps.deviceUDID || `Device-${session.id}`,
-            platform: (caps.platformName || '').toLowerCase() as 'android' | 'ios',
-            type: caps.isEmulator ? 'emulator' : 'real',
-            osVersion: caps.platformVersion || '',
-            manufacturer: caps.deviceManufacturer,
-            model: caps.deviceModel || caps.deviceName,
-            udid: caps.deviceUDID,
+          this.devices.set(session.id as string, {
+            id: session.id as string,
+            name: caps['deviceName'] as string || caps['deviceUDID'] as string || `Device-${session.id as string}`,
+            platform: ((caps['platformName'] as string) || '').toLowerCase() as 'android' | 'ios',
+            type: caps['isEmulator'] ? 'emulator' : 'real',
+            osVersion: (caps['platformVersion'] as string) || '',
+            manufacturer: caps['deviceManufacturer'] as string,
+            model: (caps['deviceModel'] as string) || (caps['deviceName'] as string),
+            udid: caps['deviceUDID'] as string,
             host: new URL(this.appiumUrl).hostname,
             port: parseInt(new URL(this.appiumUrl).port, 10) || 4723,
             status: 'available',

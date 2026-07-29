@@ -97,7 +97,7 @@ export class SchemaValidator {
     }
 
     const actualType = Array.isArray(value) ? 'array' : typeof value;
-    const schemaType = schema.type as any;
+    const schemaType = schema.type;
     const isSpecializedType = ['date', 'email', 'url', 'phone', 'uuid'].includes(schemaType);
 
     if (actualType !== schemaType && 

@@ -15,7 +15,7 @@ export class SettingsController {
   getSettings() { return this.settingsService.getSettings(); }
 
   @Put()
-  updateSettings(@Body() data: any) { return this.settingsService.updateSettings(data); }
+  updateSettings(@Body() data: Record<string, unknown>) { return this.settingsService.updateSettings(data); }
 
   @Get('team')
   getTeam() { return this.settingsService.getTeam(); }
@@ -27,5 +27,5 @@ export class SettingsController {
   getIntegrations() { return this.settingsService.getIntegrations(); }
 
   @Put('integrations')
-  updateIntegrations(@Body() data: any) { return this.settingsService.updateIntegrations(data); }
+  updateIntegrations(@Body() data: Record<string, unknown>) { return this.settingsService.updateIntegrations(data); }
 }
