@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { useProjects } from '@/hooks/useProjects';
-import { bugsApi } from '@/lib/api/client';
+import { bugsApi, getProtectedFileUrl } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthContext';
 
 interface Bug {
@@ -320,7 +320,7 @@ export default function BugsPage() {
               {selectedBug.screenshots.length > 0 && (
                 <Grid item xs={12}><Typography variant="subtitle2">Screenshots ({selectedBug.screenshots.length})</Typography><Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>{selectedBug.screenshots.map((s, i) => <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img key={i} src={s} alt={`screenshot-${i}`} style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 4 }} />
+              <img key={i} src={s.startsWith('/') ? getProtectedFileUrl(s) : s} alt={`screenshot-${i}`} style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 4 }} />
             </>)}</Box></Grid>
               )}
               {selectedBug.logs && <Grid item xs={12}><Typography variant="subtitle2">Logs</Typography><pre style={{ background: '#f5f5f5', padding: 8, borderRadius: 4, overflow: 'auto', maxHeight: 200 }}>{selectedBug.logs}</pre></Grid>}

@@ -332,3 +332,18 @@ export const workersApi = {
 };
 
 export default apiClient;
+
+/**
+ * Builds an authenticated URL for files served under /uploads.
+ * The /uploads route requires JWT verification; since <img>/<video> tags
+ * cannot send an Authorization header, the token is appended as a query param.
+ * External (http/https) paths are returned unchanged.
+ */
+export function getProtectedFileUrl(filePath: string): string {
+  if (/^https?:\/\//i.test(filePath)) return filePath;
+  const base = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
+  const p = filePath.startsWith('/') ? filePath : `/${filePath}`;
+  const sep = p.includes('?') ? '&' : '?';
+  return `${base}${p}${sep}token=${encodeURIComponent(token || '')}`;
+}

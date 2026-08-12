@@ -19,6 +19,8 @@ import {
 } from '@mui/material';
 import { memo, useState, useRef, useEffect, useMemo } from 'react';
 
+import { getProtectedFileUrl } from '@/lib/api/client';
+
 interface ActionEvent {
   type: 'click' | 'type' | 'navigate' | 'assert' | 'select' | 'wait' | 'screenshot' | 'scroll' | 'hover';
   selector?: string;
@@ -138,7 +140,7 @@ const LivePreviewPanel = memo<Props>(function LivePreviewPanel({ livePreview, ac
     ? livePreview.screenshot.startsWith('/9j/')
       ? `data:image/jpeg;base64,${livePreview.screenshot}`
       : livePreview.screenshot.startsWith('/')
-        ? `http://localhost:3001${livePreview.screenshot}`
+        ? getProtectedFileUrl(livePreview.screenshot)
         : `data:image/png;base64,${livePreview.screenshot}`
     : null, [livePreview?.screenshot]);
 
