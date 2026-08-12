@@ -62,7 +62,7 @@ import { alpha } from '@mui/material/styles';
 import { useSnackbar } from 'notistack';
 import { useState, useEffect, useRef, useMemo } from 'react';
 
-import { executionsApi, testsApi, projectsApi } from '@/lib/api/client';
+import { executionsApi, testsApi, projectsApi, getProtectedFileUrl } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthContext';
 import socketClient from '@/lib/socket';
 
@@ -545,12 +545,12 @@ export default function ExecutionsPage() {
           if (m.screenshot) {
             screenshots.push({
               id: run.id,
-              url: m.screenshot.startsWith('http') ? m.screenshot : `http://localhost:3001${m.screenshot}`,
+              url: m.screenshot.startsWith('http') ? m.screenshot : getProtectedFileUrl(m.screenshot),
               name: run.test?.name || 'Test Step Screenshot',
             });
           }
           if (m.video) {
-            videoUrl = m.video.startsWith('http') ? m.video : `http://localhost:3001${m.video}`;
+            videoUrl = m.video.startsWith('http') ? m.video : getProtectedFileUrl(m.video);
           }
         }
       });
