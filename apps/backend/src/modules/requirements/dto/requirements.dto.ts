@@ -41,6 +41,11 @@ export class GenerateTestsDto {
   @IsOptional()
   @IsString()
   documentId?: string;
+
+  @ApiPropertyOptional({ description: 'ID of the user persisting generated test cases (set server-side from JWT)' })
+  @IsOptional()
+  @IsString()
+  userId?: string;
 }
 
 export class RequirementAnalysisDto {

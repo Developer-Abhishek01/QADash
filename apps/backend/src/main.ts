@@ -19,6 +19,7 @@ dotenv.config();
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { OrchestrationService } from './modules/orchestration/orchestration.service';
 
 async function bootstrap() {
   initConfig();
@@ -160,6 +161,8 @@ async function bootstrap() {
     });
   });
   
+  app.enableShutdownHooks();
+
   app.enableCors({
     origin: isProduction ? process.env.CORS_ORIGIN || 'http://localhost:3000' : true,
     credentials: true,
@@ -240,16 +243,19 @@ async function bootstrap() {
   logger.info(`🚀 QA Dashboard API running on: http://127.0.0.1:${port}`);
   logger.info(`📚 Swagger docs available at: http://127.0.0.1:${port}/api/docs`);
   logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  app.get(OrchestrationService).registerSelf(port);
 }
 
-// Prevent crash from unhandled promise rejections & exceptions
+// Log unhandled errors instead of killing the whole API
 process.on('unhandledRejection', (reason) => {
-  logger.error(`Unhandled Rejection: ${reason instanceof Error ? reason.message : reason}`);
-  process.exit(1);
+  logger.error(`Unhandled Rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
 });
 process.on('uncaughtException', (err) => {
   logger.error(`Uncaught Exception: ${err.message}`, err.stack);
-  process.exit(1);
 });
 
-bootstrap();
+bootstrap().catch((err) => {
+  logger.error(`Bootstrap failed: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined);
+  process.exit(1);
+});

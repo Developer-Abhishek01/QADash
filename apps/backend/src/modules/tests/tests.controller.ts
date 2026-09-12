@@ -15,7 +15,7 @@ import { UpdateTestDto } from './dto/update-test.dto';
 @Controller('tests')
 export class TestsController {
   private readonly logger = new Logger(TestsController.name);
-  private readonly AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8002';
+  private readonly AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:3002';
 
   constructor(
     private readonly testsService: TestsService,

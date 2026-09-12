@@ -18,6 +18,8 @@ import {
   Alert,
   InputAdornment,
   IconButton,
+  CircularProgress,
+  LinearProgress,
 } from '@mui/material';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -69,7 +71,8 @@ export default function LoginPage() {
         p: 2,
       }}
     >
-      <Card sx={{ maxWidth: 440, width: '100%' }}>
+      <Card sx={{ maxWidth: 440, width: '100%', position: 'relative', overflow: 'hidden' }}>
+        {isLoading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ textAlign: 'center', mb: 4 }}>
             <Typography variant="h4" component="h1" fontWeight={700} gutterBottom>
@@ -129,9 +132,16 @@ export default function LoginPage() {
               fullWidth
               size="large"
               disabled={isLoading}
-              sx={{ mt: 3, mb: 2 }}
+              sx={{ mt: 3, mb: 2, py: 1.2 }}
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <CircularProgress size={20} color="inherit" />
+                  Signing in...
+                </Box>
+              ) : (
+                'Sign In'
+              )}
             </Button>
           </form>
 

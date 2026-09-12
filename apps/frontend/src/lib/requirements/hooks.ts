@@ -50,6 +50,14 @@ export function useRequirement(id: string) {
   });
 }
 
+export function useDocumentAnalysis(id: string | undefined) {
+  return useQuery({
+    queryKey: [...requirementsKeys.all, 'analysis', id],
+    queryFn: () => requirementsApi.getDocumentAnalysis(id as string),
+    enabled: !!id,
+  });
+}
+
 export function useDeleteRequirement() {
   const queryClient = useQueryClient();
   return useMutation({

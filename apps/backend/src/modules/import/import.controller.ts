@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import {
   Controller,
   Get,
@@ -16,6 +19,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { Response } from 'express';
+import { diskStorage } from 'multer';
+import { v4 as uuid } from 'uuid';
 
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { CreateImportDto, SaveMappingsDto, ProcessImportDto, ImportFilterDto } from './dto/import.dto';
@@ -33,7 +38,19 @@ export class ImportController {
   @Post('upload')
   @ApiOperation({ summary: 'Upload a file for import' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (_req, _file, cb) => {
+        const dir = path.join(process.cwd(), 'uploads');
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (_req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${Date.now()}-${uuid()}${ext}`);
+      },
+    }),
+  }))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Query('projectId') projectId: string,

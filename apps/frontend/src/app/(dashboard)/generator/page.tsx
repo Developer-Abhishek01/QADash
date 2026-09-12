@@ -35,8 +35,12 @@ export default function AIGeneratorPage() {
     setResult('');
     setError(null);
     try {
-      const res = await generatorApi.generate({ mode, prompt }) as { result?: string; code?: string };
-      setResult(res.result ?? res.code ?? JSON.stringify(res));
+      const res = await generatorApi.generate({ mode, prompt }) as { result?: string; code?: string; error?: string; testCases?: unknown[] };
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      setResult(res.result ?? res.code ?? (res.testCases?.length ? JSON.stringify(res.testCases, null, 2) : JSON.stringify(res, null, 2)));
     } catch {
       setError('Generation failed. Please try again.');
     }

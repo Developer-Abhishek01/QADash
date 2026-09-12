@@ -36,18 +36,21 @@ export class OrchestrationService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.initializeServiceRegistry();
     this.setupEventListeners();
   }
 
-  private async initializeServiceRegistry() {
-    await this.serviceRegistryService.registerService({
-      name: 'orchestration',
-      url: process.env.ORCHESTRATION_URL || 'http://localhost:3001',
-      capabilities: ['job-coordination', 'event-routing', 'health-monitoring'],
-      priority: 1,
-    });
-    this.logger.log('Orchestration service initialized');
+  async registerSelf(port: number): Promise<void> {
+    try {
+      await this.serviceRegistryService.registerService({
+        name: 'orchestration',
+        url: process.env.ORCHESTRATION_URL || `http://localhost:${port}/api/v1`,
+        capabilities: ['job-coordination', 'event-routing', 'health-monitoring'],
+        priority: 1,
+      });
+      this.logger.log(`Orchestration service registered at http://localhost:${port}/api/v1`);
+    } catch (error) {
+      this.logger.warn(`Failed to register orchestration service: ${error.message}`);
+    }
   }
 
   private setupEventListeners() {

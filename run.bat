@@ -109,13 +109,16 @@ if "%BYPASS_DOCKER%"=="1" (
 REM 4. Launch Services
 echo [3/4] Launching Services...
 
-REM Launch Backend (Build latest changes first, then start)
-echo Building Backend...
-start "QADash-Backend" cmd /k "cd apps\backend && echo Backend Log Window && npm run build && npm run start"
+REM AI Engine API key (must match apps\ai-engine\.env / default in src\main.py)
+set "AI_ENGINE_API_KEY=qadash-ai-dev-key"
 
-REM Launch Frontend (fixed port 3000)
+REM Launch Backend (Build latest changes first, then start with auto-restart watchdog)
+echo Building Backend...
+start "QADash-Backend" cmd /k "call scripts\start-backend.bat"
+
+REM Launch Frontend (fixed port 3000) - Production mode for maximum speed
 echo Starting Frontend...
-start "QADash-Frontend" cmd /k "cd apps\frontend && echo Frontend Log Window && npx next dev --port 3000"
+start "QADash-Frontend" cmd /k "cd apps\frontend && echo Frontend Log Window && npx next build && npx next start --port 3000"
 
 REM Launch AI Engine
 echo Starting AI Engine...

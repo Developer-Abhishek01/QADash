@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 
 import { ParseDocumentDto, GenerateTestsDto, RequirementsListDto } from './dto/requirements.dto';
 import { PrismaService } from '../../common/prisma.service';
+import { TestsService } from '../tests/tests.service';
 
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS_REGEX = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g;
@@ -99,6 +100,7 @@ export class RequirementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
+    private readonly testsService: TestsService,
   ) {}
 
   async uploadDocument(file: Express.Multer.File, documentType: string) {
@@ -227,8 +229,8 @@ export class RequirementsService {
         },
       });
 
-      const result: Record<string, unknown> = { id: saved.id, ...(data as Record<string, unknown>) };
-      return this._enhanceIfRequested(result, dto.document, docType, dto.enhance, sections);
+      if (dto.enhance) return { id: saved.id, ...enhancedData };
+      return { id: saved.id, ...(data as Record<string, unknown>) };
     } catch (error) {
       this.logger.warn(`AI Engine ${docType} parsing failed: ${error.message}`);
 
@@ -250,8 +252,8 @@ export class RequirementsService {
                 status: 'PARSED',
               },
             });
-            const result: Record<string, unknown> = { id: saved.id, ...(llmResult as Record<string, unknown>), llm_enhanced: true };
-            return this._enhanceIfRequested(result, dto.document, docType, dto.enhance, sections);
+            if (dto.enhance) return { id: saved.id, ...enhancedData, llm_enhanced: true };
+            return { id: saved.id, ...(llmResult as Record<string, unknown>), llm_enhanced: true };
           }
         } catch (llmErr) {
           this.logger.warn(`Direct LLM parsing failed: ${llmErr.message}`);
@@ -429,6 +431,42 @@ export class RequirementsService {
         result.persisted_doc_id = saved.id;
       } catch (dbErr) {
         this.logger.warn(`Failed to persist test cases to DB: ${dbErr.message}`);
+      }
+    }
+
+    // Persist generated test cases to the tests table so they appear in Test Cases and are runnable
+    if (result && result.test_cases && result.test_cases.length > 0 && dto.userId) {
+      try {
+        let created = 0;
+        for (const tc of result.test_cases as Record<string, unknown>[]) {
+          const steps = ((tc.test_steps || []) as string[]).filter(Boolean);
+          await this.testsService.create({
+            name: String(tc.test_scenario || tc.test_case_id || 'Generated Test Case'),
+            description: String(tc.expected_result || ''),
+            projectId: dto.projectId,
+            projectName: dto.projectId ? undefined : 'Requirements Generated Tests',
+            userId: dto.userId,
+            config: {
+              module: tc.module,
+              test_type: tc.test_type,
+              positive_negative: tc.positive_negative,
+              priority: tc.priority,
+              severity: tc.severity,
+              preconditions: tc.preconditions,
+              steps,
+              test_data: tc.test_data,
+              expected_result: tc.expected_result,
+              source: 'requirements-generation',
+            },
+            tags: ['requirements-generated', String(tc.module || 'general').toLowerCase().replace(/[^a-z0-9_-]+/g, '-')],
+            status: 'ACTIVE',
+          });
+          created++;
+        }
+        result.persisted_tests = created;
+        this.logger.log(`Persisted ${created} generated test cases to tests table`);
+      } catch (dbErr) {
+        this.logger.warn(`Failed to persist test cases to tests table: ${dbErr.message}`);
       }
     }
 

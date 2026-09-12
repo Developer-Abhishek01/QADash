@@ -8,7 +8,7 @@ import { EventHubService } from './services/event-hub.service';
 import { QueueService } from './services/queue.service';
 
 @ApiTags('Orchestration')
-@Controller('api/v1/orchestration')
+@Controller('orchestration')
 export class OrchestrationController {
   constructor(
     private readonly orchestrationService: OrchestrationService,

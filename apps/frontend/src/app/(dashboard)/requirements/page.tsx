@@ -3,16 +3,17 @@
 import {
   Box, Card, CardContent, Typography, Button, TextField, Chip, Paper, Alert,
   Grid, Table, TableBody, TableCell, TableHead, TableRow,
-  TablePagination,
+  TablePagination, Dialog, DialogTitle, DialogContent, DialogActions, IconButton,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
   FileText, Upload, Download, FileCode, Loader2,
   Sparkles, BookOpen, ListChecks, Beaker, Eye,
-  ChevronDown, ChevronRight, Copy,
+  ChevronDown, ChevronRight, Copy, X,
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
+import { requirementsApi } from '@/lib/requirements/api';
 import { useParseDocument, useUploadDocument, useGenerateTests } from '@/lib/requirements/hooks';
 
 interface Requirement {
@@ -69,6 +70,19 @@ interface GeneratedTests {
   message?: string;
 }
 
+interface DocumentAnalysis {
+  documentId: string;
+  summary: Record<string, unknown>;
+  roles: string[];
+  modules: string[];
+  functional_requirements: Array<Record<string, unknown>>;
+  business_rules: Array<Record<string, unknown>>;
+  validation_rules: Array<Record<string, unknown>>;
+  api_endpoints: Array<Record<string, unknown>>;
+  permissions: Array<Record<string, unknown>>;
+  workflows: Array<Record<string, unknown>>;
+}
+
 const NO_REQS_ERROR = 'No functional requirements found in parsed document. Try re-parsing with a different format or ensure the document contains requirement statements (e.g., "The system shall...").';
 
 
@@ -80,6 +94,10 @@ export default function RequirementsPage() {
   const [parsedResult, setParsedResult] = useState<ParsedResult | null>(null);
   const [generatedTests, setGeneratedTests] = useState<GeneratedTests | null>(null);
   const [selectedFramework, setSelectedFramework] = useState('playwright');
+  const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -169,6 +187,54 @@ export default function RequirementsPage() {
   const handleCopy = (text: string) => {
     navigator.clipboard?.writeText(text);
   };
+
+  const handleViewAnalysis = async () => {
+    if (!parsedResult?.id) return;
+    setAnalysisOpen(true);
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    try {
+      const res = await requirementsApi.getDocumentAnalysis(parsedResult.id) as DocumentAnalysis;
+      setAnalysis(res);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      setAnalysisError(e?.response?.data?.message || e?.message || 'Failed to load analysis. Make sure the AI Engine is running on port 3002.');
+      setAnalysis(null);
+      console.error('analysis error:', err);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const closeAnalysis = () => {
+    setAnalysisOpen(false);
+  };
+
+  const renderAnalysisSection = (title: string, items: Array<Record<string, unknown>>, accent: string) => (
+    <Box sx={{ mb: 3 }}>
+      <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '0.85rem', mb: 1 }}>
+        {title} <Box component="span" sx={{ color: accent }}>({items.length})</Box>
+      </Typography>
+      {items.length === 0 ? (
+        <Typography sx={{ color: '#94A3B8', fontSize: '0.75rem' }}>No {title.toLowerCase()} extracted.</Typography>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {items.map((item, i) => (
+            <Paper key={i} sx={{ p: 1.5, bgcolor: alpha('#F8FAFC', 0.8), borderRadius: 1.5, border: '1px solid', borderColor: alpha('#E2E8F0', 0.6) }}>
+              {Object.entries(item).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => (
+                <Box key={k} sx={{ mb: 0.5, display: 'flex', gap: 1.5 }}>
+                  <Typography sx={{ color: accent, fontWeight: 600, fontSize: '0.68rem', minWidth: 120, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}</Typography>
+                  <Typography sx={{ color: '#334155', fontSize: '0.72rem' }}>
+                    {Array.isArray(v) ? (v as unknown[]).join('; ') : String(v)}
+                  </Typography>
+                </Box>
+              ))}
+            </Paper>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
 
   const downloadExcel = async (tests: TestCase[], groupName?: string) => {
     const XLSX = await import('xlsx');
@@ -309,9 +375,16 @@ export default function RequirementsPage() {
                 </Box>
                 {parsedResult && (
                   <>
+                    {parsedResult.id && (
+                      <Button size="small" disableElevation startIcon={analysisLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={14} />}
+                        onClick={handleViewAnalysis}
+                        sx={{ ml: 'auto', borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', height: 26, px: 1.5, color: '#7C3AED', bgcolor: alpha('#7C3AED', 0.08), '&:hover': { bgcolor: alpha('#7C3AED', 0.15) } }}>
+                        AI Analysis
+                      </Button>
+                    )}
                     {parsedResult.file_url && (
                       <Button component="a" href={parsedResult.file_url} target="_blank" size="small" disableElevation startIcon={<Eye size={14} />}
-                        sx={{ ml: 'auto', borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', height: 26, px: 1.5, color: '#4F46E5', bgcolor: alpha('#4F46E5', 0.08), '&:hover': { bgcolor: alpha('#4F46E5', 0.15) } }}>
+                        sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', height: 26, px: 1.5, color: '#4F46E5', bgcolor: alpha('#4F46E5', 0.08), '&:hover': { bgcolor: alpha('#4F46E5', 0.15) } }}>
                         View File
                       </Button>
                     )}
@@ -558,6 +631,85 @@ export default function RequirementsPage() {
           Failed to generate test cases: {generateMutation.error?.message}
         </Alert>
       )}
+
+      <Dialog open={analysisOpen} onClose={closeAnalysis} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: '16px 24px' }}>
+          <Box sx={{ width: 34, height: 34, borderRadius: 1.5, bgcolor: alpha('#7C3AED', 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7C3AED' }}><Sparkles size={17} /></Box>
+          <Box>
+            <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '0.95rem' }}>Document AI Analysis</Typography>
+            <Typography sx={{ color: '#94A3B8', fontSize: '0.7rem', mt: 0.1 }}>Roles, modules, business rules, validation rules, API endpoints, permissions & workflows</Typography>
+          </Box>
+          <IconButton onClick={closeAnalysis} size="small" sx={{ ml: 'auto', color: '#94A3B8' }}><X size={18} /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ bgcolor: '#fff' }}>
+          {analysisLoading && (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, py: 8 }}>
+              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} color="#7C3AED" />
+              <Typography sx={{ color: '#64748B', fontWeight: 500, fontSize: '0.85rem' }}>Analyzing document...</Typography>
+            </Box>
+          )}
+          {!analysisLoading && analysisError && (
+            <Alert severity="error" sx={{ borderRadius: 2 }}>{analysisError}</Alert>
+          )}
+          {!analysisLoading && !analysisError && analysis && (
+            <Box>
+              <Grid container spacing={1.5} sx={{ mb: 3 }}>
+                {[
+                  { label: 'Roles', value: analysis.roles.length, accent: '#7C3AED' },
+                  { label: 'Modules', value: analysis.modules.length, accent: '#4F46E5' },
+                  { label: 'Functional Reqs', value: analysis.functional_requirements.length, accent: '#059669' },
+                  { label: 'Business Rules', value: analysis.business_rules.length, accent: '#D97706' },
+                  { label: 'Validation Rules', value: analysis.validation_rules.length, accent: '#DC2626' },
+                  { label: 'API Endpoints', value: analysis.api_endpoints.length, accent: '#0891B2' },
+                  { label: 'Permissions', value: analysis.permissions.length, accent: '#8B5CF6' },
+                  { label: 'Workflows', value: analysis.workflows.length, accent: '#0F766E' },
+                ].map((stat) => (
+                  <Grid item xs={3} key={stat.label}>
+                    <Paper sx={{ p: 1.5, textAlign: 'center', bgcolor: alpha(stat.accent, 0.05), borderRadius: 1.5 }}>
+                      <Typography sx={{ fontWeight: 700, color: stat.accent, fontSize: '1.05rem' }}>{stat.value}</Typography>
+                      <Typography sx={{ color: '#94A3B8', fontSize: '0.62rem', fontWeight: 500, mt: 0.25 }}>{stat.label}</Typography>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+
+              {analysis.roles.length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '0.85rem', mb: 1 }}>Roles</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    {analysis.roles.map((role, i) => (
+                      <Chip key={i} label={role} size="small" sx={{ borderRadius: 1, height: 24, fontSize: '0.68rem', bgcolor: alpha('#7C3AED', 0.06), color: '#6D28D9', border: '1px solid', borderColor: alpha('#7C3AED', 0.1) }} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {analysis.modules.length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '0.85rem', mb: 1 }}>Modules</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    {analysis.modules.map((mod, i) => (
+                      <Chip key={i} label={mod} size="small" sx={{ borderRadius: 1, height: 24, fontSize: '0.68rem', bgcolor: alpha('#4F46E5', 0.06), color: '#4F46E5', border: '1px solid', borderColor: alpha('#4F46E5', 0.12) }} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {renderAnalysisSection('Functional Requirements', analysis.functional_requirements, '#4F46E5')}
+              {renderAnalysisSection('Business Rules', analysis.business_rules, '#D97706')}
+              {renderAnalysisSection('Validation Rules', analysis.validation_rules, '#DC2626')}
+              {renderAnalysisSection('API Endpoints', analysis.api_endpoints, '#0891B2')}
+              {renderAnalysisSection('Permissions', analysis.permissions, '#8B5CF6')}
+              {renderAnalysisSection('Workflows', analysis.workflows, '#0F766E')}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: '12px 24px' }}>
+          <Button onClick={closeAnalysis} size="small" sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', color: '#64748B' }}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
     </Box>

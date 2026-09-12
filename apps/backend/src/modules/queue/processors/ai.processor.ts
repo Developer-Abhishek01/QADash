@@ -19,7 +19,7 @@ export class AiProcessor extends WorkerHost {
     private readonly configService: ConfigService,
   ) {
     super();
-    this.aiEngineUrl = this.configService.get<string>('AI_ENGINE_URL', 'http://localhost:8002');
+    this.aiEngineUrl = this.configService.get<string>('AI_ENGINE_URL', 'http://localhost:3002');
   }
 
   async process(job: Job<AiJobData>): Promise<unknown> {

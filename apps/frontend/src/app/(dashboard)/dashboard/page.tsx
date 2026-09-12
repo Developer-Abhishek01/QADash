@@ -84,6 +84,21 @@ interface FlakyTestData {
   flaky: string;
 }
 
+const formatDuration = (ms: number | null | undefined): string => {
+  if (!ms || ms <= 0) return '-';
+  if (ms < 1000) return `${ms}ms`;
+  const secs = ms / 1000;
+  if (secs < 60) return `${secs.toFixed(1)}s`;
+  const mins = Math.floor(secs / 60);
+  return `${mins}m ${Math.round(secs % 60)}s`;
+};
+
+const formatTime = (iso: string | null | undefined): string => {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '-' : d.toLocaleString();
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
@@ -103,25 +118,44 @@ export default function DashboardPage() {
     flakyTests: []
   });
 
+  const [hasRunning, setHasRunning] = useState(false);
+
   const fetchDashboardStats = async () => {
     try {
       const [executions, flaky] = await Promise.all([
         executionsApi.list(),
-        analyticsApi.getFlakyTests().catch(() => []),
+        analyticsApi.getFlakyTests().catch(() => null),
       ]);
-      const execList = Array.isArray(executions) ? executions as { status: string }[] : [];
-      const passed = execList.filter(e => e.status === 'passed').length;
-      const failed = execList.filter(e => e.status === 'failed').length;
+      const execList = Array.isArray(executions)
+        ? executions as { id?: string; name?: string; status?: string; duration?: number; startedAt?: string }[]
+        : [];
+      setHasRunning(execList.some(e => (e.status || '').toUpperCase() === 'RUNNING'));
+      const passed = execList.filter(e => (e.status || '').toUpperCase() === 'PASSED').length;
+      const failed = execList.filter(e => (e.status || '').toUpperCase() === 'FAILED').length;
       const total = execList.length;
-      const recent = execList.slice(0, 5);
-      
+      const recent = execList.slice(0, 5).map(e => ({
+        id: e.id || '',
+        name: e.name || 'Execution',
+        duration: formatDuration(e.duration),
+        time: formatTime(e.startedAt),
+        status: e.status || 'PENDING',
+      }));
+      const durations = execList.map(e => e.duration || 0);
+      const avgMs = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+      const flakyData = flaky as { flakyTests?: { name?: string; flakinessScore?: number }[] } | null;
+      const flakyList: FlakyTestData[] = (flakyData?.flakyTests || []).map(f => ({
+        name: f.name || 'Unknown test',
+        flaky: `${Math.max(0, Math.min(100, Math.round(f.flakinessScore ?? 0)))}%`,
+      }));
+
       setStats(prev => ({
         ...prev,
         totalExecutions: total,
         passRate: total > 0 ? ((passed / total) * 100).toFixed(1) + '%' : '0%',
         failedTests: failed,
-        recentExecutions: recent as RecentExecution[],
-        flakyTests: Array.isArray(flaky) ? flaky.slice(0, 3) : prev.flakyTests,
+        avgDuration: avgMs > 0 ? formatDuration(avgMs) : '0s',
+        recentExecutions: recent,
+        flakyTests: flakyList.length > 0 ? flakyList.slice(0, 3) : prev.flakyTests,
       }));
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
@@ -131,9 +165,12 @@ export default function DashboardPage() {
   useEffect(() => {
     setIsMounted(true);
     fetchDashboardStats();
-    const interval = setInterval(fetchDashboardStats, 10000); // Update every 10 seconds
-    return () => clearInterval(interval);
-  }, []);
+    if (hasRunning) {
+      const interval = setInterval(fetchDashboardStats, 10000); // Poll only while tests are running
+      return () => clearInterval(interval);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRunning]);
 
   if (!isMounted) return null;
 

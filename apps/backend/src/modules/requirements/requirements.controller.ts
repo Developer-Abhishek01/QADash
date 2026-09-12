@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, Query, Request, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
 
@@ -34,8 +34,8 @@ export class RequirementsController {
   }
 
   @Post('generate-tests')
-  generateTests(@Body() dto: GenerateTestsDto): Promise<Record<string, unknown>> {
-    return this.requirementsService.generateTests(dto);
+  generateTests(@Body() dto: GenerateTestsDto, @Request() req: { user: { id: string } }): Promise<Record<string, unknown>> {
+    return this.requirementsService.generateTests({ ...dto, userId: req.user.id });
   }
 
   @Get()

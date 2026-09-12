@@ -96,8 +96,10 @@ export class ServiceRegistryService {
 
   private async checkServiceHealth(config: ServiceConfig): Promise<void> {
     const start = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await fetch(`${config.url}/health`);
+      const response = await fetch(`${config.url}/health`, { signal: controller.signal });
       const latency = Date.now() - start;
 
       if (response.ok) {
@@ -108,6 +110,8 @@ export class ServiceRegistryService {
     } catch (error) {
       await this.updateServiceHealth(config.name, 'down', Date.now() - start);
       this.logger.error(`Service ${config.name} health check failed: ${error.message}`);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

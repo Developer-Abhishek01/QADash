@@ -14,6 +14,8 @@ export const requirementsApi = {
   },
   generateTests: (data: { requirements: unknown[]; framework?: string; documentId?: string }) =>
     apiClient.post<unknown>('requirements/generate-tests', data),
+  getDocumentAnalysis: (id: string) =>
+    apiClient.get<unknown>(`requirements/${id}/analysis`),
   list: (params?: Record<string, unknown>) =>
     apiClient.get<unknown>('requirements', params),
   get: (id: string) =>

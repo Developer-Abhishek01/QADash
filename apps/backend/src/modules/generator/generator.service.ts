@@ -1,11 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { IsIn, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
 import OpenAI from 'openai';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
-export interface GenerateDto {
-  projectName: string;
-  filesCount: number;
-  options: {
+export class GenerateDto {
+  @IsOptional()
+  @IsIn(['test', 'selector', 'assertion'])
+  mode?: 'test' | 'selector' | 'assertion';
+
+  @IsOptional()
+  @IsString()
+  prompt?: string;
+
+  @IsOptional()
+  @IsString()
+  projectName?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  filesCount?: number;
+
+  @IsOptional()
+  @IsObject()
+  options?: {
     positive: boolean;
     negative: boolean;
     edge: boolean;
@@ -13,6 +31,9 @@ export interface GenerateDto {
     browser: boolean;
     mobile: boolean;
   };
+
+  @IsOptional()
+  @IsString()
   customPrompt?: string;
 }
 
@@ -70,6 +91,10 @@ export class GeneratorService {
   }
 
   async generate(dto: GenerateDto) {
+    if (!dto.projectName && !dto.filesCount && !dto.options) {
+      return this.generateFromPrompt(dto.mode || 'test', dto.prompt || '');
+    }
+
     this.logger.log(`Generating test cases from dual AI for: ${dto.projectName}`);
 
     const count = Math.max(dto.filesCount || 5, 1);
@@ -101,6 +126,57 @@ export class GeneratorService {
       totalTestCases: finalTestCases.length,
       testCases: finalTestCases,
       sources: { groq: results1.length > 0, deepseek: results2.length > 0 },
+    };
+  }
+
+  private async generateFromPrompt(mode: string, prompt: string) {
+    this.logger.log(`Generating from prompt (mode: ${mode})`);
+
+    const systemPrompts: Record<string, string> = {
+      test: 'You are a senior QA engineer. Write clear, concise, production-quality test cases for the request. Format as a numbered list, one test case per item: Title, Preconditions, Steps, Expected Result.',
+      selector: 'You are a senior test automation engineer. Write the most robust, specific CSS selector (or Playwright locator) for the element described. Provide only the selector/locator and one line explaining why it is robust.',
+      assertion: 'You are a senior QA engineer. Write the exact Playwright assertion code to verify the described behavior. Provide only the code with a one-line comment.',
+    };
+    const systemPrompt = systemPrompts[mode] || systemPrompts.test;
+    const userPrompt = `${prompt}\n\nReturn ONLY valid JSON: {"result": "<your complete output>"}`;
+
+    const [result1, result2] = await Promise.all([
+      this.callAI(
+        process.env.OPENAI_API_KEY,
+        process.env.AI_BASE_URL || 'https://api.openai.com/v1',
+        process.env.AI_MODEL || 'gpt-4',
+        [{ role: 'system', content: systemPrompt } as ChatCompletionMessageParam, { role: 'user', content: userPrompt } as ChatCompletionMessageParam],
+        0.4,
+      ).catch(() => null),
+      this.callAIWithFallback(
+        process.env.AI2_API_KEY,
+        process.env.AI2_BASE_URL || 'https://openrouter.ai/api/v1',
+        systemPrompt,
+        userPrompt,
+        0.4,
+      ).catch(() => null),
+    ]);
+
+    const parsed1 = result1 && typeof result1 === 'object' ? result1 as Record<string, unknown> : null;
+    const parsed2 = result2 && typeof result2 === 'object' ? result2 as Record<string, unknown> : null;
+    const text = String(parsed1?.result ?? parsed2?.result ?? '').trim();
+
+    if (!text) {
+      this.logger.warn(`AI returned no output for prompt mode ${mode}`);
+      return {
+        aiGenerated: false,
+        mode,
+        result: null,
+        code: null,
+        error: 'AI generation failed. The AI provider returned no output. Please try again.',
+      };
+    }
+
+    return {
+      aiGenerated: true,
+      mode,
+      result: text,
+      code: mode === 'test' ? null : text,
     };
   }
 

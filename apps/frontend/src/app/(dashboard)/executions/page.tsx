@@ -68,6 +68,40 @@ import socketClient from '@/lib/socket';
 
 import LivePreviewPanel from './LivePreviewPanel';
 
+function parseStartedAt(startedAt: string): Date {
+  if (startedAt.includes('/')) {
+    const [datePart, timePart] = startedAt.split(', ');
+    if (!datePart || !timePart) return new Date(NaN);
+    const [day, month, year] = datePart.split('/').map(Number);
+    const [hour, min, sec] = timePart.split(':').map(Number);
+    return new Date(year, month - 1, day, hour, min, sec);
+  }
+  return new Date(startedAt);
+}
+
+function formatElapsed(startedAt: string, now: Date): string {
+  try {
+    if (!startedAt) return '-';
+    const start = parseStartedAt(startedAt);
+    if (isNaN(start.getTime())) return '-';
+    const diff = Math.floor((now.getTime() - start.getTime()) / 1000);
+    if (diff < 0) return '0s';
+    if (diff < 60) return `${diff}s`;
+    const mins = Math.floor(diff / 60);
+    const secs = diff % 60;
+    return `${mins}m ${secs}s`;
+  } catch { return '-'; }
+}
+
+function ElapsedTimer({ startedAt }: { startedAt: string }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <>{formatElapsed(startedAt, now)}</>;
+}
+
 interface KpiCard {
   label: string;
   value: number | string;
@@ -164,7 +198,6 @@ export default function ExecutionsPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
   const [newTest, setNewTest] = useState({ name: '', url: '', browser: 'chromium' });
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState('');
   const [livePreview, setLivePreview] = useState<{ screenshot: string; step: string; timestamp: number } | null>(null);
@@ -209,6 +242,7 @@ export default function ExecutionsPage() {
 
   const fetchExecutionsRef = useRef(fetchExecutions);
   fetchExecutionsRef.current = fetchExecutions;
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -218,8 +252,6 @@ export default function ExecutionsPage() {
       setProjects(list);
       if (list.length > 0) setProjectId(list[0].id);
     }).catch(() => {});
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => { clearInterval(timer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -245,30 +277,6 @@ export default function ExecutionsPage() {
     const interval = setInterval(() => fetchExecutionsRef.current(), 5000);
     return () => clearInterval(interval);
   }, [executions]);
-
-  const calculateElapsed = (startedAt: string) => {
-    try {
-      if (!startedAt) return '-';
-      let start: Date;
-      if (startedAt.includes('/')) {
-        const [datePart, timePart] = startedAt.split(', ');
-        if (!datePart || !timePart) return '-';
-        const [day, month, year] = datePart.split('/').map(Number);
-        const [hour, min, sec] = timePart.split(':').map(Number);
-        start = new Date(year, month - 1, day, hour, min, sec);
-      } else {
-        start = new Date(startedAt);
-      }
-      if (isNaN(start.getTime())) return '-';
-      const now = currentTime;
-      const diff = Math.floor((now.getTime() - start.getTime()) / 1000);
-      if (diff < 0) return '0s';
-      if (diff < 60) return `${diff}s`;
-      const mins = Math.floor(diff / 60);
-      const secs = diff % 60;
-      return `${mins}m ${secs}s`;
-    } catch { return '-'; }
-  };
 
   const kpiCards: KpiCard[] = useMemo(() => {
     const total = executions.length;
@@ -398,20 +406,32 @@ export default function ExecutionsPage() {
       const fullData = await executionsApi.get(row.id) as Execution;
       setSelectedExecution(fullData);
       if (fullData.status === 'RUNNING') {
-        const interval = setInterval(async () => {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = setInterval(async () => {
           try {
             const updated = await executionsApi.get(row.id) as Execution;
             setSelectedExecution(updated);
-            if (updated.status !== 'RUNNING') clearInterval(interval);
+            if (updated.status !== 'RUNNING' && pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
           } catch {}
         }, 3000);
-        setTimeout(() => clearInterval(interval), 300000);
       }
     } catch (error) {
       console.error('Failed to fetch execution details:', error);
       enqueueSnackbar('Failed to load execution details', { variant: 'error' });
     }
   };
+
+  useEffect(() => {
+    if (!detailOpen) {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    }
+  }, [detailOpen]);
 
   useEffect(() => {
     if (!detailOpen || !selectedExecution) { setLivePreview(null); setActionLogs([]); setConsoleLogs([]); setElementHighlights([]); return; }
@@ -918,7 +938,7 @@ export default function ExecutionsPage() {
                     <TableCell>{statusChip(row.status)}</TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
-                        {row.status === 'RUNNING' ? calculateElapsed(row.startedAt ?? '') : formatDuration(row.duration ?? 0)}
+                        {row.status === 'RUNNING' ? <ElapsedTimer startedAt={row.startedAt ?? ''} /> : formatDuration(row.duration ?? 0)}
                       </Typography>
                     </TableCell>
                     <TableCell>

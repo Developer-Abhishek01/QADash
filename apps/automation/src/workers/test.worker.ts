@@ -19,7 +19,7 @@ export class TestWorker extends Worker<TestJobData> {
   private prisma: PrismaClient;
 
   constructor(options: WorkerOptions) {
-    const queueName = process.env.AUTOMATION_QUEUE_NAME || 'automation-execution';
+    const queueName = process.env.AUTOMATION_QUEUE_NAME || 'execution';
     super(queueName, async (job: Job<TestJobData>) => {
       return this.processExecution(job);
     }, options);

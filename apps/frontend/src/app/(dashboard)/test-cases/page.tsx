@@ -47,7 +47,6 @@ import {
 import { useRouter } from 'next/navigation';
 import { useSnackbar } from 'notistack';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import * as XLSX from 'xlsx';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { testsApi, executionsApi, projectsApi, environmentsApi } from '@/lib/api/client';
@@ -329,12 +328,13 @@ export default function TestCasesPage() {
     });
   };
 
-  const parseFileToTestCases = (content: string | ArrayBuffer, fileName: string): ParsedTestCase[] => {
+  const parseFileToTestCases = async (content: string | ArrayBuffer, fileName: string): Promise<ParsedTestCase[]> => {
     const ext = fileName.split('.').pop()?.toLowerCase();
 
     // --- Excel (.xlsx, .xls) ---
     if (ext === 'xlsx' || ext === 'xls') {
       try {
+        const XLSX = await import('xlsx');
         const data = typeof content === 'string' ? new Uint8Array(content.split('').map(c => c.charCodeAt(0))) : new Uint8Array(content as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
@@ -542,11 +542,11 @@ export default function TestCasesPage() {
       const isBinary = ext === 'xlsx' || ext === 'xls';
 
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const content = e.target?.result;
         if (content) {
           setFileContent(content);
-          const testCases = parseFileToTestCases(content, file.name);
+          const testCases = await parseFileToTestCases(content, file.name);
           setParsedTestCases(testCases);
           setSelectedCaseIndices(testCases.map((_, idx) => idx));
           if (testCases.length === 0) {
@@ -747,7 +747,7 @@ export default function TestCasesPage() {
       let aiSteps: Record<string, unknown>[] = [];
 
       if (tc.code) {
-        const result = parseFileToTestCases(tc.code, `${tc.name}.js`);
+        const result = await parseFileToTestCases(tc.code, `${tc.name}.js`);
         if (result.length > 0) {
           aiSteps = result[0].steps;
         }

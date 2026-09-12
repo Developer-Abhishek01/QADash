@@ -8,21 +8,20 @@ export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getProjectStats(projectId: string) {
-    const [tests, executions, bugs] = await Promise.all([
+    const [tests, passedExecutions, totalExecutions, bugs, recentExecutions] = await Promise.all([
       this.prisma.test.count({ where: { projectId } }),
-      this.prisma.execution.findMany({ where: { projectId } }),
+      this.prisma.execution.count({ where: { projectId, status: 'PASSED' } }),
+      this.prisma.execution.count({ where: { projectId } }),
       this.prisma.bug.count({ where: { projectId, status: { not: 'CLOSED' } } }),
+      this.prisma.execution.findMany({ where: { projectId }, orderBy: { startedAt: 'desc' }, take: 10 }),
     ]);
-
-    const passedExecutions = executions.filter(e => e.status === 'PASSED').length;
-    const totalExecutions = executions.length;
 
     return {
       totalTests: tests,
       totalExecutions,
       passRate: totalExecutions ? Math.round((passedExecutions / totalExecutions) * 100) : 0,
       openBugs: bugs,
-      recentTrends: executions.slice(0, 10).map(e => ({ date: e.startedAt, status: e.status, passed: e.passedTests, failed: e.failedTests })),
+      recentTrends: recentExecutions.map(e => ({ date: e.startedAt, status: e.status, passed: e.passedTests, failed: e.failedTests })),
     };
   }
 

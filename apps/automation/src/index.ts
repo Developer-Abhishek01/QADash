@@ -18,6 +18,7 @@ async function bootstrap() {
       host: config.REDIS_HOST,
       port: parseInt(config.REDIS_PORT),
       password: config.REDIS_PASSWORD,
+      db: parseInt(process.env.REDIS_QUEUE_DB || process.env.REDIS_DB || '1'),
     },
   };
 
